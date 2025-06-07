@@ -1,0 +1,258 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Flashcard Website MVP Build Plan
+
+## Phase 1: Foundation Setup
+
+### Task 1.1: Create Basic HTML Structure
+**Start:** Empty project folder  
+**End:** Valid HTML file with proper document structure  
+**Test:** Open index.html in browser, verify no console errors, page displays "Flashcard App" title
+
+**Deliverable:**
+- Create `index.html` with DOCTYPE, html, head, and body tags
+- Add viewport meta tag for responsive design
+- Add page title "Flashcard App"
+- Include empty div with id="app-container"
+
+### Task 1.2: Create Folder Structure
+**Start:** index.html exists  
+**End:** Complete folder hierarchy in place  
+**Test:** Verify all folders exist and are empty (except index.html)
+
+**Deliverable:**
+- Create `css/` folder
+- Create `js/` folder  
+- Create `data/` folder
+- Verify folder structure matches architecture specification
+
+### Task 1.3: Link CSS File
+**Start:** Folder structure exists  
+**End:** CSS file is linked and loads without errors  
+**Test:** Add temporary CSS rule (body {background: red;}), verify it applies
+
+**Deliverable:**
+- Create empty `css/styles.css`
+- Add link tag to index.html head section
+- Add temporary background color rule to verify connection works
+
+### Task 1.4: Link JavaScript File
+**Start:** CSS file is linked  
+**End:** JavaScript file is linked and executes  
+**Test:** Add console.log("JS loaded") to script, verify message appears in browser console
+
+**Deliverable:**
+- Create `js/script.js` with console.log statement
+- Add script tag to index.html before closing body tag
+- Verify script executes on page load
+
+## Phase 2: Data Layer
+
+### Task 2.1: Create Questions Data Structure
+**Start:** js/script.js exists and loads  
+**End:** Questions data is defined and accessible  
+**Test:** Console.log the questions array, verify it contains expected structure
+
+**Deliverable:**
+- Create `data/questions.js` with array of 3 Q&A objects
+- Each object has `id`, `question`, and `answer` properties
+- Export questions array or make it globally accessible
+
+### Task 2.2: Load Questions Data
+**Start:** Questions data file exists  
+**End:** Questions data is loaded into main script  
+**Test:** Console.log questions from script.js, verify data is accessible
+
+**Deliverable:**
+- Link questions.js in index.html before script.js
+- Access questions array in script.js
+- Log first question to confirm data loading works
+
+### Task 2.3: Initialize Application State
+**Start:** Questions data loads successfully  
+**End:** Application state object is created and populated  
+**Test:** Console.log appState object, verify it contains currentCardIndex and questions
+
+**Deliverable:**
+- Create appState object in script.js
+- Set currentCardIndex to 0
+- Store questions array in appState
+- Add isFlipped: false property
+
+## Phase 3: Basic Card Display
+
+### Task 3.1: Create Card HTML Structure
+**Start:** Application state is initialized  
+**End:** Single card element exists in DOM  
+**Test:** Inspect element, verify card div with proper classes and structure exists
+
+**Deliverable:**
+- Add card container div to index.html with class="card-container"
+- Create card div with class="card"
+- Add front and back div elements inside card
+- Add placeholder text to verify structure
+
+### Task 3.2: Style Basic Card Layout
+**Start:** Card HTML structure exists  
+**End:** Card displays as centered box with basic styling  
+**Test:** Card appears as visible rectangle in center of page
+
+**Deliverable:**
+- Remove red background from earlier test
+- Add basic card styles: width, height, border, centering
+- Style card-container for center alignment
+- Add basic typography for card content
+
+### Task 3.3: Display First Question
+**Start:** Card has basic styling  
+**End:** First question from data appears on card front  
+**Test:** Card shows actual question text from questions array
+
+**Deliverable:**
+- Create renderCard() function in script.js
+- Function gets current question from appState
+- Function updates card front text with question
+- Call renderCard() on page load
+
+### Task 3.4: Display Answer on Card Back
+**Start:** Question displays on card front  
+**End:** Answer text is present on card back (hidden)  
+**Test:** Inspect element to verify back contains answer text
+
+**Deliverable:**
+- Update renderCard() to also populate card back with answer
+- Add CSS to hide card back initially
+- Verify both question and answer content are in DOM
+
+## Phase 4: Card Flip Functionality
+
+### Task 4.1: Add CSS Flip Animation
+**Start:** Card front and back have content  
+**End:** CSS classes exist for flip animation  
+**Test:** Manually add 'flipped' class to card, verify it flips to show back
+
+**Deliverable:**
+- Add CSS transform styles for card flip effect
+- Create .card.flipped class that rotates card
+- Add transition for smooth animation
+- Test by manually adding/removing class in dev tools
+
+### Task 4.2: Handle Card Click Event
+**Start:** CSS flip animation works  
+**End:** Clicking card triggers flip  
+**Test:** Click card, verify it flips and shows answer
+
+**Deliverable:**
+- Add click event listener to card element
+- Create flipCard() function that toggles flipped class
+- Update appState.isFlipped when card flips
+- Verify clicking flips card and clicking again flips back
+
+### Task 4.3: Prevent Double-Click Issues
+**Start:** Card click flipping works  
+**End:** Rapid clicks don't break animation  
+**Test:** Click rapidly multiple times, verify animation stays smooth
+
+**Deliverable:**
+- Add animation duration tracking
+- Disable clicks during animation
+- Test rapid clicking doesn't cause visual glitches
+
+## Phase 5: Navigation
+
+### Task 5.1: Add Navigation Buttons
+**Start:** Single card flip works perfectly  
+**End:** Next/Previous buttons exist in HTML  
+**Test:** Buttons are visible and clickable (no functionality yet)
+
+**Deliverable:**
+- Add navigation container below card
+- Add "Previous" and "Next" buttons with proper IDs
+- Style buttons with basic CSS
+- Verify buttons appear and can be clicked
+
+### Task 5.2: Implement Next Card Function
+**Start:** Navigation buttons exist  
+**End:** Next button loads next question  
+**Test:** Click Next, verify new question appears and card is unflipped
+
+**Deliverable:**
+- Create nextCard() function
+- Function increments currentCardIndex
+- Function handles wraparound to first card
+- Function resets flip state and calls renderCard()
+- Add click listener to Next button
+
+### Task 5.3: Implement Previous Card Function
+**Start:** Next card navigation works  
+**End:** Previous button loads previous question  
+**Test:** Navigate forward then backward, verify correct questions appear
+
+**Deliverable:**
+- Create previousCard() function
+- Function decrements currentCardIndex
+- Function handles wraparound to last card
+- Add click listener to Previous button
+- Test full navigation cycle
+
+### Task 5.4: Add Keyboard Navigation
+**Start:** Button navigation works completely  
+**End:** Arrow keys control navigation  
+**Test:** Use left/right arrow keys to navigate, space bar to flip
+
+**Deliverable:**
+- Add keydown event listener to document
+- Map right arrow to next card
+- Map left arrow to previous card
+- Map spacebar to flip current card
+- Test all keyboard controls work
+
+## Phase 6: Polish and Enhancement
+
+### Task 6.1: Add Progress Indicator
+**Start:** All navigation works  
+**End:** Current card position is displayed  
+**Test:** Verify "Card X of Y" appears and updates with navigation
+
+**Deliverable:**
+- Add progress div to HTML
+- Create updateProgress() function
+- Display current position and total cards
+- Call updateProgress() in renderCard()
+
+### Task 6.2: Improve Visual Design
+**Start:** All functionality works  
+**End:** Cards have polished appearance  
+**Test:** Visual inspection shows professional-looking cards
+
+**Deliverable:**
+- Add shadow, rounded corners, better colors
+- Improve typography and spacing
+- Add hover effects for buttons
+- Ensure responsive design works on mobile
+
+### Task 6.3: Add Loading State
+**Start:** Visual design is complete  
+**End:** Page shows loading indicator until ready  
+**Test:** Verify smooth transition from loading to ready state
+
+**Deliverable:**
+- Add loading spinner/message to initial HTML
+- Hide main content until initialization complete
+- Show content after questions load successfully
+- Add error state if questions fail to load
+
+### Task 6.4: Final Testing and Cleanup
+**Start:** All features implemented  
+**End:** Production-ready MVP  
+**Test:** Complete manual testing of all features
+
+**Deliverable:**
+- Remove all console.log statements
+- Test all functionality works correctly
+- Verify responsive design
+- Clean up unused CSS/JS
+- Add comments to code for maintainability

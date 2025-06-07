@@ -13,6 +13,19 @@ const appState = {
 // Constants
 const ANIMATION_DURATION = 600; // Match CSS transition duration (in ms)
 
+// Update progress indicator
+function updateProgress() {
+    const currentCardElement = document.getElementById('current-card');
+    const totalCardsElement = document.getElementById('total-cards');
+    
+    if (currentCardElement && totalCardsElement) {
+        currentCardElement.textContent = appState.currentCardIndex + 1;
+        totalCardsElement.textContent = appState.totalCards;
+    } else {
+        console.error('Progress indicator elements not found');
+    }
+}
+
 // Render the current card
 function renderCard() {
     const currentQuestion = appState.questions[appState.currentCardIndex];
@@ -27,6 +40,9 @@ function renderCard() {
     if (frontElement && backElement) {
         frontElement.textContent = currentQuestion.question;
         backElement.textContent = currentQuestion.answer;
+        
+        // Update progress indicator
+        updateProgress();
         
         // Debug logging to verify content
         console.log('Card content updated:', {
@@ -200,6 +216,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize state with more detailed logging
     appState.questions = questions;
     appState.totalCards = questions.length;
+    
+    // Update progress indicator with initial values
+    updateProgress();
     
     // Log state
     console.log('State initialized:', {

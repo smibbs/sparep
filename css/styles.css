@@ -143,6 +143,10 @@ body {
         font-size: 1.25rem;
         padding: 15px;
     }
+
+    .progress-indicator {
+        font-size: 0.9rem;
+    }
 }
 
 /* Debug styles to verify content */
@@ -155,4 +159,15 @@ body {
     color: #666;
     opacity: 0.7;
     pointer-events: none;
+}
+
+/* Progress indicator */
+.progress-indicator {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 1rem;
+    color: #666;
+    font-weight: 500;
+    user-select: none;
+    -webkit-user-select: none;
 } 
