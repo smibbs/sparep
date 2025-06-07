@@ -2,17 +2,19 @@
 body {
     margin: 0;
     min-height: 100vh;
-    font-family: Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
     background-color: #f0f0f0;
+    -webkit-text-size-adjust: 100%;
 }
 
 /* App container */
 #app-container {
     width: 100%;
     padding: 20px;
+    box-sizing: border-box;
 }
 
 /* Card container */
@@ -33,8 +35,9 @@ body {
     transform-style: preserve-3d;
     transition: transform 600ms cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
-    user-select: none; /* Prevent text selection during double-clicks */
-    margin-bottom: 20px; /* Add space for navigation */
+    user-select: none;
+    -webkit-user-select: none;
+    margin-bottom: 20px;
 }
 
 /* Flipped state */
@@ -58,11 +61,11 @@ body {
     font-size: 1.5rem;
     box-sizing: border-box;
     backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
     border-radius: 10px;
     background: white;
-    /* Add subtle hover effect */
     transition: box-shadow 0.3s ease;
-    pointer-events: none; /* Ensure clicks go to the card element */
+    pointer-events: none;
 }
 
 /* Position back of card */
@@ -71,8 +74,14 @@ body {
 }
 
 /* Hover effect */
-.card:hover {
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+@media (hover: hover) {
+    .card:hover {
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+    
+    .nav-button:hover {
+        background-color: #0056b3;
+    }
 }
 
 /* Navigation container */
@@ -81,29 +90,59 @@ body {
     justify-content: space-between;
     gap: 20px;
     padding: 10px 0;
+    margin: 0 auto;
+    max-width: 100%;
 }
 
 /* Navigation buttons */
 .nav-button {
-    padding: 10px 20px;
-    font-size: 1rem;
+    padding: 12px 20px;
+    font-size: 16px;
     border: none;
-    border-radius: 5px;
+    border-radius: 8px;
     background-color: #007AFF;
     color: white;
     cursor: pointer;
     transition: background-color 0.3s ease, transform 0.1s ease;
     flex: 1;
     max-width: 200px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    margin: 0;
+    font-family: inherit;
+    text-align: center;
+    touch-action: manipulation;
 }
 
-/* Button hover and active states */
-.nav-button:hover {
-    background-color: #0056b3;
-}
-
+/* Button active state - using opacity for better mobile performance */
 .nav-button:active {
+    opacity: 0.8;
     transform: scale(0.98);
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 480px) {
+    .navigation {
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .nav-button {
+        padding: 14px 16px;
+        font-size: 15px;
+        min-width: 120px;
+    }
+
+    .card {
+        height: 250px;
+    }
+
+    .card-front,
+    .card-back {
+        font-size: 1.25rem;
+        padding: 15px;
+    }
 }
 
 /* Debug styles to verify content */
