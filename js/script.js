@@ -121,6 +121,53 @@ function nextCard() {
     console.log('Moved to next card:', appState.currentCardIndex + 1, 'of', appState.totalCards);
 }
 
+// Handle previous card
+function previousCard() {
+    // Debug state before changes
+    console.log('Previous card clicked. Current state:', {
+        currentIndex: appState.currentCardIndex,
+        totalCards: appState.totalCards,
+        isAnimating: appState.isAnimating
+    });
+
+    // Prevent navigation during animation
+    if (appState.isAnimating) {
+        console.log('Ignoring previous: animation in progress');
+        return;
+    }
+
+    // Start animation
+    appState.isAnimating = true;
+
+    // Unflip card if it's flipped
+    const card = document.querySelector('.card');
+    if (card && appState.isFlipped) {
+        card.classList.remove('flipped');
+        appState.isFlipped = false;
+    }
+
+    // Decrement index with wraparound
+    appState.currentCardIndex = ((appState.currentCardIndex - 1) + appState.totalCards) % appState.totalCards;
+    
+    // Debug state after decrement
+    console.log('After decrement:', {
+        newIndex: appState.currentCardIndex,
+        totalCards: appState.totalCards,
+        prevQuestion: appState.questions[appState.currentCardIndex]
+    });
+    
+    // Update card content
+    renderCard();
+
+    // Reset animation flag after animation completes
+    setTimeout(() => {
+        appState.isAnimating = false;
+        console.log('Ready for next action');
+    }, ANIMATION_DURATION);
+
+    console.log('Moved to previous card:', appState.currentCardIndex + 1, 'of', appState.totalCards);
+}
+
 // Wait for DOM to be ready
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded - checking questions...');
@@ -140,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isFlipped: appState.isFlipped,
         totalCards: appState.totalCards,
         questionsLoaded: appState.questions.length,
-        questionsArray: appState.questions // Log the actual questions array
+        questionsArray: appState.questions
     });
 
     // Render the first card
@@ -149,6 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add click handlers
     const card = document.querySelector('.card');
     const nextButton = document.querySelector('#next-button');
+    const prevButton = document.querySelector('#prev-button');
 
     if (card) {
         card.addEventListener('click', flipCard);
@@ -162,6 +210,13 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Click handler attached to next button');
     } else {
         console.error('Could not find next button');
+    }
+
+    if (prevButton) {
+        prevButton.addEventListener('click', previousCard);
+        console.log('Click handler attached to previous button');
+    } else {
+        console.error('Could not find previous button');
     }
 
     // Verify card elements are in DOM
