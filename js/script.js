@@ -168,6 +168,26 @@ function previousCard() {
     console.log('Moved to previous card:', appState.currentCardIndex + 1, 'of', appState.totalCards);
 }
 
+// Handle keyboard navigation
+function handleKeydown(event) {
+    // Prevent default behavior for our navigation keys
+    if (['ArrowLeft', 'ArrowRight', ' '].includes(event.key)) {
+        event.preventDefault();
+    }
+
+    switch (event.key) {
+        case 'ArrowRight':
+            nextCard();
+            break;
+        case 'ArrowLeft':
+            previousCard();
+            break;
+        case ' ': // Spacebar
+            flipCard();
+            break;
+    }
+}
+
 // Wait for DOM to be ready
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded - checking questions...');
@@ -218,6 +238,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.error('Could not find previous button');
     }
+
+    // Add keyboard navigation
+    document.addEventListener('keydown', handleKeydown);
+    console.log('Keyboard navigation enabled');
+    console.log('Use Arrow Left/Right to navigate, Spacebar to flip');
 
     // Verify card elements are in DOM
     const frontElement = document.querySelector('.card-front');
