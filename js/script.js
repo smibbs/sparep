@@ -23,7 +23,12 @@ function renderCard() {
     if (frontElement && backElement) {
         frontElement.textContent = currentQuestion.question;
         backElement.textContent = currentQuestion.answer;
-        console.log('Card rendered:', currentQuestion.question);
+        
+        // Debug logging to verify content
+        console.log('Card content updated:', {
+            front: frontElement.textContent,
+            back: backElement.textContent
+        });
     } else {
         console.error('Card elements not found');
     }
@@ -52,4 +57,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Render the first card
     renderCard();
+
+    // Verify card elements are in DOM
+    const frontElement = document.querySelector('.card-front');
+    const backElement = document.querySelector('.card-back');
+    console.log('Card elements found:', {
+        frontExists: !!frontElement,
+        backExists: !!backElement
+    });
 }); 

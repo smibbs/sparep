@@ -19,7 +19,7 @@ body {
 .card-container {
     max-width: 600px;
     margin: 0 auto;
-    perspective: 1000px; /* For 3D flip effect later */
+    perspective: 1000px;
 }
 
 /* Card basic styling */
@@ -30,8 +30,8 @@ body {
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     background: white;
-    padding: 20px;
-    box-sizing: border-box;
+    transform-style: preserve-3d;
+    transition: transform 0.6s;
 }
 
 /* Card front and back */
@@ -49,9 +49,23 @@ body {
     text-align: center;
     font-size: 1.5rem;
     box-sizing: border-box;
+    backface-visibility: hidden;
+    border-radius: 10px;
+    background: white;
 }
 
-/* Hide back of card initially */
+/* Position back of card */
 .card-back {
-    display: none;
+    transform: rotateY(180deg);
+}
+
+/* Debug styles to verify content */
+.card-front::after,
+.card-back::after {
+    content: '(Click to flip)';
+    position: absolute;
+    bottom: 10px;
+    font-size: 0.8rem;
+    color: #666;
+    opacity: 0.7;
 } 
