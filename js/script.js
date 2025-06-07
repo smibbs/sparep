@@ -1,3 +1,6 @@
+// Basic debug log
+console.log('Script starting...');
+
 // Application state
 const appState = {
     currentCardIndex: 0,
@@ -6,28 +9,23 @@ const appState = {
     totalCards: 0
 };
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize application
-    console.clear(); // Clear any previous messages
-    console.log('%c Flashcard App Initialization ', 'background: #333; color: white; padding: 2px 6px; border-radius: 3px;');
-
-    // Verify questions data is loaded and initialize state
-    if (typeof questions === 'undefined' || !Array.isArray(questions)) {
-        console.error('❌ Questions data failed to load!');
-    } else {
-        // Initialize application state
+// Wait for DOM to be ready
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded');
+    
+    // Debug: Check if questions exist
+    console.log('Questions available:', typeof questions !== 'undefined');
+    
+    // Initialize if questions are available
+    if (typeof questions !== 'undefined' && Array.isArray(questions)) {
+        // Set up state
         appState.questions = questions;
         appState.totalCards = questions.length;
         
-        console.log('%c ✓ Questions data loaded successfully ', 'color: green; font-weight: bold;');
-        console.log('%c ✓ Loaded ' + appState.totalCards + ' questions ', 'color: green;');
-        console.log('%c ✓ Application state initialized ', 'color: green;');
-        
-        // Log complete state
-        console.log('Current application state:');
-        console.log('- currentCardIndex:', appState.currentCardIndex);
-        console.log('- isFlipped:', appState.isFlipped);
-        console.log('- totalCards:', appState.totalCards);
-        console.log('- questions:', appState.questions);
+        // Log state
+        console.log('State initialized:');
+        console.log(appState);
+    } else {
+        console.error('Questions not loaded properly');
     }
 }); 

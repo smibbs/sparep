@@ -1,3 +1,5 @@
+console.log('Questions file loading...');
+
 // Define the questions array
 const questions = [
     {
@@ -17,7 +19,7 @@ const questions = [
     }
 ];
 
+console.log('Questions defined:', questions.length, 'items');
+
 // Make questions array globally accessible
-if (typeof window !== 'undefined') {
-    window.questions = questions;
-} 
+window.questions = questions; 
