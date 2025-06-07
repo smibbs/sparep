@@ -9,8 +9,25 @@ const appState = {
     totalCards: 0
 };
 
-// Log initial state
-console.log('Initial appState:', appState);
+// Render the current card
+function renderCard() {
+    const currentQuestion = appState.questions[appState.currentCardIndex];
+    if (!currentQuestion) {
+        console.error('No question found at index:', appState.currentCardIndex);
+        return;
+    }
+
+    const frontElement = document.querySelector('.card-front');
+    const backElement = document.querySelector('.card-back');
+
+    if (frontElement && backElement) {
+        frontElement.textContent = currentQuestion.question;
+        backElement.textContent = currentQuestion.answer;
+        console.log('Card rendered:', currentQuestion.question);
+    } else {
+        console.error('Card elements not found');
+    }
+}
 
 // Wait for DOM to be ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,11 +42,14 @@ document.addEventListener('DOMContentLoaded', () => {
     appState.questions = questions;
     appState.totalCards = questions.length;
     
-    // Log final state
-    console.log('Final appState:', {
+    // Log state
+    console.log('State initialized:', {
         currentCardIndex: appState.currentCardIndex,
         isFlipped: appState.isFlipped,
         totalCards: appState.totalCards,
         questionsLoaded: appState.questions.length
     });
+
+    // Render the first card
+    renderCard();
 }); 
