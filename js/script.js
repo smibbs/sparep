@@ -22,6 +22,12 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('%c ✓ Questions data loaded successfully ', 'color: green; font-weight: bold;');
         console.log('%c ✓ Loaded ' + appState.totalCards + ' questions ', 'color: green;');
         console.log('%c ✓ Application state initialized ', 'color: green;');
-        console.table(appState);
+        
+        // Log complete state
+        console.log('Current application state:');
+        console.log('- currentCardIndex:', appState.currentCardIndex);
+        console.log('- isFlipped:', appState.isFlipped);
+        console.log('- totalCards:', appState.totalCards);
+        console.log('- questions:', appState.questions);
     }
 }); 
