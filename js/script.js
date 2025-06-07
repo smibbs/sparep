@@ -7,11 +7,31 @@ const appState = {
     isFlipped: false,
     questions: [],
     totalCards: 0,
-    isAnimating: false // Track animation state
+    isAnimating: false, // Track animation state
+    isLoading: true // Track loading state
 };
 
 // Constants
 const ANIMATION_DURATION = 600; // Match CSS transition duration (in ms)
+
+// Show/hide states
+function showLoading() {
+    document.getElementById('loading-state').classList.remove('hidden');
+    document.getElementById('error-state').classList.add('hidden');
+    document.getElementById('content').classList.add('hidden');
+}
+
+function showError() {
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('error-state').classList.remove('hidden');
+    document.getElementById('content').classList.add('hidden');
+}
+
+function showContent() {
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('error-state').classList.add('hidden');
+    document.getElementById('content').classList.remove('hidden');
+}
 
 // Update progress indicator
 function updateProgress() {
@@ -208,66 +228,74 @@ function handleKeydown(event) {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded - checking questions...');
     
-    if (typeof questions === 'undefined') {
-        console.error('ERROR: questions is undefined');
-        return;
-    }
-
-    // Initialize state with more detailed logging
-    appState.questions = questions;
-    appState.totalCards = questions.length;
+    // Show loading state initially
+    showLoading();
     
-    // Update progress indicator with initial values
-    updateProgress();
-    
-    // Log state
-    console.log('State initialized:', {
-        currentCardIndex: appState.currentCardIndex,
-        isFlipped: appState.isFlipped,
-        totalCards: appState.totalCards,
-        questionsLoaded: appState.questions.length,
-        questionsArray: appState.questions
-    });
+    // Simulate network delay (remove in production)
+    setTimeout(() => {
+        if (typeof questions === 'undefined') {
+            console.error('ERROR: questions is undefined');
+            showError();
+            return;
+        }
 
-    // Render the first card
-    renderCard();
+        try {
+            // Initialize state with more detailed logging
+            appState.questions = questions;
+            appState.totalCards = questions.length;
+            appState.isLoading = false;
+            
+            // Update progress indicator with initial values
+            updateProgress();
+            
+            // Log state
+            console.log('State initialized:', {
+                currentCardIndex: appState.currentCardIndex,
+                isFlipped: appState.isFlipped,
+                totalCards: appState.totalCards,
+                questionsLoaded: appState.questions.length,
+                questionsArray: appState.questions
+            });
 
-    // Add click handlers
-    const card = document.querySelector('.card');
-    const nextButton = document.querySelector('#next-button');
-    const prevButton = document.querySelector('#prev-button');
+            // Render the first card
+            renderCard();
 
-    if (card) {
-        card.addEventListener('click', flipCard);
-        console.log('Click handler attached to card');
-    } else {
-        console.error('Could not find card element to attach click handler');
-    }
+            // Add click handlers
+            const card = document.querySelector('.card');
+            const nextButton = document.querySelector('#next-button');
+            const prevButton = document.querySelector('#prev-button');
 
-    if (nextButton) {
-        nextButton.addEventListener('click', nextCard);
-        console.log('Click handler attached to next button');
-    } else {
-        console.error('Could not find next button');
-    }
+            if (card) {
+                card.addEventListener('click', flipCard);
+                console.log('Click handler attached to card');
+            } else {
+                console.error('Could not find card element to attach click handler');
+            }
 
-    if (prevButton) {
-        prevButton.addEventListener('click', previousCard);
-        console.log('Click handler attached to previous button');
-    } else {
-        console.error('Could not find previous button');
-    }
+            if (nextButton) {
+                nextButton.addEventListener('click', nextCard);
+                console.log('Click handler attached to next button');
+            } else {
+                console.error('Could not find next button');
+            }
 
-    // Add keyboard navigation
-    document.addEventListener('keydown', handleKeydown);
-    console.log('Keyboard navigation enabled');
-    console.log('Use Arrow Left/Right to navigate, Spacebar to flip');
+            if (prevButton) {
+                prevButton.addEventListener('click', previousCard);
+                console.log('Click handler attached to previous button');
+            } else {
+                console.error('Could not find previous button');
+            }
 
-    // Verify card elements are in DOM
-    const frontElement = document.querySelector('.card-front');
-    const backElement = document.querySelector('.card-back');
-    console.log('Card elements found:', {
-        frontExists: !!frontElement,
-        backExists: !!backElement
-    });
+            // Add keyboard navigation
+            document.addEventListener('keydown', handleKeydown);
+            console.log('Keyboard navigation enabled');
+            console.log('Use Arrow Left/Right to navigate, Spacebar to flip');
+
+            // Show content after successful initialization
+            showContent();
+        } catch (error) {
+            console.error('Error initializing app:', error);
+            showError();
+        }
+    }, 1000); // 1 second delay to show loading state (remove in production)
 }); 

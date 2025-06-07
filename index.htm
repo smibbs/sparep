@@ -8,21 +8,31 @@
 </head>
 <body>
     <div id="app-container">
-        <div class="card-container">
-            <div class="progress-indicator">
-                Card <span id="current-card">1</span> of <span id="total-cards">3</span>
-            </div>
-            <div class="card">
-                <div class="card-front">
-                    Front of card (Question)
+        <div id="loading-state" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Loading flashcards...</p>
+        </div>
+        <div id="error-state" class="error-state hidden">
+            <p class="error-text">Failed to load flashcards.</p>
+            <button onclick="location.reload()" class="nav-button">Retry</button>
+        </div>
+        <div id="content" class="content hidden">
+            <div class="card-container">
+                <div class="progress-indicator">
+                    Card <span id="current-card">1</span> of <span id="total-cards">3</span>
                 </div>
-                <div class="card-back">
-                    Back of card (Answer)
+                <div class="card">
+                    <div class="card-front">
+                        Front of card (Question)
+                    </div>
+                    <div class="card-back">
+                        Back of card (Answer)
+                    </div>
                 </div>
-            </div>
-            <div class="navigation">
-                <button id="prev-button" class="nav-button">Previous</button>
-                <button id="next-button" class="nav-button">Next</button>
+                <div class="navigation">
+                    <button id="prev-button" class="nav-button">Previous</button>
+                    <button id="next-button" class="nav-button">Next</button>
+                </div>
             </div>
         </div>
     </div>
