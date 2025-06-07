@@ -1,4 +1,5 @@
-console.log('Questions file loading...');
+// Debug message to confirm we're running the latest version
+console.log('DEBUG: Loading latest questions file');
 
 // Define the questions array
 const questions = [
@@ -19,7 +20,8 @@ const questions = [
     }
 ];
 
-console.log('Questions defined:', questions.length, 'items');
+console.log('DEBUG: Questions array created with', questions.length, 'items');
 
 // Make questions array globally accessible
-window.questions = questions; 
+window.questions = questions;
+console.log('DEBUG: Questions array attached to window object'); 
