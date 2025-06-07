@@ -31,8 +31,9 @@ body {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     background: white;
     transform-style: preserve-3d;
-    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 600ms cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
+    user-select: none; /* Prevent text selection during double-clicks */
 }
 
 /* Flipped state */
@@ -60,6 +61,7 @@ body {
     background: white;
     /* Add subtle hover effect */
     transition: box-shadow 0.3s ease;
+    pointer-events: none; /* Ensure clicks go to the card element */
 }
 
 /* Position back of card */
@@ -81,4 +83,5 @@ body {
     font-size: 0.8rem;
     color: #666;
     opacity: 0.7;
+    pointer-events: none;
 } 

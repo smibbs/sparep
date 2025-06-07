@@ -6,8 +6,12 @@ const appState = {
     currentCardIndex: 0,
     isFlipped: false,
     questions: [],
-    totalCards: 0
+    totalCards: 0,
+    isAnimating: false // Track animation state
 };
+
+// Constants
+const ANIMATION_DURATION = 600; // Match CSS transition duration (in ms)
 
 // Render the current card
 function renderCard() {
@@ -36,12 +40,21 @@ function renderCard() {
 
 // Handle card flip
 function flipCard() {
+    // Prevent flip during animation
+    if (appState.isAnimating) {
+        console.log('Ignoring click: animation in progress');
+        return;
+    }
+
     const card = document.querySelector('.card');
     if (!card) {
         console.error('Card element not found');
         return;
     }
 
+    // Start animation
+    appState.isAnimating = true;
+    
     // Toggle flip state
     appState.isFlipped = !appState.isFlipped;
     
@@ -50,6 +63,12 @@ function flipCard() {
     
     // Log flip state
     console.log('Card flipped:', appState.isFlipped);
+
+    // Reset animation flag after animation completes
+    setTimeout(() => {
+        appState.isAnimating = false;
+        console.log('Animation completed, ready for next flip');
+    }, ANIMATION_DURATION);
 }
 
 // Wait for DOM to be ready
