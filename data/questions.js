@@ -1,3 +1,4 @@
+// Define the questions array
 const questions = [
     {
         id: 1,
@@ -17,4 +18,6 @@ const questions = [
 ];
 
 // Make questions array globally accessible
-window.questions = questions; 
+if (typeof window !== 'undefined') {
+    window.questions = questions;
+} 
