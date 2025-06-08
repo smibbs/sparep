@@ -54,4 +54,18 @@ function createSupabaseClient() {
 }
 
 // Create and export the client instance
-export const supabase = createSupabaseClient(); 
+export const supabase = createSupabaseClient();
+
+// Initialize Supabase client
+const initSupabase = () => {
+    const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.supabaseConfig;
+    return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+};
+
+// Create and expose the client globally
+window.supabaseClient = initSupabase();
+
+// Test the connection
+window.supabaseClient.auth.onAuthStateChange((event, session) => {
+    console.log('Supabase auth event:', event);
+}); 
