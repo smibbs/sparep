@@ -1,0 +1,8 @@
+# Local development files
+theme.css
+.cursor/
+
+# Common files to ignore
+.DS_Store
+node_modules/
+*.log 
