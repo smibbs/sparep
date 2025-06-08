@@ -1,13 +1,13 @@
--- Migration: 06-fsrs-parameters-table.sql
--- Description: Creates the table for storing personalized FSRS algorithm parameters
--- Dependencies: 01-users-table.sql (for user_id)
+-- Migration: 07-fsrs-parameters.sql
+-- Description: Creates the table for storing FSRS algorithm parameters
+-- Dependencies: 01-initial-setup.sql, 02-user-profiles.sql
 
 -- Create fsrs_parameters table
 CREATE TABLE public.fsrs_parameters (
     -- Primary key (one row per user)
     user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     
-    -- FSRS algorithm weights (w0-w16)
+    -- FSRS algorithm weights
     w0 FLOAT NOT NULL DEFAULT 1.0, -- Initial stability
     w1 FLOAT NOT NULL DEFAULT 1.0, -- Stability increase for "Good" rating
     w2 FLOAT NOT NULL DEFAULT 1.0, -- Stability increase for "Easy" rating
@@ -68,42 +68,47 @@ CREATE TABLE public.fsrs_parameters (
     )
 );
 
--- Set up Row Level Security (RLS)
-ALTER TABLE public.fsrs_parameters ENABLE ROW LEVEL SECURITY;
-
--- Create RLS policies
-CREATE POLICY "Users can view their own FSRS parameters"
-    ON public.fsrs_parameters
-    FOR SELECT
-    USING (user_id = auth.uid());
-
-CREATE POLICY "Users can update their own FSRS parameters"
-    ON public.fsrs_parameters
-    FOR UPDATE
-    USING (user_id = auth.uid());
-
 -- Create updated_at trigger
 CREATE TRIGGER update_fsrs_parameters_updated_at
     BEFORE UPDATE ON public.fsrs_parameters
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Function to initialize default FSRS parameters for new users
-CREATE OR REPLACE FUNCTION initialize_fsrs_parameters()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO public.fsrs_parameters (user_id)
-    VALUES (NEW.id)
-    ON CONFLICT (user_id) DO NOTHING;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
+-- Set up Row Level Security (RLS)
+ALTER TABLE public.fsrs_parameters ENABLE ROW LEVEL SECURITY;
 
--- Create trigger to initialize FSRS parameters for new users
-CREATE TRIGGER on_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION initialize_fsrs_parameters();
+-- Create RLS policies
+CREATE POLICY "Users can view own FSRS parameters"
+    ON public.fsrs_parameters
+    FOR SELECT
+    USING (user_id = auth.uid());
+
+CREATE POLICY "Users can update own FSRS parameters"
+    ON public.fsrs_parameters
+    FOR UPDATE
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Admins can view all FSRS parameters"
+    ON public.fsrs_parameters
+    FOR SELECT
+    USING (is_admin(auth.uid()));
+
+CREATE POLICY "Admins can update all FSRS parameters"
+    ON public.fsrs_parameters
+    FOR UPDATE
+    USING (is_admin(auth.uid()))
+    WITH CHECK (is_admin(auth.uid()));
+
+-- Create policy for trigger-based creation
+CREATE POLICY "System can create FSRS parameters"
+    ON public.fsrs_parameters
+    FOR INSERT
+    WITH CHECK (true);
+
+-- Grant necessary permissions
+GRANT ALL ON public.fsrs_parameters TO postgres;
+GRANT SELECT, UPDATE ON public.fsrs_parameters TO authenticated;
 
 -- Comments
 COMMENT ON TABLE public.fsrs_parameters IS 'Stores personalized FSRS algorithm parameters for each user';

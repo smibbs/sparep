@@ -1,5 +1,5 @@
-// Import Supabase client
-import { supabase } from './supabase-client.js';
+// Use global Supabase client
+const supabase = window.supabaseClient;
 
 /**
  * Application state management

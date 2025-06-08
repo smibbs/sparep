@@ -1,25 +1,22 @@
-// Import configuration
-import { SUPABASE_CONFIG } from '../config/supabase-config.js';
-
-/**
- * Initialize and export the Supabase client
- * Throws an error if configuration is missing or invalid
- */
+// Initialize Supabase client with configuration from global object
 function createSupabaseClient() {
+    // Get config from global object
+    const config = window.supabaseConfig;
+
     // Validate configuration
-    if (!SUPABASE_CONFIG) {
+    if (!config) {
         throw new Error('Supabase configuration is missing');
     }
 
-    if (!SUPABASE_CONFIG.url || !SUPABASE_CONFIG.anonKey) {
+    if (!config.SUPABASE_URL || !config.SUPABASE_ANON_KEY) {
         throw new Error('Supabase URL and anon key are required');
     }
 
     try {
         // Create and initialize the Supabase client
         const supabase = window.supabase.createClient(
-            SUPABASE_CONFIG.url,
-            SUPABASE_CONFIG.anonKey,
+            config.SUPABASE_URL,
+            config.SUPABASE_ANON_KEY,
             {
                 auth: {
                     autoRefreshToken: true,
@@ -53,17 +50,8 @@ function createSupabaseClient() {
     }
 }
 
-// Create and export the client instance
-export const supabase = createSupabaseClient();
-
-// Initialize Supabase client
-const initSupabase = () => {
-    const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.supabaseConfig;
-    return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-};
-
 // Create and expose the client globally
-window.supabaseClient = initSupabase();
+window.supabaseClient = createSupabaseClient();
 
 // Test the connection
 window.supabaseClient.auth.onAuthStateChange((event, session) => {

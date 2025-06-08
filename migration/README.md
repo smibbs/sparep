@@ -1,54 +1,128 @@
-# Database Migration Files
+# Database Migrations
 
-This directory contains SQL migration files for setting up the Supabase database schema.
+This directory contains the database migrations for the Flashcard App. The migrations are designed to be run in sequence and build upon each other to create the complete database schema.
 
-## File Order and Dependencies
+## Migration Order
 
-1. `01-users-table.sql`: Creates user profiles table and authentication setup
-2. `02-cards-table.sql`: Creates the flashcards table
-3. `03-subjects-table.sql`: Creates subjects organization table
-4. `04-user-card-progress-table.sql`: Creates user progress tracking table
-5. `05-review-history-table.sql`: Creates review history table
-6. `06-fsrs-parameters-table.sql`: Creates FSRS algorithm parameters table
-7. `07-security-policies.sql`: Sets up Row Level Security policies
+1. `01-initial-setup.sql` - Basic database setup
+   - Extensions (uuid-ossp)
+   - Storage buckets
+   - Helper functions
+   - Common triggers
 
-## How to Apply Migrations
+2. `02-user-profiles.sql` - User authentication and profiles
+   - User profile table
+   - Profile creation trigger
+   - RLS policies
+   - Access control
 
-1. Log into your Supabase project dashboard
-2. Go to SQL Editor
-3. Copy and paste each migration file in order
-4. Execute each script
-5. Verify the tables are created in Database > Tables
+3. `03-subjects.sql` - Subject organization
+   - Subjects table
+   - Access control functions
+   - RLS policies
+   - Indexing
+
+4. `04-cards.sql` - Flashcard content
+   - Cards table
+   - Content validation
+   - Access control
+   - Performance indexes
+
+5. `05-user-card-progress.sql` - Learning progress
+   - Progress tracking table
+   - FSRS state management
+   - Learning state transitions
+   - Performance optimization
+
+6. `06-review-history.sql` - Review history
+   - Review log table
+   - FSRS state tracking
+   - Performance metrics
+   - Historical data
+
+7. `07-fsrs-parameters.sql` - Algorithm settings
+   - FSRS parameters table
+   - Default algorithm values
+   - User customization
+   - Validation constraints
+
+8. `08-initialize-fsrs.sql` - FSRS initialization
+   - Parameter initialization
+   - Default values setup
+   - Error handling
+   - Logging
+
+9. `09-consolidated-triggers.sql` - User initialization
+   - Combined user creation trigger
+   - Profile creation
+   - FSRS initialization
+   - Error handling
+
+## Running Migrations
+
+1. Connect to your Supabase project's SQL editor
+2. Run each migration in sequence (01 through 09)
+3. Verify each migration completes successfully before proceeding
+4. Check the logs for any error messages
 
 ## Important Notes
 
-- These migrations assume a fresh Supabase project
-- The `auth` schema is automatically created by Supabase
-- Run migrations in order - they have dependencies
-- Backup your database before running migrations in production
-- Test migrations in a development environment first
+- All tables have Row Level Security (RLS) enabled
+- Each table has appropriate indexes for performance
+- Triggers use SECURITY DEFINER for proper permissions
+- Error handling and logging are included
+- All necessary permissions are granted
 
-## Rollback
+## Security Features
 
-Each migration can be rolled back by dropping the created tables in reverse order:
+- RLS policies protect user data
+- Function-level security with SECURITY DEFINER
+- Proper permission grants
+- Input validation
+- Error handling
 
-```sql
--- Example rollback commands (if needed)
-DROP TABLE IF EXISTS public.user_profiles CASCADE;
--- ... other tables
-```
+## Maintenance
 
-## Verification
-
-After running migrations, verify:
-1. Tables exist in the public schema
-2. RLS policies are enabled
-3. Triggers are created
-4. Indexes are present
+When making schema changes:
+1. Create a new numbered migration file
+2. Include both UP and DOWN migrations
+3. Test thoroughly before applying
+4. Document changes in this README
 
 ## Troubleshooting
 
-Common issues:
-- Permission denied: Ensure you're using the correct Supabase role
-- Relation already exists: Drop the table first or skip that migration
-- Foreign key violation: Ensure you're running migrations in order 
+If you encounter errors:
+1. Check the Supabase logs
+2. Verify migrations ran in order
+3. Check for permission issues
+4. Verify trigger functions
+5. Check RLS policies
+
+## Dependencies
+
+- Supabase project
+- UUID extension
+- Storage buckets for avatars
+- Postgres 14 or higher
+
+## Data Model
+
+```mermaid
+erDiagram
+    auth.users ||--|| user_profiles : has
+    user_profiles ||--|| fsrs_parameters : has
+    subjects }|--|| user_profiles : created_by
+    cards }|--|| subjects : belongs_to
+    cards }|--|| user_profiles : created_by
+    user_card_progress }|--|| cards : tracks
+    user_card_progress }|--|| user_profiles : for_user
+    review_history }|--|| cards : reviews
+    review_history }|--|| user_profiles : by_user
+```
+
+## Contact
+
+For questions or issues:
+1. Check the troubleshooting guide
+2. Review Supabase documentation
+3. Contact the development team 
