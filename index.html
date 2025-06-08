@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcard App</title>
+    <link rel="stylesheet" href="css/styles.css?v=1">
+</head>
+<body>
+    <div id="app-container">
+        <div id="loading-state" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Loading flashcards...</p>
+        </div>
+        <div id="error-state" class="error-state hidden">
+            <p class="error-text">Failed to load flashcards.</p>
+            <button onclick="location.reload()" class="nav-button">Retry</button>
+        </div>
+        <div id="content" class="content hidden">
+            <div class="card-container">
+                <div class="progress-indicator">
+                    Card <span id="current-card">1</span> of <span id="total-cards">3</span>
+                </div>
+                <div class="card">
+                    <div class="card-front">
+                        Front of card (Question)
+                    </div>
+                    <div class="card-back">
+                        Back of card (Answer)
+                    </div>
+                </div>
+                <div class="navigation">
+                    <button id="prev-button" class="nav-button">Previous</button>
+                    <button id="next-button" class="nav-button">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Application Scripts -->
+    <script type="module" src="config/supabase-config.js"></script>
+    <script src="data/questions.js?v=1"></script>
+    <script type="module" src="js/script.js?v=1"></script>
+</body>
+</html> 

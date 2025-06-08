@@ -5,4 +5,8 @@ theme.css
 # Common files to ignore
 .DS_Store
 node_modules/
-*.log 
+*.log
+
+# Configuration files
+/config/supabase-config.js
+.env* 
