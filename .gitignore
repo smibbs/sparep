@@ -7,6 +7,26 @@ theme.css
 node_modules/
 *.log
 
-# Configuration files
+# Configuration and environment files
 /config/supabase-config.js
-.env* 
+.env
+.env.*
+.env-*
+*.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Local configuration files
+*.local
+.local
+config.local.js
+*.config.local.js
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~ 
