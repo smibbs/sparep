@@ -184,16 +184,21 @@ class AuthService {
             const redirectUrl = this.getAbsoluteUrl('login.html');
             console.log('Redirect URL:', redirectUrl);
             
-            const { data, error } = await this.supabase.auth.signUp({
+            // Create the signup payload
+            const signupData = {
                 email,
                 password,
                 options: {
+                    emailRedirectTo: redirectUrl,
                     data: {
-                        email: email // Required by the trigger function
-                    },
-                    emailRedirectTo: redirectUrl
+                        display_name: displayName // Store display name in user metadata
+                    }
                 }
-            });
+            };
+            
+            console.log('Signup payload:', signupData);
+            
+            const { data, error } = await this.supabase.auth.signUp(signupData);
 
             if (error) {
                 console.error('Registration error:', error);
@@ -206,22 +211,7 @@ class AuthService {
 
             console.log('Registration response:', data);
             
-            // If registration is successful, then try to update the display name
-            if (data.user && displayName) {
-                try {
-                    const { error: updateError } = await this.supabase
-                        .from('user_profiles')
-                        .update({ display_name: displayName })
-                        .eq('id', data.user.id);
-                        
-                    if (updateError) {
-                        console.warn('Failed to set display name:', updateError);
-                    }
-                } catch (updateError) {
-                    console.warn('Error updating display name:', updateError);
-                }
-            }
-            
+            // No need to update display name separately since we're sending it with signup
             this.showMessage(
                 this.registerMessage,
                 'Registration successful! Please check your email to confirm your account.',
