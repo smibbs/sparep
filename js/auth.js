@@ -164,6 +164,9 @@ class AuthService {
                 email,
                 password,
                 options: {
+                    data: {
+                        email: email // Required by the trigger function
+                    },
                     emailRedirectTo: `${window.location.origin}/login.html`
                 }
             });
@@ -182,9 +185,11 @@ class AuthService {
             // If registration is successful, then try to update the display name
             if (data.user && displayName) {
                 try {
-                    const { error: updateError } = await this.supabase.auth.updateUser({
-                        data: { display_name: displayName }
-                    });
+                    const { error: updateError } = await this.supabase
+                        .from('user_profiles')
+                        .update({ display_name: displayName })
+                        .eq('id', data.user.id);
+                        
                     if (updateError) {
                         console.warn('Failed to set display name:', updateError);
                     }
