@@ -159,18 +159,29 @@ class AuthService {
         try {
             this.showLoading(true);
             
+            console.log('Attempting registration with email:', email);
             const { data, error } = await this.supabase.auth.signUp({
                 email,
                 password,
                 options: {
                     data: {
                         display_name: displayName
-                    }
+                    },
+                    emailRedirectTo: `${window.location.origin}/login.html`
                 }
             });
 
-            if (error) throw error;
+            if (error) {
+                console.error('Registration error:', error);
+                throw error;
+            }
 
+            if (data?.user === null) {
+                throw new Error('Registration failed - no user data returned');
+            }
+
+            console.log('Registration response:', data);
+            
             this.showMessage(
                 this.registerMessage,
                 'Registration successful! Please check your email to confirm your account.',
@@ -181,7 +192,9 @@ class AuthService {
             this.registerForm.reset();
             
         } catch (error) {
-            this.showMessage(this.registerMessage, error.message);
+            console.error('Detailed registration error:', error);
+            const errorMessage = error.message || 'Registration failed. Please try again.';
+            this.showMessage(this.registerMessage, errorMessage);
         } finally {
             this.showLoading(false);
         }
