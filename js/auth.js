@@ -8,6 +8,20 @@ class AuthService {
         this.initializeAuthState();
     }
 
+    // Get base URL for the application
+    getBaseUrl() {
+        // For local development
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return '';
+        }
+        return '/';
+    }
+
+    // Get full URL for a path
+    getUrl(path) {
+        return `${this.getBaseUrl()}${path}`.replace('//', '/');
+    }
+
     setupDOMElements() {
         // Forms and tabs
         this.tabButtons = document.querySelectorAll('.tab-btn');
@@ -167,7 +181,7 @@ class AuthService {
                     data: {
                         email: email // Required by the trigger function
                     },
-                    emailRedirectTo: `${window.location.origin}/login.html`
+                    emailRedirectTo: `${window.location.origin}${this.getUrl('login.html')}`
                 }
             });
 
@@ -226,7 +240,7 @@ class AuthService {
             this.showLoading(true);
             
             const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/reset-password.html`
+                redirectTo: `${window.location.origin}${this.getUrl('reset-password.html')}`
             });
 
             if (error) throw error;
@@ -253,7 +267,7 @@ class AuthService {
                 this.currentUser = null;
                 // Only redirect if we're not already on the login page
                 if (!window.location.pathname.includes('login.html')) {
-                    window.location.href = '/login.html';
+                    window.location.href = this.getUrl('login.html');
                 }
                 break;
                 
@@ -264,7 +278,7 @@ class AuthService {
     }
 
     redirectToApp() {
-        window.location.href = '/index.html';
+        window.location.href = this.getUrl('index.html');
     }
 
     static async signOut() {
