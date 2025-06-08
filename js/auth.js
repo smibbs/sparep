@@ -12,14 +12,21 @@ class AuthService {
     getBaseUrl() {
         // For local development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            return '';
+            return '/';
         }
         return '/';
     }
 
     // Get full URL for a path
     getUrl(path) {
-        return `${this.getBaseUrl()}${path}`.replace('//', '/');
+        const base = this.getBaseUrl();
+        const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+        return `${base}${cleanPath}`;
+    }
+
+    // Get absolute URL including origin
+    getAbsoluteUrl(path) {
+        return new URL(this.getUrl(path), window.location.origin).href;
     }
 
     setupDOMElements() {
@@ -174,6 +181,9 @@ class AuthService {
             this.showLoading(true);
             
             console.log('Attempting registration with email:', email);
+            const redirectUrl = this.getAbsoluteUrl('login.html');
+            console.log('Redirect URL:', redirectUrl);
+            
             const { data, error } = await this.supabase.auth.signUp({
                 email,
                 password,
@@ -181,7 +191,7 @@ class AuthService {
                     data: {
                         email: email // Required by the trigger function
                     },
-                    emailRedirectTo: `${window.location.origin}${this.getUrl('login.html')}`
+                    emailRedirectTo: redirectUrl
                 }
             });
 
@@ -240,7 +250,7 @@ class AuthService {
             this.showLoading(true);
             
             const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}${this.getUrl('reset-password.html')}`
+                redirectTo: this.getAbsoluteUrl('reset-password.html')
             });
 
             if (error) throw error;
