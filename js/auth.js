@@ -180,6 +180,26 @@ class AuthService {
         try {
             this.showLoading(true);
             
+            // First, try to create the user profile row
+            try {
+                const { data: profileData, error: profileError } = await this.supabase
+                    .from('user_profiles')
+                    .insert([
+                        {
+                            email: email,
+                            display_name: displayName
+                        }
+                    ])
+                    .select();
+                    
+                if (profileError) {
+                    console.error('Error pre-creating profile:', profileError);
+                }
+            } catch (profileError) {
+                console.warn('Profile creation will be handled by trigger instead:', profileError);
+            }
+
+            // Now attempt the signup
             console.log('Attempting registration with email:', email);
             const redirectUrl = this.getAbsoluteUrl('login.html');
             console.log('Redirect URL:', redirectUrl);
@@ -191,13 +211,36 @@ class AuthService {
                 options: {
                     emailRedirectTo: redirectUrl,
                     data: {
-                        display_name: displayName // Store display name in user metadata
+                        display_name: displayName
                     }
                 }
             };
             
             console.log('Signup payload:', signupData);
+
+            // Try the raw API call first to see more error details
+            try {
+                const response = await fetch(`${this.supabase.authUrl}/signup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': this.supabase.supabaseKey,
+                        'Authorization': `Bearer ${this.supabase.supabaseKey}`
+                    },
+                    body: JSON.stringify(signupData)
+                });
+
+                const rawData = await response.json();
+                console.log('Raw signup response:', rawData);
+
+                if (!response.ok) {
+                    throw new Error(rawData.message || 'Failed to register user');
+                }
+            } catch (rawError) {
+                console.error('Raw API error:', rawError);
+            }
             
+            // Fallback to regular signup if raw call fails
             const { data, error } = await this.supabase.auth.signUp(signupData);
 
             if (error) {
@@ -211,7 +254,6 @@ class AuthService {
 
             console.log('Registration response:', data);
             
-            // No need to update display name separately since we're sending it with signup
             this.showMessage(
                 this.registerMessage,
                 'Registration successful! Please check your email to confirm your account.',
