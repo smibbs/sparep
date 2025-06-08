@@ -1,3 +1,6 @@
+// Import Supabase client
+import { supabase } from './supabase-client.js';
+
 /**
  * Application state management
  */
@@ -150,38 +153,45 @@ function handleKeydown(event) {
 /**
  * Initialize the application
  */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     showLoading();
     
-    setTimeout(() => {
+    try {
+        // Test Supabase connection
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+            console.error('Supabase connection error:', error.message);
+            showError();
+            return;
+        }
+
         if (typeof questions === 'undefined') {
             showError();
             return;
         }
 
-        try {
-            // Initialize state
-            appState.questions = questions;
-            appState.totalCards = questions.length;
-            appState.isLoading = false;
-            
-            // Update UI
-            updateProgress();
-            renderCard();
+        // Initialize state
+        appState.questions = questions;
+        appState.totalCards = questions.length;
+        appState.isLoading = false;
+        
+        // Update UI
+        updateProgress();
+        renderCard();
 
-            // Add event listeners
-            const card = document.querySelector('.card');
-            const nextButton = document.querySelector('#next-button');
-            const prevButton = document.querySelector('#prev-button');
+        // Add event listeners
+        const card = document.querySelector('.card');
+        const nextButton = document.querySelector('#next-button');
+        const prevButton = document.querySelector('#prev-button');
 
-            if (card) card.addEventListener('click', flipCard);
-            if (nextButton) nextButton.addEventListener('click', nextCard);
-            if (prevButton) prevButton.addEventListener('click', previousCard);
-            document.addEventListener('keydown', handleKeydown);
+        if (card) card.addEventListener('click', flipCard);
+        if (nextButton) nextButton.addEventListener('click', nextCard);
+        if (prevButton) prevButton.addEventListener('click', previousCard);
+        document.addEventListener('keydown', handleKeydown);
 
-            showContent();
-        } catch (error) {
-            showError();
-        }
-    }, 1000); // Simulated loading delay
+        showContent();
+    } catch (error) {
+        console.error('Application initialization error:', error.message);
+        showError();
+    }
 }); 
