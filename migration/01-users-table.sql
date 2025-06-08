@@ -29,10 +29,7 @@ CREATE TABLE public.user_profiles (
     total_cards_studied INT NOT NULL DEFAULT 0,
     total_reviews INT NOT NULL DEFAULT 0,
     current_streak INT NOT NULL DEFAULT 0,
-    longest_streak INT NOT NULL DEFAULT 0,
-    
-    -- Ensure email matches auth.users
-    CONSTRAINT user_profiles_email_match CHECK (email = (SELECT email FROM auth.users WHERE id = user_profiles.id))
+    longest_streak INT NOT NULL DEFAULT 0
 );
 
 -- Create updated_at trigger
@@ -48,6 +45,23 @@ CREATE TRIGGER update_user_profiles_updated_at
     BEFORE UPDATE ON public.user_profiles
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- Create function to validate email matches auth.users
+CREATE OR REPLACE FUNCTION validate_user_profile_email()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.email != (SELECT email FROM auth.users WHERE id = NEW.id) THEN
+        RAISE EXCEPTION 'Email must match the email in auth.users';
+    END IF;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create trigger for email validation
+CREATE TRIGGER validate_email_match
+    BEFORE INSERT OR UPDATE OF email ON public.user_profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION validate_user_profile_email();
 
 -- Create function to handle new user creation
 CREATE OR REPLACE FUNCTION handle_new_user()
