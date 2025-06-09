@@ -145,15 +145,15 @@ class AuthService {
                 
                 // Only redirect if we're on the login page
                 if (window.location.pathname.includes('login.html')) {
-                    this.redirectToApp();
+                    AuthService.redirectToApp();
                 }
             } else if (!window.location.pathname.includes('login.html')) {
                 // Redirect to login if no session and not already on login page
-                this.redirectToLogin();
+                AuthService.redirectToLogin();
             }
         } catch (error) {
             console.error('Error checking auth state:', error.message);
-            this.redirectToLogin();
+            AuthService.redirectToLogin();
         }
     }
 
@@ -318,22 +318,15 @@ class AuthService {
     handleAuthStateChange(event, session) {
         this.currentUser = session?.user || null;
         this.notifyAuthStateListeners(this.currentUser, event);
-
-        switch (event) {
-            case 'SIGNED_IN':
-                if (window.location.pathname.includes('login.html')) {
-                    this.redirectToApp();
-                }
-                break;
-            case 'SIGNED_OUT':
-                this.redirectToLogin();
-                break;
-            case 'USER_UPDATED':
-                // Handle user data updates
-                break;
-            case 'USER_DELETED':
-                this.redirectToLogin();
-                break;
+        
+        // Handle session changes
+        if (event === 'SIGNED_IN') {
+            // Only redirect if we're on the login page
+            if (window.location.pathname.includes('login.html')) {
+                AuthService.redirectToApp();
+            }
+        } else if (event === 'SIGNED_OUT') {
+            AuthService.redirectToLogin();
         }
     }
 
