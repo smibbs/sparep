@@ -2,10 +2,27 @@
 const supabase = window.supabaseClient;
 
 /**
+ * Gets the base URL for the application
+ */
+function getBaseUrl() {
+    // For GitHub Pages
+    if (window.location.hostname.includes('github.io')) {
+        const pathParts = window.location.pathname.split('/');
+        const repoName = pathParts[1]; // Second part after the first slash
+        return `/${repoName}/`;
+    }
+    // For local development
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return '/';
+    }
+    return '/';
+}
+
+/**
  * Redirects to login page
  */
 function redirectToLogin() {
-    window.location.href = '/login.html';
+    window.location.href = `${getBaseUrl()}login.html`;
 }
 
 /**
@@ -168,7 +185,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Check authentication
         const user = await AuthService.getCurrentUser();
         if (!user) {
-            window.location.href = '/login.html';
+            redirectToLogin();
             return;
         }
         
@@ -178,7 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         AuthService.onAuthStateChange((user, event) => {
             appState.user = user;
             if (!user) {
-                window.location.href = '/login.html';
+                redirectToLogin();
                 return;
             }
         });
