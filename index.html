@@ -20,29 +20,34 @@
             <button onclick="location.reload()" class="nav-button">Retry</button>
         </div>
         <div id="content" class="content hidden">
-            <div class="card-container">
-                <div class="progress-indicator">
-                    Card <span id="current-card">1</span> of <span id="total-cards">3</span>
-                </div>
-                <div class="card">
+            <div class="progress">Card <span id="current-card">1</span> of <span id="total-cards">3</span></div>
+            <div class="card">
+                <div class="card-inner">
                     <div class="card-front">
-                        Front of card (Question)
+                        <p>Front of card (Question)</p>
                     </div>
                     <div class="card-back">
-                        Back of card (Answer)
+                        <p>Back of card (Answer)</p>
                     </div>
                 </div>
-                <div class="navigation">
-                    <button id="prev-button" class="nav-button">Previous</button>
-                    <button id="next-button" class="nav-button">Next</button>
-                </div>
+            </div>
+            <div class="controls">
+                <button onclick="previousCard()" class="nav-button">Previous</button>
+                <button onclick="flipCard()" class="nav-button">Flip</button>
+                <button onclick="nextCard()" class="nav-button">Next</button>
             </div>
         </div>
     </div>
     <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Application Scripts -->
-    <script src="config/supabase-config.js"></script>
+    <script>
+        // Inline Supabase configuration for GitHub Pages
+        window.supabaseConfig = {
+            SUPABASE_URL: 'https://fcncyvokyypauanqgaxd.supabase.co',
+            SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjbmN5dm9reXlwYXVhbnFnYXhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkzOTczODQsImV4cCI6MjA2NDk3MzM4NH0.V4ux2pLgZaELwbWTj6U7R48LgNlaMrj51uxLqEBfw-s'
+        };
+    </script>
     <script src="js/supabase-client.js"></script>
     <script src="js/auth.js"></script>
     <script src="data/questions.js?v=1"></script>
