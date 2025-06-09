@@ -37,7 +37,7 @@ class AuthService {
     }
 
     // Get base URL for the application
-    getBaseUrl() {
+    static getBaseUrl() {
         // For GitHub Pages
         if (window.location.hostname.includes('github.io')) {
             // Extract the repository name from the pathname
@@ -50,15 +50,15 @@ class AuthService {
     }
 
     // Get full URL for a path
-    getUrl(path) {
-        const base = this.getBaseUrl();
+    static getUrl(path) {
+        const base = AuthService.getBaseUrl();
         const cleanPath = path.startsWith('/') ? path.slice(1) : path;
         return `${base}${cleanPath}`;
     }
 
     // Get absolute URL including origin
-    getAbsoluteUrl(path) {
-        return new URL(this.getUrl(path), window.location.origin).href;
+    static getAbsoluteUrl(path) {
+        return new URL(AuthService.getUrl(path), window.location.origin).href;
     }
 
     setupDOMElements() {
@@ -188,7 +188,7 @@ class AuthService {
             if (error) throw error;
 
             this.showMessage(this.loginMessage, 'Login successful! Redirecting...', 'success');
-            this.redirectToApp();
+            AuthService.redirectToApp();
             
         } catch (error) {
             this.showMessage(this.loginMessage, error.message);
@@ -222,7 +222,7 @@ class AuthService {
             this.showLoading(true);
             
             // Get the redirect URL
-            const redirectUrl = this.getAbsoluteUrl('login.html');
+            const redirectUrl = AuthService.getAbsoluteUrl('login.html');
             console.log('Redirect URL:', redirectUrl);
             
             // Create the signup payload
@@ -274,7 +274,7 @@ class AuthService {
             this.showLoading(true);
             
             const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: this.getAbsoluteUrl('reset-password.html')
+                redirectTo: AuthService.getAbsoluteUrl('reset-password.html')
             });
 
             if (error) throw error;
@@ -311,29 +311,18 @@ class AuthService {
     }
 
     redirectToApp() {
-        window.location.href = this.getUrl('index.html');
+        window.location.href = AuthService.getUrl('index.html');
     }
 
     redirectToLogin() {
-        window.location.href = this.getUrl('login.html');
+        window.location.href = AuthService.getUrl('login.html');
     }
 
     static async signOut() {
         try {
             const { error } = await window.supabaseClient.auth.signOut();
             if (error) throw error;
-            
-            // Get base URL for GitHub Pages
-            const getBaseUrl = () => {
-                if (window.location.hostname.includes('github.io')) {
-                    const pathParts = window.location.pathname.split('/');
-                    const repoName = pathParts[1];
-                    return `/${repoName}/`;
-                }
-                return '/';
-            };
-            
-            window.location.href = `${getBaseUrl()}login.html`;
+            AuthService.redirectToLogin();
         } catch (error) {
             console.error('Error signing out:', error.message);
         }

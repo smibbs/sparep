@@ -22,7 +22,7 @@ function getBaseUrl() {
  * Redirects to login page
  */
 function redirectToLogin() {
-    window.location.href = `${getBaseUrl()}login.html`;
+    AuthService.redirectToLogin();
 }
 
 /**
