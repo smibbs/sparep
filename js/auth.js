@@ -311,18 +311,29 @@ class AuthService {
     }
 
     redirectToApp() {
-        window.location.href = `${this.getBaseUrl()}index.html`;
+        window.location.href = this.getUrl('index.html');
     }
 
     redirectToLogin() {
-        window.location.href = `${this.getBaseUrl()}login.html`;
+        window.location.href = this.getUrl('login.html');
     }
 
     static async signOut() {
         try {
             const { error } = await window.supabaseClient.auth.signOut();
             if (error) throw error;
-            window.location.href = '/login.html';
+            
+            // Get base URL for GitHub Pages
+            const getBaseUrl = () => {
+                if (window.location.hostname.includes('github.io')) {
+                    const pathParts = window.location.pathname.split('/');
+                    const repoName = pathParts[1];
+                    return `/${repoName}/`;
+                }
+                return '/';
+            };
+            
+            window.location.href = `${getBaseUrl()}login.html`;
         } catch (error) {
             console.error('Error signing out:', error.message);
         }
