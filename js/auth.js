@@ -43,12 +43,9 @@ class AuthService {
             // Extract the repository name from the pathname
             const pathParts = window.location.pathname.split('/');
             const repoName = pathParts[1]; // Second part after the first slash
-            return `/${repoName}/`;
+            return `/${repoName}/`; // This ensures we include /sparep/ for GitHub Pages
         }
         // For local development
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            return '/';
-        }
         return '/';
     }
 
@@ -314,12 +311,11 @@ class AuthService {
     }
 
     redirectToApp() {
-        // Redirect to the main app page
-        window.location.href = this.getUrl('index.html');
+        window.location.href = `${this.getBaseUrl()}index.html`;
     }
 
     redirectToLogin() {
-        window.location.href = this.getUrl('login.html');
+        window.location.href = `${this.getBaseUrl()}login.html`;
     }
 
     static async signOut() {
