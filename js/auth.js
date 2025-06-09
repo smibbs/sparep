@@ -62,6 +62,10 @@ class AuthService {
     }
 
     setupDOMElements() {
+        // Only set up form elements if we're on the login page
+        const isLoginPage = window.location.pathname.includes('login.html');
+        if (!isLoginPage) return;
+
         // Forms and tabs
         this.tabButtons = document.querySelectorAll('.tab-btn');
         this.loginForm = document.getElementById('loginForm');
@@ -87,6 +91,10 @@ class AuthService {
     }
 
     setupEventListeners() {
+        // Only set up event listeners if we're on the login page
+        const isLoginPage = window.location.pathname.includes('login.html');
+        if (!isLoginPage) return;
+
         // Tab switching
         this.tabButtons.forEach(button => {
             button.addEventListener('click', () => this.switchTab(button.dataset.tab));
