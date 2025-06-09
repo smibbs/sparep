@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Check authentication
         const user = await AuthService.getCurrentUser();
         if (!user) {
-            redirectToLogin();
+            AuthService.redirectToLogin();
             return;
         }
         
@@ -195,7 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         AuthService.onAuthStateChange((user, event) => {
             appState.user = user;
             if (!user) {
-                redirectToLogin();
+                AuthService.redirectToLogin();
                 return;
             }
         });
@@ -210,25 +210,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         appState.totalCards = questions.length;
         appState.isLoading = false;
         
-        // Update UI
-        updateProgress();
-        renderCard();
-
-        // Add event listeners
-        const card = document.querySelector('.card');
-        const nextButton = document.querySelector('#next-button');
-        const prevButton = document.querySelector('#prev-button');
-        const signOutButton = document.querySelector('#signout-button');
-
-        if (card) card.addEventListener('click', flipCard);
-        if (nextButton) nextButton.addEventListener('click', nextCard);
-        if (prevButton) prevButton.addEventListener('click', previousCard);
-        if (signOutButton) signOutButton.addEventListener('click', AuthService.signOut);
-        document.addEventListener('keydown', handleKeydown);
-
+        // Show content and render first card
         showContent();
+        renderCard();
+        
+        // Add keyboard event listener
+        document.addEventListener('keydown', handleKeydown);
+        
     } catch (error) {
-        console.error('Application initialization error:', error.message);
+        console.error('Error initializing app:', error);
         showError();
     }
 }); 

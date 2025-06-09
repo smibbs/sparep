@@ -61,6 +61,27 @@ class AuthService {
         return new URL(AuthService.getUrl(path), window.location.origin).href;
     }
 
+    // Redirect to main app
+    static redirectToApp() {
+        window.location.href = AuthService.getUrl('index.html');
+    }
+
+    // Redirect to login page
+    static redirectToLogin() {
+        window.location.href = AuthService.getUrl('login.html');
+    }
+
+    // Sign out
+    static async signOut() {
+        try {
+            const { error } = await window.supabaseClient.auth.signOut();
+            if (error) throw error;
+            AuthService.redirectToLogin();
+        } catch (error) {
+            console.error('Error signing out:', error.message);
+        }
+    }
+
     setupDOMElements() {
         // Only set up form elements if we're on the login page
         const isLoginPage = window.location.pathname.includes('login.html');
@@ -214,40 +235,31 @@ class AuthService {
         const confirmPass = this.confirmPassword.value;
         const displayName = this.displayName.value.trim();
 
-        // Validation
+        // Password validation
+        if (password !== confirmPass) {
+            this.showMessage(this.registerMessage, 'Passwords do not match');
+            return;
+        }
+
         const passwordError = this.validatePassword(password);
         if (passwordError) {
             this.showMessage(this.registerMessage, passwordError);
             return;
         }
 
-        if (password !== confirmPass) {
-            this.showMessage(this.registerMessage, 'Passwords do not match');
-            return;
-        }
-
         try {
             this.showLoading(true);
             
-            // Get the redirect URL
-            const redirectUrl = AuthService.getAbsoluteUrl('login.html');
-            console.log('Redirect URL:', redirectUrl);
-            
-            // Create the signup payload
             const signupData = {
                 email,
                 password,
                 options: {
-                    emailRedirectTo: redirectUrl,
                     data: {
                         display_name: displayName
                     }
                 }
             };
-            
-            console.log('Signup payload:', signupData);
 
-            // Attempt signup
             const { data, error } = await this.supabase.auth.signUp(signupData);
 
             if (error) throw error;
@@ -275,11 +287,18 @@ class AuthService {
     async handleForgotPassword(e) {
         e.preventDefault();
         
-        const email = prompt('Please enter your email address:');
-        if (!email) return;
+        const email = this.loginEmail.value.trim();
+        if (!email) {
+            this.showMessage(this.loginMessage, 'Please enter your email address');
+            return;
+        }
 
         try {
             this.showLoading(true);
+            
+            // Get the redirect URL
+            const redirectUrl = AuthService.getAbsoluteUrl('reset-password.html');
+            console.log('Redirect URL:', redirectUrl);
             
             const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: AuthService.getAbsoluteUrl('reset-password.html')
@@ -287,10 +306,10 @@ class AuthService {
 
             if (error) throw error;
 
-            alert('Password reset instructions have been sent to your email.');
+            this.showMessage(this.loginMessage, 'Password reset instructions sent to your email', 'success');
             
         } catch (error) {
-            alert(error.message);
+            this.showMessage(this.loginMessage, error.message);
         } finally {
             this.showLoading(false);
         }
@@ -315,24 +334,6 @@ class AuthService {
             case 'USER_DELETED':
                 this.redirectToLogin();
                 break;
-        }
-    }
-
-    redirectToApp() {
-        window.location.href = AuthService.getUrl('index.html');
-    }
-
-    redirectToLogin() {
-        window.location.href = AuthService.getUrl('login.html');
-    }
-
-    static async signOut() {
-        try {
-            const { error } = await window.supabaseClient.auth.signOut();
-            if (error) throw error;
-            AuthService.redirectToLogin();
-        } catch (error) {
-            console.error('Error signing out:', error.message);
         }
     }
 
