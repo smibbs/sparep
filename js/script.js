@@ -218,9 +218,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.addEventListener('keydown', handleKeydown);
         
         // Add click event listener to the card
-        const card = document.querySelector('.card');
-        if (card) {
-            card.addEventListener('click', flipCard);
+        const cardInner = document.querySelector('.card-inner');
+        if (cardInner) {
+            cardInner.addEventListener('click', flipCard);
         }
         
     } catch (error) {
