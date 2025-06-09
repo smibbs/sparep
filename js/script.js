@@ -217,6 +217,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Add keyboard event listener
         document.addEventListener('keydown', handleKeydown);
         
+        // Add click event listener to the card
+        const card = document.querySelector('.card');
+        if (card) {
+            card.addEventListener('click', flipCard);
+        }
+        
     } catch (error) {
         console.error('Error initializing app:', error);
         showError();
