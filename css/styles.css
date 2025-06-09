@@ -18,6 +18,24 @@ body {
     box-sizing: border-box;
 }
 
+/* Header navigation */
+.header-nav {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 20px 20px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+#signout-button {
+    background-color: #dc3545;
+    max-width: 120px;
+}
+
+#signout-button:hover {
+    background-color: #bb2d3b;
+}
+
 /* Card container */
 .card-container {
     max-width: 600px;

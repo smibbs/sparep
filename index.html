@@ -8,6 +8,9 @@
 </head>
 <body>
     <div id="app-container">
+        <div class="header-nav">
+            <button id="signout-button" class="nav-button" onclick="AuthService.signOut()">Sign Out</button>
+        </div>
         <div id="loading-state" class="loading-state">
             <div class="loading-spinner"></div>
             <p class="loading-text">Loading flashcards...</p>
@@ -41,6 +44,7 @@
     <!-- Application Scripts -->
     <script src="config/supabase-config.js"></script>
     <script src="js/supabase-client.js"></script>
+    <script src="js/auth.js"></script>
     <script src="data/questions.js?v=1"></script>
     <script src="js/script.js?v=1"></script>
 </body>

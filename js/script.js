@@ -2,6 +2,13 @@
 const supabase = window.supabaseClient;
 
 /**
+ * Redirects to login page
+ */
+function redirectToLogin() {
+    window.location.href = '/login.html';
+}
+
+/**
  * Application state management
  */
 const appState = {
@@ -10,7 +17,8 @@ const appState = {
     questions: [],
     totalCards: 0,
     isAnimating: false,
-    isLoading: true
+    isLoading: true,
+    user: null
 };
 
 // Animation duration in milliseconds (matches CSS transition)
@@ -157,13 +165,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLoading();
     
     try {
-        // Test Supabase connection
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-            console.error('Supabase connection error:', error.message);
-            showError();
+        // Check authentication
+        const user = await AuthService.getCurrentUser();
+        if (!user) {
+            window.location.href = '/login.html';
             return;
         }
+        
+        appState.user = user;
+
+        // Subscribe to auth changes
+        AuthService.onAuthStateChange((user, event) => {
+            appState.user = user;
+            if (!user) {
+                window.location.href = '/login.html';
+                return;
+            }
+        });
 
         if (typeof questions === 'undefined') {
             showError();
@@ -183,10 +201,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const card = document.querySelector('.card');
         const nextButton = document.querySelector('#next-button');
         const prevButton = document.querySelector('#prev-button');
+        const signOutButton = document.querySelector('#signout-button');
 
         if (card) card.addEventListener('click', flipCard);
         if (nextButton) nextButton.addEventListener('click', nextCard);
         if (prevButton) prevButton.addEventListener('click', previousCard);
+        if (signOutButton) signOutButton.addEventListener('click', AuthService.signOut);
         document.addEventListener('keydown', handleKeydown);
 
         showContent();

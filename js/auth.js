@@ -3,13 +3,48 @@ class AuthService {
     constructor() {
         this.supabase = window.supabaseClient;
         this.currentUser = null;
+        this.authStateListeners = new Set();
         this.setupDOMElements();
         this.setupEventListeners();
         this.initializeAuthState();
     }
 
+    // Get current user
+    static async getCurrentUser() {
+        try {
+            const { data: { session }, error } = await window.supabaseClient.auth.getSession();
+            if (error) throw error;
+            return session?.user || null;
+        } catch (error) {
+            console.error('Error getting current user:', error.message);
+            return null;
+        }
+    }
+
+    // Subscribe to auth state changes
+    static onAuthStateChange(callback) {
+        if (typeof callback !== 'function') {
+            throw new Error('Callback must be a function');
+        }
+        
+        const { data: { subscription } } = window.supabaseClient.auth.onAuthStateChange(
+            (event, session) => {
+                callback(session?.user || null, event);
+            }
+        );
+        
+        return () => subscription.unsubscribe();
+    }
+
     // Get base URL for the application
     getBaseUrl() {
+        // For GitHub Pages
+        if (window.location.hostname.includes('github.io')) {
+            // Extract the repository name from the pathname
+            const pathParts = window.location.pathname.split('/');
+            const repoName = pathParts[1]; // Second part after the first slash
+            return `/${repoName}/`;
+        }
         // For local development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             return '/';
@@ -80,10 +115,19 @@ class AuthService {
             
             if (session) {
                 this.currentUser = session.user;
-                this.redirectToApp();
+                this.notifyAuthStateListeners(session.user, 'INITIAL_SESSION');
+                
+                // Only redirect if we're on the login page
+                if (window.location.pathname.includes('login.html')) {
+                    this.redirectToApp();
+                }
+            } else if (!window.location.pathname.includes('login.html')) {
+                // Redirect to login if no session and not already on login page
+                this.redirectToLogin();
             }
         } catch (error) {
             console.error('Error checking auth state:', error.message);
+            this.redirectToLogin();
         }
     }
 
@@ -201,21 +245,23 @@ class AuthService {
             // Attempt signup
             const { data, error } = await this.supabase.auth.signUp(signupData);
 
-            if (error) {
-                console.error('Registration error:', error);
-                throw error;
+            if (error) throw error;
+
+            if (data?.user?.identities?.length === 0) {
+                this.showMessage(this.registerMessage, 'An account with this email already exists', 'error');
+                return;
             }
 
-            // Show success message
-            this.showMessage(
-                this.registerMessage,
-                'Registration successful! Please check your email to confirm your account.',
-                'success'
-            );
-
+            this.showMessage(this.registerMessage, 'Registration successful! Please check your email to confirm your account.', 'success');
+            
+            // Clear the form
+            this.registerForm.reset();
+            
+            // Switch to login tab after successful registration
+            setTimeout(() => this.switchTab('login'), 3000);
+            
         } catch (error) {
-            console.error('Detailed registration error:', error);
-            this.showMessage(this.registerMessage, error.message || 'Failed to register user');
+            this.showMessage(this.registerMessage, error.message);
         } finally {
             this.showLoading(false);
         }
@@ -246,42 +292,73 @@ class AuthService {
     }
 
     handleAuthStateChange(event, session) {
-        console.log('Auth state changed:', event);
-        
+        this.currentUser = session?.user || null;
+        this.notifyAuthStateListeners(this.currentUser, event);
+
         switch (event) {
             case 'SIGNED_IN':
-                this.currentUser = session.user;
-                this.redirectToApp();
-                break;
-                
-            case 'SIGNED_OUT':
-                this.currentUser = null;
-                // Only redirect if we're not already on the login page
-                if (!window.location.pathname.includes('login.html')) {
-                    window.location.href = this.getUrl('login.html');
+                if (window.location.pathname.includes('login.html')) {
+                    this.redirectToApp();
                 }
                 break;
-                
+            case 'SIGNED_OUT':
+                this.redirectToLogin();
+                break;
             case 'USER_UPDATED':
-                this.currentUser = session.user;
+                // Handle user data updates
+                break;
+            case 'USER_DELETED':
+                this.redirectToLogin();
                 break;
         }
     }
 
     redirectToApp() {
+        // Redirect to the main app page
         window.location.href = this.getUrl('index.html');
     }
 
+    redirectToLogin() {
+        window.location.href = this.getUrl('login.html');
+    }
+
     static async signOut() {
-        const { error } = await window.supabaseClient.auth.signOut();
-        if (error) {
+        try {
+            const { error } = await window.supabaseClient.auth.signOut();
+            if (error) throw error;
+            window.location.href = '/login.html';
+        } catch (error) {
             console.error('Error signing out:', error.message);
-            throw error;
         }
+    }
+
+    // Add listener for auth state changes
+    addAuthStateListener(callback) {
+        if (typeof callback === 'function') {
+            this.authStateListeners.add(callback);
+            // Immediately call with current state
+            callback(this.currentUser, 'CURRENT_STATE');
+        }
+    }
+
+    // Remove listener
+    removeAuthStateListener(callback) {
+        this.authStateListeners.delete(callback);
+    }
+
+    // Notify all listeners of auth state change
+    notifyAuthStateListeners(user, event) {
+        this.authStateListeners.forEach(listener => {
+            try {
+                listener(user, event);
+            } catch (error) {
+                console.error('Error in auth state listener:', error);
+            }
+        });
     }
 }
 
-// Initialize the auth service when the DOM is loaded
+// Initialize auth service when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.authService = new AuthService();
 }); 
