@@ -134,8 +134,10 @@ class DatabaseService {
                     card_id: cardId,
                     stability,
                     difficulty,
-                    next_review_date: nextReviewDate,
-                    last_review_date: new Date().toISOString()
+                    next_review_at: nextReviewDate,
+                    last_review_at: new Date().toISOString(),
+                    total_reviews: supabase.sql`total_reviews + 1`,
+                    state: 'learning'
                 });
 
             if (progressError) {
@@ -150,7 +152,7 @@ class DatabaseService {
                     user_id: user.id,
                     card_id: cardId,
                     rating,
-                    response_time_ms: responseTime,
+                    response_time: responseTime,
                     stability_before: stability,
                     difficulty_before: difficulty,
                     elapsed_days: 0,
