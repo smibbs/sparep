@@ -135,16 +135,22 @@ class DatabaseService {
                     card_id: cardId,
                     stability,
                     difficulty,
-                    last_review_at: now,
-                    next_review_at: nextReviewDate,
+                    due_date: nextReviewDate,
+                    last_review_date: now,
+                    next_review_date: nextReviewDate,
                     reps: supabase.sql`reps + 1`,
                     total_reviews: supabase.sql`total_reviews + 1`,
                     correct_reviews: supabase.sql`CASE WHEN ${rating} >= 3 THEN correct_reviews + 1 ELSE correct_reviews END`,
+                    incorrect_reviews: supabase.sql`CASE WHEN ${rating} < 3 THEN incorrect_reviews + 1 ELSE incorrect_reviews END`,
+                    last_rating: rating,
                     state: 'learning',
-                    average_response_time: responseTime,
+                    streak: supabase.sql`CASE WHEN ${rating} >= 3 THEN streak + 1 ELSE 0 END`,
+                    average_time_ms: responseTime,
                     elapsed_days: 0,
                     scheduled_days: 0,
                     lapses: supabase.sql`CASE WHEN ${rating} < 3 THEN lapses + 1 ELSE lapses END`
+                }, {
+                    onConflict: 'user_id,card_id'
                 });
 
             if (progressError) {
