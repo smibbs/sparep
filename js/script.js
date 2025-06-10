@@ -1,7 +1,7 @@
 // Import required modules
 import { RATING, calculateNextReview, updateStability, updateDifficulty } from './fsrs.js';
 import database from './database.js';
-import { AuthService } from './auth.js';
+import auth from './auth.js';
 
 // Use global Supabase client
 const supabase = window.supabaseClient;
@@ -27,7 +27,7 @@ function getBaseUrl() {
  * Redirects to login page
  */
 function redirectToLogin() {
-    AuthService.redirectToLogin();
+    auth.redirectToLogin();
 }
 
 // Initialize app state
@@ -40,6 +40,7 @@ const appState = {
     isLoading: true,
     user: null,
     dbService: database,  // Use the default database instance
+    authService: auth,    // Use the default auth instance
     currentCard: null,
     cardStartTime: null
 };
@@ -327,16 +328,20 @@ async function initializeApp() {
         showError(null); // Clear any previous errors
         
         // Check authentication
-        const user = await AuthService.getCurrentUser();
+        const user = await auth.getCurrentUser();
         if (!user) {
-            AuthService.redirectToLogin();
+            auth.redirectToLogin();
             return;
         }
 
+        // Store user in app state
+        appState.user = user;
+
         // Set up auth state change listener
-        AuthService.onAuthStateChange((user) => {
+        auth.onAuthStateChange((user) => {
+            appState.user = user;
             if (!user) {
-                AuthService.redirectToLogin();
+                auth.redirectToLogin();
             }
         });
 
@@ -381,11 +386,11 @@ function setupEventListeners() {
     }
     
     if (logoutButton) {
-        logoutButton.addEventListener('click', () => AuthService.signOut());
+        logoutButton.addEventListener('click', () => auth.signOut());
     }
     
     if (errorLogoutButton) {
-        errorLogoutButton.addEventListener('click', () => AuthService.signOut());
+        errorLogoutButton.addEventListener('click', () => auth.signOut());
     }
 
     // Add keyboard navigation
