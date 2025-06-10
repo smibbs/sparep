@@ -530,13 +530,37 @@ function updateCardDisplay(card) {
 }
 
 function showNoMoreCardsMessage() {
-    content.innerHTML = `
-        <div class="no-cards-message">
-            <h2>Great job!</h2>
-            <p>You've completed all your reviews for now.</p>
-            <p>Come back later for more cards.</p>
-        </div>
-    `;
+    const frontContent = document.querySelector('.card-front p');
+    const backContent = document.querySelector('.card-back p');
+    const flipButton = document.getElementById('flip-button');
+    const ratingButtons = document.getElementById('rating-buttons');
+    const progressDiv = document.querySelector('.progress');
+    
+    if (frontContent) {
+        frontContent.innerHTML = `
+            <div class="no-cards-message">
+                <h2>Great job! 🎉</h2>
+                <p>You've completed all your reviews for now.</p>
+                <p>Come back later for more cards.</p>
+            </div>
+        `;
+    }
+    
+    if (backContent) {
+        backContent.textContent = '';
+    }
+    
+    if (flipButton) {
+        flipButton.classList.add('hidden');
+    }
+    
+    if (ratingButtons) {
+        ratingButtons.classList.add('hidden');
+    }
+    
+    if (progressDiv) {
+        progressDiv.classList.add('hidden');
+    }
 }
 
 // Initialize the app when the document is loaded
