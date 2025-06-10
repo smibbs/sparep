@@ -151,8 +151,15 @@ class DatabaseService {
                     card_id: cardId,
                     rating,
                     response_time_ms: responseTime,
+                    stability_before: stability,
+                    difficulty_before: difficulty,
+                    elapsed_days: 0,
+                    scheduled_days: 0,
                     stability_after: stability,
                     difficulty_after: difficulty,
+                    state_before: 'new',
+                    state_after: 'learning',
+                    was_relearning: false,
                     created_at: new Date().toISOString()
                 });
 
