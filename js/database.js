@@ -15,6 +15,7 @@ class DatabaseService {
      */
     async getCardsDue(userId) {
         try {
+            console.log('Fetching due cards for user:', userId);
             const { data, error } = await this.supabase
                 .from('user_card_progress')
                 .select(`
@@ -32,9 +33,10 @@ class DatabaseService {
                 .order('next_review_at', { ascending: true });
 
             if (error) throw error;
+            console.log('Due cards response:', data);
             return data || [];
         } catch (error) {
-            console.error('Error fetching due cards:', error.message);
+            console.error('Error fetching due cards:', error);
             throw error;
         }
     }
@@ -47,25 +49,36 @@ class DatabaseService {
      */
     async getNewCards(userId, limit = 10) {
         try {
+            console.log('Fetching new cards for user:', userId);
             // First, get all card IDs that the user has progress for
-            const { data: progressData } = await this.supabase
+            const { data: progressData, error: progressError } = await this.supabase
                 .from('user_card_progress')
                 .select('card_id')
                 .eq('user_id', userId);
 
+            if (progressError) throw progressError;
+            console.log('Progress data:', progressData);
+
             const seenCardIds = progressData?.map(p => p.card_id) || [];
+            console.log('Seen card IDs:', seenCardIds);
 
             // Then get cards that aren't in that list
-            const { data, error } = await this.supabase
+            const query = this.supabase
                 .from('cards')
-                .select('*')
-                .not('id', 'in', `(${seenCardIds.join(',')})`)
-                .limit(limit);
+                .select('*');
+                
+            if (seenCardIds.length > 0) {
+                query.not('id', 'in', `(${seenCardIds.join(',')})`);
+            }
+            query.limit(limit);
+
+            const { data, error } = await query;
 
             if (error) throw error;
+            console.log('New cards response:', data);
             return data || [];
         } catch (error) {
-            console.error('Error fetching new cards:', error.message);
+            console.error('Error fetching new cards:', error);
             throw error;
         }
     }

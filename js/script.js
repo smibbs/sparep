@@ -81,23 +81,30 @@ function updateProgress() {
  */
 async function loadCards() {
     try {
+        console.log('Starting to load cards...');
         showLoading();
         
         // First try to get due cards
+        console.log('Attempting to get due cards...');
         let cards = await appState.dbService.getCardsDue(appState.user.id);
+        console.log('Due cards received:', cards);
         
         // If no due cards, get some new cards
         if (!cards || cards.length === 0) {
+            console.log('No due cards found, fetching new cards...');
             const newCards = await appState.dbService.getNewCards(appState.user.id, 10);
+            console.log('New cards received:', newCards);
             cards = newCards;
             
             // Initialize progress for new cards
+            console.log('Initializing progress for new cards...');
             for (const card of newCards) {
                 await appState.dbService.initializeUserProgress(appState.user.id, card.id);
             }
         }
         
         // Transform cards to match expected format
+        console.log('Transforming card data...');
         appState.questions = cards.map(card => {
             // Handle both due cards (with nested card data) and new cards
             if (card.cards) {
@@ -122,14 +129,17 @@ async function loadCards() {
             }
         });
         
+        console.log('Transformed questions:', appState.questions);
+        
         appState.totalCards = appState.questions.length;
         appState.currentCardIndex = 0;
         
         if (appState.questions.length > 0) {
+            console.log('Rendering first card...');
             renderCard();
             showContent();
         } else {
-            // Show a message when no cards are available
+            console.log('No cards available for review');
             document.getElementById('error-state').textContent = 'No cards available for review at this time.';
             showError();
         }
@@ -244,25 +254,33 @@ function handleKeydown(event) {
  * Initialize the application
  */
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM Content Loaded, initializing app...');
     showLoading();
     
     try {
         // Wait for database service to be initialized
+        console.log('Waiting for database service...');
         let attempts = 0;
         while (!window.dbService && attempts < 10) {
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
+            console.log('Attempt', attempts, 'to get database service...');
         }
         
         if (!window.dbService) {
             throw new Error('Database service failed to initialize');
         }
         
+        console.log('Database service found, setting up app state...');
         appState.dbService = window.dbService;
         
         // Check authentication
+        console.log('Checking authentication...');
         const user = await AuthService.getCurrentUser();
+        console.log('Current user:', user);
+        
         if (!user) {
+            console.log('No user found, redirecting to login...');
             AuthService.redirectToLogin();
             return;
         }
@@ -271,6 +289,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Subscribe to auth changes
         AuthService.onAuthStateChange((user, event) => {
+            console.log('Auth state changed:', event, 'user:', user);
             appState.user = user;
             if (!user) {
                 AuthService.redirectToLogin();
@@ -279,15 +298,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         // Load cards from database
+        console.log('Loading cards...');
         await loadCards();
 
         // Add event listeners
+        console.log('Setting up event listeners...');
         document.addEventListener('keydown', handleKeydown);
         document.querySelector('.card').addEventListener('click', flipCard);
         document.getElementById('prev-button').addEventListener('click', previousCard);
         document.getElementById('next-button').addEventListener('click', nextCard);
         document.getElementById('logout-button').addEventListener('click', () => AuthService.signOut());
 
+        console.log('App initialization complete!');
     } catch (error) {
         console.error('Error initializing app:', error);
         document.getElementById('error-state').textContent = 'Failed to initialize the application. Please try again later.';
