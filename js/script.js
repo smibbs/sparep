@@ -434,7 +434,7 @@ async function handleRating(event) {
 
         // Calculate response time (if we have a start time)
         const responseTime = appState.cardStartTime ? 
-            (Date.now() - appState.cardStartTime) / 1000 : // Convert to seconds
+            Date.now() - appState.cardStartTime : // Keep in milliseconds
             null;
 
         // Get current card's FSRS parameters
