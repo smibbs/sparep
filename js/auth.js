@@ -3,29 +3,40 @@ import { getSupabaseClient } from './supabase-client.js';
 // Authentication service for handling user registration, login, and session management
 class AuthService {
     constructor() {
-        this.supabasePromise = getSupabaseClient();
+        this.supabasePromise = null;
         this.currentUser = null;
         this.authStateListeners = new Set();
-        this.setupDOMElements();
-        this.setupEventListeners();
-        this.initializeAuthState().catch(error => {
-            console.error('Failed to initialize auth state:', error);
+        this.initialize();
+    }
+
+    async initialize() {
+        try {
+            // Initialize Supabase client first
+            this.supabasePromise = getSupabaseClient();
+            await this.supabasePromise; // Wait for initialization
+
+            // Set up DOM and event listeners
+            this.setupDOMElements();
+            this.setupEventListeners();
+
+            // Initialize auth state
+            await this.initializeAuthState();
+            console.log('AuthService initialized successfully');
+        } catch (error) {
+            console.error('Failed to initialize AuthService:', error);
             // Only redirect to login if we're not already on the login page and not on the test page
             if (!window.location.pathname.includes('login.html') && 
                 !window.location.pathname.includes('database-test.html')) {
                 AuthService.redirectToLogin();
             }
-        });
-        console.log('AuthService initialized');
+        }
     }
 
     async getSupabase() {
-        try {
-            return await this.supabasePromise;
-        } catch (error) {
-            console.error('Error getting Supabase client:', error);
-            throw error;
+        if (!this.supabasePromise) {
+            throw new Error('Supabase client not initialized');
         }
+        return await this.supabasePromise;
     }
 
     // Get current user
@@ -168,7 +179,7 @@ class AuthService {
             }
         } catch (error) {
             console.error('Error checking auth state:', error);
-            throw error; // Let the constructor handle the error
+            throw error;
         }
     }
 

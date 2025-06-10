@@ -2,9 +2,20 @@
 console.log('Initializing Supabase client...');
 
 let supabase = null;
+let initializationPromise = null;
 
 async function initializeSupabase() {
     try {
+        // Return existing initialization if in progress
+        if (initializationPromise) {
+            return await initializationPromise;
+        }
+
+        // Return existing client if already initialized
+        if (supabase) {
+            return supabase;
+        }
+
         if (!window.supabaseConfig) {
             throw new Error('Supabase configuration not found');
         }
@@ -15,11 +26,9 @@ async function initializeSupabase() {
             throw new Error('Missing Supabase configuration values');
         }
 
-        // Create Supabase client if not already created
-        if (!supabase) {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            console.log('Supabase client created successfully');
-        }
+        // Create Supabase client
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase client created successfully');
         
         return supabase;
     } catch (error) {
@@ -28,12 +37,12 @@ async function initializeSupabase() {
     }
 }
 
-// Initialize immediately
-const supabasePromise = initializeSupabase();
+// Initialize and store the promise
+initializationPromise = initializeSupabase();
 
 // Export the getter function
 export async function getSupabaseClient() {
-    return await supabasePromise;
+    return await initializationPromise;
 }
 
-export default supabasePromise; 
+export default initializationPromise; 
