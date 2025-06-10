@@ -301,14 +301,15 @@ class DatabaseService {
     }
 }
 
-// Create and export a singleton instance
+// Export the DatabaseService class and create a default instance
+export { DatabaseService };
 const database = new DatabaseService();
 export default database;
 
 // Initialize database service when the DOM is loaded and Supabase client is available
 function initDatabaseService() {
     try {
-        window.dbService = new DatabaseService();
+        window.dbService = database; // Use the same instance
         console.log('Database service initialized successfully');
     } catch (error) {
         console.error('Failed to initialize database service:', error);
@@ -442,9 +443,8 @@ async function getDueCards(userId) {
     }
 }
 
-// Export the new function along with existing ones
+// Export utility functions
 export {
     getDueCards,
     initializeUserProgress
-    // ... other existing exports ...
 }; 

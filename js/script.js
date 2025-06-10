@@ -1,6 +1,6 @@
 // Import required modules
 import { RATING, calculateNextReview, updateStability, updateDifficulty } from './fsrs.js';
-import { DatabaseService } from './database.js';
+import database from './database.js';
 import { AuthService } from './auth.js';
 
 // Use global Supabase client
@@ -39,7 +39,7 @@ const appState = {
     isAnimating: false,
     isLoading: true,
     user: null,
-    dbService: null,
+    dbService: database,  // Use the default database instance
     currentCard: null,
     cardStartTime: null
 };
