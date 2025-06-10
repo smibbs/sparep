@@ -150,7 +150,7 @@ class DatabaseService {
                     user_id: user.id,
                     card_id: cardId,
                     rating,
-                    response_time: responseTime,
+                    response_time_ms: responseTime,
                     stability_after: stability,
                     difficulty_after: difficulty,
                     created_at: new Date().toISOString()
