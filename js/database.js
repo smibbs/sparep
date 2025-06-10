@@ -127,31 +127,17 @@ class DatabaseService {
             const { cardId, rating, responseTime, stability, difficulty, nextReviewDate } = reviewData;
             const now = new Date().toISOString();
 
-            // Update progress with a single query using raw SQL
-            const { error: progressError } = await supabase
-                .from('user_card_progress')
-                .upsert({
-                    user_id: user.id,
-                    card_id: cardId,
-                    stability,
-                    difficulty,
-                    due_date: nextReviewDate,
-                    last_review_date: now,
-                    next_review_date: nextReviewDate,
-                    reps: supabase.sql`reps + 1`,
-                    total_reviews: supabase.sql`total_reviews + 1`,
-                    correct_reviews: supabase.sql`CASE WHEN ${rating} >= 3 THEN correct_reviews + 1 ELSE correct_reviews END`,
-                    incorrect_reviews: supabase.sql`CASE WHEN ${rating} < 3 THEN incorrect_reviews + 1 ELSE incorrect_reviews END`,
-                    last_rating: rating,
-                    state: 'learning',
-                    streak: supabase.sql`CASE WHEN ${rating} >= 3 THEN streak + 1 ELSE 0 END`,
-                    average_time_ms: responseTime,
-                    elapsed_days: 0,
-                    scheduled_days: 0,
-                    lapses: supabase.sql`CASE WHEN ${rating} < 3 THEN lapses + 1 ELSE lapses END`
-                }, {
-                    onConflict: 'user_id,card_id'
-                });
+            // Update progress using raw SQL
+            const { error: progressError } = await supabase.rpc('update_card_progress', {
+                p_user_id: user.id,
+                p_card_id: cardId,
+                p_rating: rating,
+                p_stability: stability,
+                p_difficulty: difficulty,
+                p_next_review_date: nextReviewDate,
+                p_response_time: responseTime,
+                p_now: now
+            });
 
             if (progressError) {
                 console.error('Error updating progress:', progressError);
