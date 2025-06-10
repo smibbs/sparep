@@ -3,18 +3,39 @@ console.log('Initializing Supabase client...');
 
 let supabase = null;
 let initializationPromise = null;
+let initializationRetries = 0;
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
+async function waitForSupabaseLibrary() {
+    let attempts = 0;
+    const maxAttempts = 10;
+    const delay = 100; // 100ms between attempts
+
+    while (attempts < maxAttempts) {
+        if (window.supabase) {
+            return true;
+        }
+        await new Promise(resolve => setTimeout(resolve, delay));
+        attempts++;
+    }
+    throw new Error('Supabase library failed to load');
+}
 
 async function initializeSupabase() {
     try {
+        // Return existing client if already initialized
+        if (supabase) {
+            return supabase;
+        }
+
         // Return existing initialization if in progress
         if (initializationPromise) {
             return await initializationPromise;
         }
 
-        // Return existing client if already initialized
-        if (supabase) {
-            return supabase;
-        }
+        // Wait for Supabase library to be available
+        await waitForSupabaseLibrary();
 
         if (!window.supabaseConfig) {
             throw new Error('Supabase configuration not found');
@@ -28,21 +49,46 @@ async function initializeSupabase() {
 
         // Create Supabase client
         supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log('Supabase client created successfully');
         
+        // Test the client
+        await supabase.auth.getSession();
+        
+        console.log('Supabase client created and tested successfully');
         return supabase;
     } catch (error) {
         console.error('Failed to initialize Supabase client:', error);
+        
+        // Clear the failed client
+        supabase = null;
+        
+        // Retry initialization if under max retries
+        if (initializationRetries < MAX_RETRIES) {
+            initializationRetries++;
+            console.log(`Retrying Supabase initialization (attempt ${initializationRetries}/${MAX_RETRIES})...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            return initializeSupabase();
+        }
+        
         throw error;
     }
 }
 
-// Initialize and store the promise
-initializationPromise = initializeSupabase();
-
 // Export the getter function
 export async function getSupabaseClient() {
-    return await initializationPromise;
+    try {
+        // Initialize if not already done
+        if (!initializationPromise) {
+            initializationPromise = initializeSupabase();
+        }
+        
+        // Wait for initialization and return client
+        return await initializationPromise;
+    } catch (error) {
+        // Clear failed initialization
+        initializationPromise = null;
+        throw error;
+    }
 }
 
-export default initializationPromise; 
+// Initialize immediately but don't export the promise
+initializationPromise = initializeSupabase(); 

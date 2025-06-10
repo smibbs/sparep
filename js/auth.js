@@ -11,23 +11,44 @@ class AuthService {
 
     async initialize() {
         try {
-            // Initialize Supabase client first
-            this.supabasePromise = getSupabaseClient();
-            await this.supabasePromise; // Wait for initialization
-
-            // Set up DOM and event listeners
-            this.setupDOMElements();
-            this.setupEventListeners();
-
-            // Initialize auth state
-            await this.initializeAuthState();
-            console.log('AuthService initialized successfully');
+            await this.initializeWithRetry();
         } catch (error) {
-            console.error('Failed to initialize AuthService:', error);
-            // Only redirect to login if we're not already on the login page and not on the test page
-            if (!window.location.pathname.includes('login.html') && 
-                !window.location.pathname.includes('database-test.html')) {
-                AuthService.redirectToLogin();
+            console.error('Failed to initialize AuthService after retries:', error);
+            throw error;
+        }
+    }
+
+    async initializeWithRetry(maxRetries = 3, delay = 1000) {
+        let retries = 0;
+        
+        while (retries < maxRetries) {
+            try {
+                // Initialize Supabase client first
+                this.supabasePromise = getSupabaseClient();
+                await this.supabasePromise; // Wait for initialization
+
+                // Set up DOM and event listeners
+                this.setupDOMElements();
+                this.setupEventListeners();
+
+                // Initialize auth state
+                await this.initializeAuthState();
+                console.log('AuthService initialized successfully');
+                return;
+            } catch (error) {
+                retries++;
+                console.error(`Failed to initialize AuthService (attempt ${retries}/${maxRetries}):`, error);
+                
+                if (retries === maxRetries) {
+                    // Only redirect to login if we're not already on the login page and not on the test page
+                    if (!window.location.pathname.includes('login.html') && 
+                        !window.location.pathname.includes('database-test.html')) {
+                        AuthService.redirectToLogin();
+                    }
+                    throw error;
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
     }
