@@ -237,14 +237,35 @@ body {
 
 /* Error state */
 .error-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+    padding: 20px;
+}
+
+.error-content {
     text-align: center;
-    padding: 40px;
+    background: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .error-text {
-    color: #ef4444;
-    font-size: 1.125rem;
-    margin: 0 0 20px;
+    color: #dc3545;
+    font-size: 18px;
+    margin-bottom: 20px;
+}
+
+.error-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.error-actions button {
+    min-width: 100px;
 }
 
 /* Utility classes */
@@ -264,4 +285,50 @@ body {
     .error-text {
         font-size: 0.9375rem;
     }
+}
+
+.progress-info {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    font-size: 0.9em;
+    padding: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.card-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+.status-new {
+    background-color: #e3f2fd;
+    color: #1976d2;
+}
+
+.status-learning {
+    background-color: #fff3e0;
+    color: #f57c00;
+}
+
+.status-review {
+    background-color: #e8f5e9;
+    color: #388e3c;
+}
+
+.status-overdue {
+    background-color: #ffebee;
+    color: #d32f2f;
+}
+
+.status-label, .review-count {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
 } 

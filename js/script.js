@@ -81,6 +81,77 @@ function updateProgress() {
 }
 
 /**
+ * Display the current card
+ */
+function displayCurrentCard() {
+    if (!appState.cards || appState.cards.length === 0) {
+        showError('No cards available for review.');
+        return;
+    }
+
+    const currentCard = appState.cards[appState.currentCardIndex];
+    const cardFront = document.querySelector('.card-front p');
+    const cardBack = document.querySelector('.card-back p');
+    
+    if (!cardFront || !cardBack) {
+        console.error('Card elements not found');
+        return;
+    }
+
+    // Update card content
+    cardFront.textContent = currentCard.question;
+    cardBack.textContent = currentCard.answer;
+
+    // Update progress display
+    document.getElementById('current-card').textContent = (appState.currentCardIndex + 1).toString();
+    document.getElementById('total-cards').textContent = appState.cards.length.toString();
+
+    // Add progress information if available
+    const progressInfo = getProgressInfo(currentCard);
+    if (progressInfo) {
+        const progressElement = document.createElement('div');
+        progressElement.className = 'progress-info';
+        progressElement.innerHTML = progressInfo;
+        cardFront.appendChild(progressElement);
+    }
+
+    // Reset card to front face
+    const card = document.querySelector('.card');
+    if (card) {
+        card.classList.remove('flipped');
+    }
+
+    showContent();
+}
+
+/**
+ * Get formatted progress information for a card
+ * @param {Object} card - The card object with progress data
+ * @returns {string} HTML string with progress information
+ */
+function getProgressInfo(card) {
+    if (!card.progress) return '';
+
+    const reviewDate = new Date(card.progress.next_review_date);
+    const now = new Date();
+    const isOverdue = reviewDate < now;
+    
+    let status = card.progress.state;
+    if (isOverdue && status !== 'new') {
+        status = 'overdue';
+    }
+
+    const statusClass = `status-${status.toLowerCase()}`;
+    
+    return `
+        <div class="card-status ${statusClass}">
+            <span class="status-label">Status: ${status}</span>
+            <span class="review-count">Reviews: ${card.progress.total_reviews}</span>
+        </div>
+    `;
+}
+
+/**
  * Load cards from the database
  */
 async function loadCards() {
@@ -102,7 +173,8 @@ async function loadCards() {
         const cards = await appState.dbService.getDueCards(appState.user.id);
         
         if (!cards || cards.length === 0) {
-            showError('No cards due for review. Check back later!');
+            const message = 'No cards are due for review right now. Great job! Check back later.';
+            showError(message);
             return;
         }
 

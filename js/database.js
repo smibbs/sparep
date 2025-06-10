@@ -267,6 +267,69 @@ async function initializeUserProgress(userId) {
     }
 }
 
+/**
+ * Get cards that are due for review for a specific user
+ * @param {string} userId - The user's ID
+ * @returns {Promise<Array>} - Array of due cards with their progress data
+ */
+async function getDueCards(userId) {
+    try {
+        console.log('Fetching due cards for user:', userId);
+        
+        const now = new Date().toISOString();
+        
+        // Get cards that are either:
+        // 1. Due for review (next_review_date <= now)
+        // 2. New cards (card_state = 'new')
+        const { data, error } = await supabase
+            .from('user_card_progress')
+            .select(`
+                *,
+                cards (
+                    card_id,
+                    question,
+                    answer,
+                    subject_id
+                )
+            `)
+            .eq('user_id', userId)
+            .or(`next_review_date.lte.${now},card_state.eq.new`)
+            .order('next_review_date', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching due cards:', error);
+            throw error;
+        }
+
+        if (!data || data.length === 0) {
+            console.log('No cards due for review');
+            return [];
+        }
+
+        // Transform the data to a more usable format
+        const dueCards = data.map(record => ({
+            id: record.cards.card_id,
+            question: record.cards.question,
+            answer: record.cards.answer,
+            subject_id: record.cards.subject_id,
+            progress: {
+                stability: record.stability,
+                difficulty: record.difficulty,
+                state: record.card_state,
+                next_review_date: record.next_review_date,
+                last_review_date: record.last_review_date,
+                total_reviews: record.total_reviews
+            }
+        }));
+
+        console.log(`Found ${dueCards.length} cards due for review`);
+        return dueCards;
+    } catch (error) {
+        console.error('Error in getDueCards:', error);
+        throw error;
+    }
+}
+
 // Export the new function along with existing ones
 export {
     getDueCards,
