@@ -125,6 +125,7 @@ class DatabaseService {
             const supabase = await this.getSupabase();
             const user = (await supabase.auth.getUser()).data.user;
             const { cardId, rating, responseTime, stability, difficulty, nextReviewDate } = reviewData;
+            const now = new Date().toISOString();
 
             // Update or insert progress
             const { error: progressError } = await supabase
@@ -134,10 +135,16 @@ class DatabaseService {
                     card_id: cardId,
                     stability,
                     difficulty,
-                    next_review_at: nextReviewDate,
-                    last_review_at: new Date().toISOString(),
+                    due_date: nextReviewDate,
+                    last_review_date: now,
+                    next_review_date: nextReviewDate,
+                    reps: supabase.sql`reps + 1`,
                     total_reviews: supabase.sql`total_reviews + 1`,
-                    state: 'learning'
+                    correct_reviews: supabase.sql`CASE WHEN ${rating} >= 3 THEN correct_reviews + 1 ELSE correct_reviews END`,
+                    incorrect_reviews: supabase.sql`CASE WHEN ${rating} < 3 THEN incorrect_reviews + 1 ELSE incorrect_reviews END`,
+                    last_rating: rating,
+                    state: 'learning',
+                    streak: supabase.sql`CASE WHEN ${rating} >= 3 THEN streak + 1 ELSE 0 END`
                 });
 
             if (progressError) {
@@ -152,7 +159,8 @@ class DatabaseService {
                     user_id: user.id,
                     card_id: cardId,
                     rating,
-                    response_time: responseTime,
+                    response_time_ms: responseTime,
+                    review_date: now,
                     stability_before: stability,
                     difficulty_before: difficulty,
                     elapsed_days: 0,
@@ -162,7 +170,7 @@ class DatabaseService {
                     state_before: 'new',
                     state_after: 'learning',
                     was_relearning: false,
-                    created_at: new Date().toISOString()
+                    created_at: now
                 });
 
             if (reviewError) {
