@@ -1,11 +1,65 @@
-// Database operations wrapper for Supabase
+import { getSupabaseClient } from './supabase-client.js';
+
 class DatabaseService {
     constructor() {
-        if (!window.supabaseClient) {
-            throw new Error('Supabase client not initialized');
-        }
-        this.supabase = window.supabaseClient;
-        console.log('DatabaseService initialized with Supabase client');
+        this.supabasePromise = getSupabaseClient();
+    }
+
+    async getSupabase() {
+        return await this.supabasePromise;
+    }
+
+    async getNextDueCard() {
+        const supabase = await this.getSupabase();
+        const { data, error } = await supabase
+            .from('cards')
+            .select(`
+                id,
+                question,
+                answer,
+                user_card_progress (
+                    stability,
+                    difficulty,
+                    next_review_date
+                )
+            `)
+            .order('next_review_date', { ascending: true })
+            .limit(1);
+
+        if (error) throw error;
+        return data[0];
+    }
+
+    async recordReview(reviewData) {
+        const supabase = await this.getSupabase();
+        const { cardId, rating, responseTime, stability, difficulty, nextReviewDate } = reviewData;
+
+        // Start a transaction
+        const { error: progressError } = await supabase
+            .from('user_card_progress')
+            .upsert({
+                card_id: cardId,
+                user_id: (await supabase.auth.getUser()).data.user.id,
+                stability,
+                difficulty,
+                next_review_date: nextReviewDate,
+                last_review_date: new Date().toISOString()
+            });
+
+        if (progressError) throw progressError;
+
+        const { error: reviewError } = await supabase
+            .from('review_history')
+            .insert({
+                card_id: cardId,
+                user_id: (await supabase.auth.getUser()).data.user.id,
+                rating,
+                response_time: responseTime,
+                stability_after: stability,
+                difficulty_after: difficulty
+            });
+
+        if (reviewError) throw reviewError;
     }
 
     /**
@@ -84,56 +138,6 @@ class DatabaseService {
     }
 
     /**
-     * Records a review for a card
-     * @param {string} userId - The user's ID
-     * @param {string} cardId - The card's ID
-     * @param {number} rating - The review rating (1-4)
-     * @param {number} responseTime - Time taken to respond in milliseconds
-     * @returns {Promise<Object>} The recorded review
-     */
-    async recordReview(userId, cardId, rating, responseTime) {
-        try {
-            // Get current progress
-            const { data: progressData, error: progressError } = await this.supabase
-                .from('user_card_progress')
-                .select('*')
-                .eq('user_id', userId)
-                .eq('card_id', cardId)
-                .single();
-
-            if (progressError) throw progressError;
-
-            // Calculate new FSRS values (to be implemented in fsrs.js)
-            const now = new Date();
-            const reviewData = {
-                user_id: userId,
-                card_id: cardId,
-                rating,
-                response_time: responseTime,
-                stability_before: progressData?.stability || 1.0,
-                difficulty_before: progressData?.difficulty || 5.0,
-                elapsed_days: progressData ? 
-                    (now - new Date(progressData.last_review_date)) / (1000 * 60 * 60 * 24) : 
-                    0,
-                scheduled_days: progressData?.scheduled_days || 0
-            };
-
-            // Insert review record
-            const { data: review, error: reviewError } = await this.supabase
-                .from('review_history')
-                .insert([reviewData])
-                .select()
-                .single();
-
-            if (reviewError) throw reviewError;
-            return review;
-        } catch (error) {
-            console.error('Error recording review:', error.message);
-            throw error;
-        }
-    }
-
-    /**
      * Initializes progress tracking for a user-card pair
      * @param {string} userId - The user's ID
      * @param {string} cardId - The card's ID
@@ -192,6 +196,10 @@ class DatabaseService {
         }
     }
 }
+
+// Create and export a singleton instance
+const database = new DatabaseService();
+export default database;
 
 // Initialize database service when the DOM is loaded and Supabase client is available
 function initDatabaseService() {

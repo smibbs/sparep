@@ -299,16 +299,29 @@ const totalCardsSpan = document.getElementById('total-cards');
 
 // Import FSRS functions
 import { RATING, calculateNextReview, updateStability, updateDifficulty } from './fsrs.js';
-
-// Event Listeners
-flipButton.addEventListener('click', handleFlip);
-ratingButtons.querySelectorAll('.rating-button').forEach(button => {
-    button.addEventListener('click', handleRating);
-});
+import database from './database.js';
 
 // Card state
 let currentCard = null;
 let isCardFlipped = false;
+
+// Initialize the app
+async function initializeApp() {
+    try {
+        await loadNextDueCard();
+        setupEventListeners();
+    } catch (error) {
+        console.error('Error initializing app:', error);
+        showError('Failed to initialize the app. Please try again.');
+    }
+}
+
+function setupEventListeners() {
+    flipButton.addEventListener('click', handleFlip);
+    ratingButtons.querySelectorAll('.rating-button').forEach(button => {
+        button.addEventListener('click', handleRating);
+    });
+}
 
 function handleFlip() {
     if (!currentCard) return;
@@ -418,112 +431,4 @@ function showNoMoreCardsMessage() {
 /**
  * Initialize the application
  */
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('DOM Content Loaded, initializing app...');
-    showLoading();
-    
-    try {
-        // Wait for database service to be initialized
-        console.log('Waiting for database service...');
-        let attempts = 0;
-        while (!window.dbService && attempts < 10) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            attempts++;
-            console.log('Attempt', attempts, 'to get database service...');
-        }
-        
-        if (!window.dbService) {
-            throw new Error('Database service failed to initialize');
-        }
-        
-        console.log('Database service found, setting up app state...');
-        appState.dbService = window.dbService;
-        
-        // Check authentication
-        console.log('Checking authentication...');
-        const user = await AuthService.getCurrentUser();
-        console.log('Current user:', user);
-        
-        if (!user) {
-            console.log('No user found, redirecting to login...');
-            AuthService.redirectToLogin();
-            return;
-        }
-        
-        appState.user = user;
-
-        // Subscribe to auth changes
-        AuthService.onAuthStateChange((user, event) => {
-            console.log('Auth state changed:', event, 'user:', user);
-            appState.user = user;
-            if (!user) {
-                AuthService.redirectToLogin();
-                return;
-            }
-        });
-
-        // Load cards from database
-        console.log('Loading cards...');
-        await loadCards();
-
-        // Add event listeners
-        console.log('Setting up event listeners...');
-        document.addEventListener('keydown', handleKeydown);
-        
-        // Check if elements exist before adding event listeners
-        const cardElement = document.querySelector('.card');
-        if (cardElement) {
-            cardElement.addEventListener('click', flipCard);
-        } else {
-            console.error('Card element not found');
-        }
-        
-        const prevButton = document.getElementById('prev-button');
-        const nextButton = document.getElementById('next-button');
-        const flipButton = document.getElementById('flip-button');
-        const logoutButton = document.getElementById('logout-button');
-        const retryButton = document.getElementById('retry-button');
-        const errorLogoutButton = document.getElementById('error-logout-button');
-        
-        if (prevButton) {
-            prevButton.addEventListener('click', previousCard);
-        } else {
-            console.error('Previous button not found');
-        }
-        
-        if (nextButton) {
-            nextButton.addEventListener('click', nextCard);
-        } else {
-            console.error('Next button not found');
-        }
-        
-        if (flipButton) {
-            flipButton.addEventListener('click', flipCard);
-        } else {
-            console.error('Flip button not found');
-        }
-        
-        if (logoutButton) {
-            logoutButton.addEventListener('click', () => AuthService.signOut());
-        } else {
-            console.error('Logout button not found');
-        }
-        
-        if (retryButton) {
-            retryButton.addEventListener('click', () => location.reload());
-        } else {
-            console.error('Retry button not found');
-        }
-        
-        if (errorLogoutButton) {
-            errorLogoutButton.addEventListener('click', () => AuthService.signOut());
-        } else {
-            console.error('Error logout button not found');
-        }
-
-        console.log('App initialization complete!');
-    } catch (error) {
-        console.error('Error initializing app:', error);
-        showError('Failed to initialize the application. Please try again later.');
-    }
-}); 
+document.addEventListener('DOMContentLoaded', initializeApp); 
