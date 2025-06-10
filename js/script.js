@@ -1,3 +1,8 @@
+// Import required modules
+import { RATING, calculateNextReview, updateStability, updateDifficulty } from './fsrs.js';
+import { DatabaseService } from './database.js';
+import { AuthService } from './auth.js';
+
 // Use global Supabase client
 const supabase = window.supabaseClient;
 
@@ -25,18 +30,18 @@ function redirectToLogin() {
     AuthService.redirectToLogin();
 }
 
-/**
- * Application state management
- */
+// Initialize app state
 const appState = {
     currentCardIndex: 0,
     isFlipped: false,
-    questions: [],
+    cards: [],
     totalCards: 0,
     isAnimating: false,
     isLoading: true,
     user: null,
-    dbService: null
+    dbService: null,
+    currentCard: null,
+    cardStartTime: null
 };
 
 // Animation duration in milliseconds (matches CSS transition)
@@ -209,7 +214,7 @@ async function loadCards() {
  * Renders the current card's content
  */
 function renderCard() {
-    const currentQuestion = appState.questions[appState.currentCardIndex];
+    const currentQuestion = appState.cards[appState.currentCardIndex];
     if (!currentQuestion) return;
 
     const frontElement = document.querySelector('.card-front');
@@ -315,15 +320,6 @@ const content = document.getElementById('content');
 const loadingState = document.getElementById('loading-state');
 const errorState = document.getElementById('error-state');
 
-// Import FSRS functions
-import { RATING, calculateNextReview, updateStability, updateDifficulty } from './fsrs.js';
-import database from './database.js';
-import auth from './auth.js';
-
-// Card state
-let currentCard = null;
-let isCardFlipped = false;
-
 // Initialize the app
 async function initializeApp() {
     try {
@@ -331,16 +327,16 @@ async function initializeApp() {
         showError(null); // Clear any previous errors
         
         // Check authentication
-        const user = await auth.getCurrentUser();
+        const user = await AuthService.getCurrentUser();
         if (!user) {
-            auth.redirectToLogin();
+            AuthService.redirectToLogin();
             return;
         }
 
         // Set up auth state change listener
-        auth.onAuthStateChange((user) => {
+        AuthService.onAuthStateChange((user) => {
             if (!user) {
-                auth.redirectToLogin();
+                AuthService.redirectToLogin();
             }
         });
 
@@ -360,20 +356,59 @@ async function initializeApp() {
 }
 
 function setupEventListeners() {
-    flipButton.addEventListener('click', handleFlip);
-    ratingButtons.querySelectorAll('.rating-button').forEach(button => {
-        button.addEventListener('click', handleRating);
-    });
+    // Get DOM elements
+    const flipButton = document.getElementById('flip-button');
+    const ratingButtons = document.getElementById('rating-buttons');
+    const retryButton = document.getElementById('retry-button');
+    const logoutButton = document.getElementById('logout-button');
+    const errorLogoutButton = document.getElementById('error-logout-button');
+
+    // Add event listeners
+    if (flipButton) {
+        flipButton.addEventListener('click', handleFlip);
+    }
+    
+    if (ratingButtons) {
+        const buttons = ratingButtons.querySelectorAll('.rating-button');
+        buttons.forEach(button => {
+            button.addEventListener('click', handleRating);
+        });
+    }
+
+    // Add retry and logout handlers
+    if (retryButton) {
+        retryButton.addEventListener('click', loadCards);
+    }
+    
+    if (logoutButton) {
+        logoutButton.addEventListener('click', () => AuthService.signOut());
+    }
+    
+    if (errorLogoutButton) {
+        errorLogoutButton.addEventListener('click', () => AuthService.signOut());
+    }
+
+    // Add keyboard navigation
+    document.addEventListener('keydown', handleKeydown);
 }
 
 function handleFlip() {
-    if (!currentCard) return;
+    if (!appState.currentCard) return;
     
-    isCardFlipped = !isCardFlipped;
+    const cardInner = document.querySelector('.card-inner');
+    const flipButton = document.getElementById('flip-button');
+    const ratingButtons = document.getElementById('rating-buttons');
+    
+    if (!cardInner || !flipButton || !ratingButtons) {
+        console.error('Required DOM elements not found');
+        return;
+    }
+
+    // Toggle flip state
     cardInner.classList.toggle('flipped');
     
-    // Show/hide rating buttons based on card state
-    if (isCardFlipped) {
+    // Show/hide appropriate buttons
+    if (cardInner.classList.contains('flipped')) {
         ratingButtons.classList.remove('hidden');
         flipButton.classList.add('hidden');
     } else {
@@ -435,14 +470,36 @@ async function handleRating(event) {
 async function loadNextDueCard() {
     try {
         showLoading(true);
-        const card = await database.getNextDueCard();
+        const card = await appState.dbService.getNextDueCard();
         
         if (card) {
-            currentCard = {
-                ...card,
-                startTime: new Date()
-            };
-            updateCardDisplay(currentCard);
+            // Update app state
+            appState.currentCard = card;
+            appState.cardStartTime = Date.now();
+            
+            // Update display
+            const frontContent = document.querySelector('.card-front p');
+            const backContent = document.querySelector('.card-back p');
+            const cardInner = document.querySelector('.card-inner');
+            const flipButton = document.getElementById('flip-button');
+            const ratingButtons = document.getElementById('rating-buttons');
+            
+            if (frontContent && backContent) {
+                frontContent.textContent = card.question;
+                backContent.textContent = card.answer;
+            }
+            
+            // Reset card to front face
+            if (cardInner) {
+                cardInner.classList.remove('flipped');
+            }
+            
+            // Show flip button, hide rating buttons
+            if (flipButton && ratingButtons) {
+                flipButton.classList.remove('hidden');
+                ratingButtons.classList.add('hidden');
+            }
+            
             showContent(true);
         } else {
             showNoMoreCardsMessage();
@@ -451,7 +508,7 @@ async function loadNextDueCard() {
     } catch (error) {
         console.error('Error loading next card:', error);
         showLoading(false);
-        throw error; // Let the caller handle the error
+        showError('Failed to load the next card. Please try again.');
     }
 }
 
