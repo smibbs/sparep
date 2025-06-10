@@ -1,22 +1,47 @@
 // Authentication service for handling user registration, login, and session management
 class AuthService {
     constructor() {
+        if (!window.supabaseClient) {
+            throw new Error('Supabase client not initialized');
+        }
         this.supabase = window.supabaseClient;
         this.currentUser = null;
         this.authStateListeners = new Set();
         this.setupDOMElements();
         this.setupEventListeners();
         this.initializeAuthState();
+        console.log('AuthService initialized');
     }
 
     // Get current user
     static async getCurrentUser() {
         try {
+            console.log('Getting current user...');
+            // Wait for Supabase client to be available
+            let attempts = 0;
+            while (!window.supabaseClient && attempts < 10) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+                console.log('Waiting for Supabase client, attempt:', attempts);
+            }
+
+            if (!window.supabaseClient) {
+                throw new Error('Supabase client not available');
+            }
+
             const { data: { session }, error } = await window.supabaseClient.auth.getSession();
             if (error) throw error;
-            return session?.user || null;
+            
+            console.log('Session data:', session);
+            if (!session?.user) {
+                console.log('No user session found');
+                return null;
+            }
+            
+            console.log('User found:', session.user);
+            return session.user;
         } catch (error) {
-            console.error('Error getting current user:', error.message);
+            console.error('Error getting current user:', error);
             return null;
         }
     }
