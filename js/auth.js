@@ -1,10 +1,9 @@
+import { getSupabaseClient } from './supabase-client.js';
+
 // Authentication service for handling user registration, login, and session management
 class AuthService {
     constructor() {
-        if (!window.supabaseClient) {
-            throw new Error('Supabase client not initialized');
-        }
-        this.supabase = window.supabaseClient;
+        this.supabasePromise = getSupabaseClient();
         this.currentUser = null;
         this.authStateListeners = new Set();
         this.setupDOMElements();
@@ -13,52 +12,25 @@ class AuthService {
         console.log('AuthService initialized');
     }
 
+    async getSupabase() {
+        return await this.supabasePromise;
+    }
+
     // Get current user
-    static async getCurrentUser() {
-        try {
-            console.log('Getting current user...');
-            // Wait for Supabase client to be available
-            let attempts = 0;
-            while (!window.supabaseClient && attempts < 10) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                attempts++;
-                console.log('Waiting for Supabase client, attempt:', attempts);
-            }
-
-            if (!window.supabaseClient) {
-                throw new Error('Supabase client not available');
-            }
-
-            const { data: { session }, error } = await window.supabaseClient.auth.getSession();
-            if (error) throw error;
-            
-            console.log('Session data:', session);
-            if (!session?.user) {
-                console.log('No user session found');
-                return null;
-            }
-            
-            console.log('User found:', session.user);
-            return session.user;
-        } catch (error) {
-            console.error('Error getting current user:', error);
-            return null;
-        }
+    async getCurrentUser() {
+        const supabase = await this.getSupabase();
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        return user;
     }
 
     // Subscribe to auth state changes
-    static onAuthStateChange(callback) {
-        if (typeof callback !== 'function') {
-            throw new Error('Callback must be a function');
-        }
-        
-        const { data: { subscription } } = window.supabaseClient.auth.onAuthStateChange(
-            (event, session) => {
+    onAuthStateChange(callback) {
+        this.getSupabase().then(supabase => {
+            supabase.auth.onAuthStateChange((event, session) => {
                 callback(session?.user || null, event);
-            }
-        );
-        
-        return () => subscription.unsubscribe();
+            });
+        });
     }
 
     // Get base URL for the application
@@ -97,14 +69,11 @@ class AuthService {
     }
 
     // Sign out
-    static async signOut() {
-        try {
-            const { error } = await window.supabaseClient.auth.signOut();
-            if (error) throw error;
-            AuthService.redirectToLogin();
-        } catch (error) {
-            console.error('Error signing out:', error.message);
-        }
+    async signOut() {
+        const supabase = await this.getSupabase();
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+        AuthService.redirectToLogin();
     }
 
     setupDOMElements() {
@@ -154,14 +123,14 @@ class AuthService {
         this.forgotPasswordLink?.addEventListener('click', (e) => this.handleForgotPassword(e));
 
         // Auth state changes
-        this.supabase.auth.onAuthStateChange((event, session) => {
+        this.onAuthStateChange((session, event) => {
             this.handleAuthStateChange(event, session);
         });
     }
 
     async initializeAuthState() {
         try {
-            const { data: { session }, error } = await this.supabase.auth.getSession();
+            const { data: { session }, error } = await this.getSupabase().auth.getSession();
             if (error) throw error;
             
             if (session) {
@@ -237,7 +206,7 @@ class AuthService {
         try {
             this.showLoading(true);
             
-            const { data, error } = await this.supabase.auth.signInWithPassword({
+            const { data, error } = await this.getSupabase().auth.signInWithPassword({
                 email,
                 password
             });
@@ -288,7 +257,7 @@ class AuthService {
                 }
             };
 
-            const { data, error } = await this.supabase.auth.signUp(signupData);
+            const { data, error } = await this.getSupabase().auth.signUp(signupData);
 
             if (error) throw error;
 
@@ -328,7 +297,7 @@ class AuthService {
             const redirectUrl = AuthService.getAbsoluteUrl('reset-password.html');
             console.log('Redirect URL:', redirectUrl);
             
-            const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+            const { error } = await this.getSupabase().auth.resetPasswordForEmail(email, {
                 redirectTo: AuthService.getAbsoluteUrl('reset-password.html')
             });
 
@@ -384,7 +353,6 @@ class AuthService {
     }
 }
 
-// Initialize auth service when the DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    window.authService = new AuthService();
-}); 
+// Create and export singleton instance
+const auth = new AuthService();
+export default auth; 

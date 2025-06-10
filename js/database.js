@@ -11,35 +11,79 @@ class DatabaseService {
 
     async getNextDueCard() {
         const supabase = await this.getSupabase();
-        const { data, error } = await supabase
-            .from('cards')
+        const user = (await supabase.auth.getUser()).data.user;
+
+        // First try to get a card that's due for review
+        const { data: dueCards, error: dueError } = await supabase
+            .from('user_card_progress')
             .select(`
-                id,
-                question,
-                answer,
-                user_card_progress (
-                    stability,
-                    difficulty,
-                    next_review_date
+                card_id,
+                stability,
+                difficulty,
+                next_review_date,
+                cards (
+                    id,
+                    question,
+                    answer
                 )
             `)
+            .eq('user_id', user.id)
+            .lte('next_review_date', new Date().toISOString())
             .order('next_review_date', { ascending: true })
             .limit(1);
 
-        if (error) throw error;
-        return data[0];
+        if (dueError) throw dueError;
+
+        // If we found a due card, return it
+        if (dueCards && dueCards.length > 0) {
+            const dueCard = dueCards[0];
+            return {
+                id: dueCard.card_id,
+                question: dueCard.cards.question,
+                answer: dueCard.cards.answer,
+                stability: dueCard.stability,
+                difficulty: dueCard.difficulty
+            };
+        }
+
+        // If no due cards, get a new card that the user hasn't seen yet
+        const { data: newCards, error: newError } = await supabase
+            .from('cards')
+            .select('id, question, answer')
+            .not('id', 'in', (
+                supabase
+                    .from('user_card_progress')
+                    .select('card_id')
+                    .eq('user_id', user.id)
+            ))
+            .limit(1);
+
+        if (newError) throw newError;
+
+        // If we found a new card, return it with default values
+        if (newCards && newCards.length > 0) {
+            return {
+                ...newCards[0],
+                stability: 1.0,
+                difficulty: 5.0
+            };
+        }
+
+        // No cards available
+        return null;
     }
 
     async recordReview(reviewData) {
         const supabase = await this.getSupabase();
+        const user = (await supabase.auth.getUser()).data.user;
         const { cardId, rating, responseTime, stability, difficulty, nextReviewDate } = reviewData;
 
-        // Start a transaction
+        // Update or insert progress
         const { error: progressError } = await supabase
             .from('user_card_progress')
             .upsert({
+                user_id: user.id,
                 card_id: cardId,
-                user_id: (await supabase.auth.getUser()).data.user.id,
                 stability,
                 difficulty,
                 next_review_date: nextReviewDate,
@@ -48,11 +92,12 @@ class DatabaseService {
 
         if (progressError) throw progressError;
 
+        // Record the review
         const { error: reviewError } = await supabase
             .from('review_history')
             .insert({
+                user_id: user.id,
                 card_id: cardId,
-                user_id: (await supabase.auth.getUser()).data.user.id,
                 rating,
                 response_time: responseTime,
                 stability_after: stability,

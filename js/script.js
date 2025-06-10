@@ -45,10 +45,13 @@ const ANIMATION_DURATION = 600;
 /**
  * UI State Management Functions
  */
-function showLoading() {
-    document.getElementById('loading-state').classList.remove('hidden');
-    document.getElementById('error-state').classList.add('hidden');
-    document.getElementById('content').classList.add('hidden');
+function showLoading(show) {
+    const loadingState = document.getElementById('loading-state');
+    const errorState = document.getElementById('error-state');
+    const content = document.getElementById('content');
+    loadingState.classList.toggle('hidden', !show);
+    errorState.classList.add('hidden');
+    content.classList.toggle('hidden', !show);
 }
 
 function showError(message) {
@@ -56,15 +59,20 @@ function showError(message) {
     if (errorMessage) {
         errorMessage.textContent = message || 'Failed to load flashcards. Please try again later.';
     }
-    document.getElementById('loading-state').classList.add('hidden');
-    document.getElementById('error-state').classList.remove('hidden');
-    document.getElementById('content').classList.add('hidden');
+    const errorState = document.getElementById('error-state');
+    const content = document.getElementById('content');
+    errorState.classList.remove('hidden');
+    content.classList.add('hidden');
+    loadingState.classList.add('hidden');
 }
 
-function showContent() {
-    document.getElementById('loading-state').classList.add('hidden');
-    document.getElementById('error-state').classList.add('hidden');
-    document.getElementById('content').classList.remove('hidden');
+function showContent(show) {
+    const loadingState = document.getElementById('loading-state');
+    const errorState = document.getElementById('error-state');
+    const content = document.getElementById('content');
+    loadingState.classList.add('hidden');
+    errorState.classList.add('hidden');
+    content.classList.toggle('hidden', !show);
 }
 
 /**
@@ -121,7 +129,7 @@ function displayCurrentCard() {
         card.classList.remove('flipped');
     }
 
-    showContent();
+    showContent(true);
 }
 
 /**
@@ -162,7 +170,7 @@ async function loadCards() {
             throw new Error('No user found');
         }
 
-        showLoading();
+        showLoading(true);
 
         // Initialize progress for new user if needed
         await appState.dbService.initializeUserProgress(appState.user.id);
@@ -296,10 +304,14 @@ const ratingButtons = document.getElementById('rating-buttons');
 const cardInner = document.querySelector('.card-inner');
 const currentCardSpan = document.getElementById('current-card');
 const totalCardsSpan = document.getElementById('total-cards');
+const content = document.getElementById('content');
+const loadingState = document.getElementById('loading-state');
+const errorState = document.getElementById('error-state');
 
 // Import FSRS functions
 import { RATING, calculateNextReview, updateStability, updateDifficulty } from './fsrs.js';
 import database from './database.js';
+import auth from './auth.js';
 
 // Card state
 let currentCard = null;
@@ -308,8 +320,30 @@ let isCardFlipped = false;
 // Initialize the app
 async function initializeApp() {
     try {
+        showLoading(true);
+        
+        // Check authentication
+        const user = await auth.getCurrentUser();
+        if (!user) {
+            auth.redirectToLogin();
+            return;
+        }
+
+        // Set up auth state change listener
+        auth.onAuthStateChange((user) => {
+            if (!user) {
+                auth.redirectToLogin();
+            }
+        });
+
+        // Load first card
         await loadNextDueCard();
+        
+        // Set up event listeners
         setupEventListeners();
+        
+        showLoading(false);
+        showContent(true);
     } catch (error) {
         console.error('Error initializing app:', error);
         showError('Failed to initialize the app. Please try again.');
@@ -418,7 +452,6 @@ function updateCardDisplay(card) {
 }
 
 function showNoMoreCardsMessage() {
-    const content = document.getElementById('content');
     content.innerHTML = `
         <div class="no-cards-message">
             <h2>Great job!</h2>
@@ -428,7 +461,5 @@ function showNoMoreCardsMessage() {
     `;
 }
 
-/**
- * Initialize the application
- */
+// Initialize the app when the document is loaded
 document.addEventListener('DOMContentLoaded', initializeApp); 
