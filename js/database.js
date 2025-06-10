@@ -3,10 +3,37 @@ import { getSupabaseClient } from './supabase-client.js';
 class DatabaseService {
     constructor() {
         this.supabasePromise = getSupabaseClient();
+        this.initialize();
+    }
+
+    async initialize() {
+        try {
+            await this.ensureReviewHistorySchema();
+            console.log('Database service initialized successfully');
+        } catch (error) {
+            console.error('Failed to initialize database service:', error);
+        }
     }
 
     async getSupabase() {
         return await this.supabasePromise;
+    }
+
+    async ensureReviewHistorySchema() {
+        const supabase = await this.getSupabase();
+        
+        // Check if review_history table exists and has all required columns
+        const { error } = await supabase
+            .from('review_history')
+            .select('response_time')
+            .limit(1);
+
+        if (error && error.message.includes('column "response_time" does not exist')) {
+            console.error('Review history table needs update:', error);
+            // We can't create/alter tables from the client side
+            // Instead, show a more helpful error message
+            throw new Error('Database schema needs to be updated. Please contact the administrator.');
+        }
     }
 
     async getNextDueCard() {
@@ -78,33 +105,42 @@ class DatabaseService {
         const user = (await supabase.auth.getUser()).data.user;
         const { cardId, rating, responseTime, stability, difficulty, nextReviewDate } = reviewData;
 
-        // Update or insert progress
-        const { error: progressError } = await supabase
-            .from('user_card_progress')
-            .upsert({
-                user_id: user.id,
-                card_id: cardId,
-                stability,
-                difficulty,
-                next_review_date: nextReviewDate,
-                last_review_date: new Date().toISOString()
-            });
+        try {
+            // Update or insert progress
+            const { error: progressError } = await supabase
+                .from('user_card_progress')
+                .upsert({
+                    user_id: user.id,
+                    card_id: cardId,
+                    stability,
+                    difficulty,
+                    next_review_date: nextReviewDate,
+                    last_review_date: new Date().toISOString()
+                });
 
-        if (progressError) throw progressError;
+            if (progressError) throw progressError;
 
-        // Record the review
-        const { error: reviewError } = await supabase
-            .from('review_history')
-            .insert({
-                user_id: user.id,
-                card_id: cardId,
-                rating,
-                response_time: responseTime,
-                stability_after: stability,
-                difficulty_after: difficulty
-            });
+            // Record the review
+            const { error: reviewError } = await supabase
+                .from('review_history')
+                .insert({
+                    user_id: user.id,
+                    card_id: cardId,
+                    rating,
+                    response_time: responseTime,
+                    stability_after: stability,
+                    difficulty_after: difficulty,
+                    created_at: new Date().toISOString()
+                });
 
-        if (reviewError) throw reviewError;
+            if (reviewError) {
+                console.error('Error recording review:', reviewError);
+                throw reviewError;
+            }
+        } catch (error) {
+            console.error('Error in recordReview:', error);
+            throw new Error('Failed to record review: ' + error.message);
+        }
     }
 
     /**
