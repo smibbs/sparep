@@ -55,9 +55,17 @@
 </head>
 <body>
     <h1>Database Operations Test</h1>
+    
+    <div id="auth-section" class="test-section">
+        <h2>Authentication</h2>
+        <button onclick="login()">Login</button>
+        <button onclick="logout()">Logout</button>
+        <div id="auth-result" class="result">Not authenticated</div>
+    </div>
+
     <div id="auth-status" class="test-section">
         <h2>Authentication Status</h2>
-        <div id="auth-result" class="result">Checking...</div>
+        <div id="auth-status-result" class="result">Checking...</div>
     </div>
 
     <div class="test-section">
@@ -100,8 +108,13 @@
         <div id="get-progress-result" class="result">Click button to test</div>
     </div>
 
+    <!-- Load configuration first -->
+    <script src="../config/supabase-config.js"></script>
+    
     <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Our application scripts -->
     <script src="../js/supabase-client.js"></script>
     <script src="../js/auth.js"></script>
     <script src="../js/database.js"></script>
@@ -109,19 +122,52 @@
     <script>
         let currentUser = null;
 
+        async function login() {
+            try {
+                const { data: { user }, error } = await window.supabaseClient.auth.signInWithOAuth({
+                    provider: 'github'
+                });
+                if (error) throw error;
+                updateAuthStatus();
+            } catch (error) {
+                document.getElementById('auth-result').textContent = `Login error: ${error.message}`;
+                document.getElementById('auth-result').classList.add('error');
+            }
+        }
+
+        async function logout() {
+            try {
+                await window.supabaseClient.auth.signOut();
+                currentUser = null;
+                document.getElementById('auth-result').textContent = 'Logged out successfully';
+                document.getElementById('auth-result').classList.remove('error');
+                document.getElementById('auth-result').classList.add('success');
+                updateAuthStatus();
+            } catch (error) {
+                document.getElementById('auth-result').textContent = `Logout error: ${error.message}`;
+                document.getElementById('auth-result').classList.add('error');
+            }
+        }
+
         async function updateAuthStatus() {
             try {
-                currentUser = await AuthService.getCurrentUser();
-                const result = document.getElementById('auth-result');
+                const { data: { user }, error } = await window.supabaseClient.auth.getUser();
+                if (error) throw error;
+                
+                currentUser = user;
+                const result = document.getElementById('auth-status-result');
                 if (currentUser) {
                     result.textContent = `Authenticated as: ${currentUser.email}`;
                     result.classList.add('success');
+                    result.classList.remove('error');
                 } else {
                     result.textContent = 'Not authenticated. Please login first.';
                     result.classList.add('error');
+                    result.classList.remove('success');
                 }
             } catch (error) {
-                document.getElementById('auth-result').textContent = `Error: ${error.message}`;
+                document.getElementById('auth-status-result').textContent = `Error: ${error.message}`;
+                document.getElementById('auth-status-result').classList.add('error');
             }
         }
 
@@ -132,9 +178,11 @@
                 const cards = await window.dbService.getCardsDue(currentUser.id);
                 result.textContent = `Found ${cards.length} cards due:\n${JSON.stringify(cards, null, 2)}`;
                 result.classList.add('success');
+                result.classList.remove('error');
             } catch (error) {
                 result.textContent = `Error: ${error.message}`;
                 result.classList.add('error');
+                result.classList.remove('success');
             }
         }
 
@@ -146,9 +194,11 @@
                 const cards = await window.dbService.getNewCards(currentUser.id, limit);
                 result.textContent = `Found ${cards.length} new cards:\n${JSON.stringify(cards, null, 2)}`;
                 result.classList.add('success');
+                result.classList.remove('error');
             } catch (error) {
                 result.textContent = `Error: ${error.message}`;
                 result.classList.add('error');
+                result.classList.remove('success');
             }
         }
 
@@ -161,9 +211,11 @@
                 const progress = await window.dbService.initializeUserProgress(currentUser.id, cardId);
                 result.textContent = `Progress initialized:\n${JSON.stringify(progress, null, 2)}`;
                 result.classList.add('success');
+                result.classList.remove('error');
             } catch (error) {
                 result.textContent = `Error: ${error.message}`;
                 result.classList.add('error');
+                result.classList.remove('success');
             }
         }
 
@@ -178,9 +230,11 @@
                 const review = await window.dbService.recordReview(currentUser.id, cardId, rating, responseTime);
                 result.textContent = `Review recorded:\n${JSON.stringify(review, null, 2)}`;
                 result.classList.add('success');
+                result.classList.remove('error');
             } catch (error) {
                 result.textContent = `Error: ${error.message}`;
                 result.classList.add('error');
+                result.classList.remove('success');
             }
         }
 
@@ -193,9 +247,11 @@
                 const progress = await window.dbService.getUserProgress(currentUser.id, cardId);
                 result.textContent = `User progress:\n${JSON.stringify(progress, null, 2)}`;
                 result.classList.add('success');
+                result.classList.remove('error');
             } catch (error) {
                 result.textContent = `Error: ${error.message}`;
                 result.classList.add('error');
+                result.classList.remove('success');
             }
         }
 

@@ -1,4 +1,5 @@
 // Migration script for initial cards
+require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 
 // Load environment variables
@@ -37,16 +38,14 @@ async function migrateCards() {
 
         // Get the admin user (first user in the system)
         const { data: users, error: userError } = await supabase
-            .from('auth.users')
-            .select('id')
-            .limit(1);
+            .auth.admin.listUsers();
 
         if (userError) throw userError;
-        if (!users || users.length === 0) {
+        if (!users || users.users.length === 0) {
             throw new Error('No users found in the system');
         }
 
-        const adminId = users[0].id;
+        const adminId = users.users[0].id;
 
         // Insert the cards
         const cards = [

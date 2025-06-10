@@ -1,0 +1,16 @@
+{
+  "name": "sparep",
+  "version": "1.0.0",
+  "description": "Spaced repetition flashcard application",
+  "main": "index.js",
+  "scripts": {
+    "migrate": "node migration/migrate-cards.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "dotenv": "^16.3.1"
+  }
+} 
