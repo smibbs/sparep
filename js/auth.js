@@ -235,7 +235,8 @@ class AuthService {
         try {
             this.showLoading(true);
             
-            const { data, error } = await this.getSupabase().auth.signInWithPassword({
+            const supabase = await this.getSupabase();
+            const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password
             });
@@ -246,7 +247,8 @@ class AuthService {
             AuthService.redirectToApp();
             
         } catch (error) {
-            this.showMessage(this.loginMessage, error.message);
+            console.error('Login error:', error);
+            this.showMessage(this.loginMessage, error.message || 'Failed to sign in');
         } finally {
             this.showLoading(false);
         }
@@ -276,7 +278,8 @@ class AuthService {
         try {
             this.showLoading(true);
             
-            const signupData = {
+            const supabase = await this.getSupabase();
+            const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
@@ -284,9 +287,7 @@ class AuthService {
                         display_name: displayName
                     }
                 }
-            };
-
-            const { data, error } = await this.getSupabase().auth.signUp(signupData);
+            });
 
             if (error) throw error;
 
@@ -304,7 +305,8 @@ class AuthService {
             setTimeout(() => this.switchTab('login'), 3000);
             
         } catch (error) {
-            this.showMessage(this.registerMessage, error.message);
+            console.error('Registration error:', error);
+            this.showMessage(this.registerMessage, error.message || 'Failed to register');
         } finally {
             this.showLoading(false);
         }
