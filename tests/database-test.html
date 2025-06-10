@@ -51,14 +51,27 @@
             border: 1px solid #ddd;
             border-radius: 4px;
         }
+        #initialization-status {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            background: #f8d7da;
+            color: #721c24;
+            text-align: center;
+            display: none;
+        }
     </style>
 </head>
 <body>
+    <div id="initialization-status">Initializing Supabase client...</div>
+    
     <h1>Database Operations Test</h1>
     
     <div id="auth-section" class="test-section">
         <h2>Authentication</h2>
-        <button onclick="login()">Login</button>
+        <button onclick="login()">Login with GitHub</button>
         <button onclick="logout()">Logout</button>
         <div id="auth-result" class="result">Not authenticated</div>
     </div>
@@ -112,19 +125,58 @@
     <script src="../config/supabase-config.js"></script>
     
     <!-- Supabase Client Library -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     
     <!-- Our application scripts -->
-    <script src="../js/supabase-client.js"></script>
-    <script src="../js/auth.js"></script>
-    <script src="../js/database.js"></script>
-
     <script>
+        // Show initialization status
+        const initStatus = document.getElementById('initialization-status');
+        initStatus.style.display = 'block';
+        
+        // Wait for Supabase to load
+        window.onload = async () => {
+            try {
+                // Load our scripts after Supabase is ready
+                await loadScript('../js/supabase-client.js');
+                await loadScript('../js/auth.js');
+                await loadScript('../js/database.js');
+                
+                // Initialize
+                await initializeApp();
+                
+                // Hide initialization status
+                initStatus.style.display = 'none';
+            } catch (error) {
+                initStatus.textContent = `Error initializing: ${error.message}`;
+                initStatus.style.backgroundColor = '#f8d7da';
+                console.error('Initialization error:', error);
+            }
+        };
+        
+        // Helper function to load scripts
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+                document.body.appendChild(script);
+            });
+        }
+        
+        // Initialize the application
+        async function initializeApp() {
+            if (!window.supabaseClient) {
+                throw new Error('Supabase client not initialized');
+            }
+            updateAuthStatus();
+        }
+        
         let currentUser = null;
 
         async function login() {
             try {
-                const { data: { user }, error } = await window.supabaseClient.auth.signInWithOAuth({
+                const { data, error } = await window.supabaseClient.auth.signInWithOAuth({
                     provider: 'github'
                 });
                 if (error) throw error;
@@ -254,11 +306,6 @@
                 result.classList.remove('success');
             }
         }
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            updateAuthStatus();
-        });
     </script>
 </body>
 </html> 
