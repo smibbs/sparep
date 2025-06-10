@@ -147,13 +147,16 @@ class AuthService {
                 if (window.location.pathname.includes('login.html')) {
                     AuthService.redirectToApp();
                 }
-            } else if (!window.location.pathname.includes('login.html')) {
-                // Redirect to login if no session and not already on login page
+            } else if (!window.location.pathname.includes('login.html') && 
+                       !window.location.pathname.includes('database-test.html')) {
+                // Redirect to login if no session and not on login page or test page
                 AuthService.redirectToLogin();
             }
         } catch (error) {
             console.error('Error checking auth state:', error.message);
-            AuthService.redirectToLogin();
+            if (!window.location.pathname.includes('database-test.html')) {
+                AuthService.redirectToLogin();
+            }
         }
     }
 
