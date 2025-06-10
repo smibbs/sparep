@@ -331,4 +331,96 @@ body {
     display: inline-block;
     padding: 2px 6px;
     border-radius: 3px;
+}
+
+/* Rating buttons */
+.rating-buttons {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    margin-top: 12px;
+}
+
+.rating-button {
+    padding: 14px 24px;
+    font-size: 16px;
+    font-weight: 500;
+    border: none;
+    border-radius: 12px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    text-align: center;
+    touch-action: manipulation;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.rating-again {
+    background-color: #dc3545;
+}
+
+.rating-hard {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.rating-good {
+    background-color: #28a745;
+}
+
+.rating-easy {
+    background-color: #17a2b8;
+}
+
+/* Rating button hover states */
+@media (hover: hover) {
+    .rating-again:hover {
+        background-color: #c82333;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
+    }
+    
+    .rating-hard:hover {
+        background-color: #e0a800;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(255, 193, 7, 0.2);
+    }
+    
+    .rating-good:hover {
+        background-color: #218838;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+    }
+    
+    .rating-easy:hover {
+        background-color: #138496;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(23, 162, 184, 0.2);
+    }
+}
+
+/* Rating button active states */
+.rating-button:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Mobile adjustments for rating buttons */
+@media (max-width: 480px) {
+    .rating-buttons {
+        gap: 8px;
+        margin-top: 10px;
+    }
+    
+    .rating-button {
+        padding: 12px 16px;
+        font-size: 14px;
+        border-radius: 10px;
+    }
 } 

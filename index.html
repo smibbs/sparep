@@ -16,8 +16,13 @@
             <p class="loading-text">Loading flashcards...</p>
         </div>
         <div id="error-state" class="error-state hidden">
-            <p class="error-text">Failed to load flashcards.</p>
-            <button id="retry-button" class="nav-button">Retry</button>
+            <div class="error-content">
+                <p id="error-message" class="error-text">Failed to load flashcards.</p>
+                <div class="error-actions">
+                    <button id="retry-button" class="nav-button">Try Again</button>
+                    <button id="error-logout-button" class="nav-button">Sign Out</button>
+                </div>
+            </div>
         </div>
         <div id="content" class="content hidden">
             <div class="progress">Card <span id="current-card">1</span> of <span id="total-cards">3</span></div>
@@ -32,9 +37,13 @@
                 </div>
             </div>
             <div class="controls">
-                <button id="prev-button" class="nav-button">Previous</button>
                 <button id="flip-button" class="nav-button">Flip</button>
-                <button id="next-button" class="nav-button">Next</button>
+                <div id="rating-buttons" class="rating-buttons hidden">
+                    <button id="rate-again" class="rating-button rating-again" data-rating="1">Again</button>
+                    <button id="rate-hard" class="rating-button rating-hard" data-rating="2">Hard</button>
+                    <button id="rate-good" class="rating-button rating-good" data-rating="3">Good</button>
+                    <button id="rate-easy" class="rating-button rating-easy" data-rating="4">Easy</button>
+                </div>
             </div>
         </div>
     </div>

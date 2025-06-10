@@ -290,6 +290,131 @@ function handleKeydown(event) {
     }
 }
 
+// DOM Elements
+const flipButton = document.getElementById('flip-button');
+const ratingButtons = document.getElementById('rating-buttons');
+const cardInner = document.querySelector('.card-inner');
+const currentCardSpan = document.getElementById('current-card');
+const totalCardsSpan = document.getElementById('total-cards');
+
+// Import FSRS functions
+import { RATING, calculateNextReview, updateStability, updateDifficulty } from './fsrs.js';
+
+// Event Listeners
+flipButton.addEventListener('click', handleFlip);
+ratingButtons.querySelectorAll('.rating-button').forEach(button => {
+    button.addEventListener('click', handleRating);
+});
+
+// Card state
+let currentCard = null;
+let isCardFlipped = false;
+
+function handleFlip() {
+    if (!currentCard) return;
+    
+    isCardFlipped = !isCardFlipped;
+    cardInner.classList.toggle('flipped');
+    
+    // Show/hide rating buttons based on card state
+    if (isCardFlipped) {
+        ratingButtons.classList.remove('hidden');
+        flipButton.classList.add('hidden');
+    } else {
+        ratingButtons.classList.add('hidden');
+        flipButton.classList.remove('hidden');
+    }
+}
+
+async function handleRating(event) {
+    if (!currentCard) return;
+    
+    const rating = parseInt(event.target.dataset.rating);
+    const startTime = currentCard.startTime || new Date();
+    const responseTime = (new Date() - startTime) / 1000; // Convert to seconds
+    
+    try {
+        // Calculate new FSRS values
+        const stability = currentCard.stability || 1.0;
+        const difficulty = currentCard.difficulty || 5.0;
+        
+        const newStability = updateStability(stability, rating);
+        const newDifficulty = updateDifficulty(difficulty, rating);
+        const { nextReviewDate, interval } = calculateNextReview(newStability, newDifficulty, rating);
+        
+        // Record the review in the database
+        await recordReview(currentCard.id, rating, responseTime, newStability, newDifficulty, nextReviewDate);
+        
+        // Load the next card
+        await loadNextDueCard();
+        
+        // Reset the card state
+        isCardFlipped = false;
+        cardInner.classList.remove('flipped');
+        ratingButtons.classList.add('hidden');
+        flipButton.classList.remove('hidden');
+        
+    } catch (error) {
+        console.error('Error handling rating:', error);
+        showError('Failed to save review. Please try again.');
+    }
+}
+
+async function recordReview(cardId, rating, responseTime, stability, difficulty, nextReviewDate) {
+    try {
+        await database.recordReview({
+            cardId,
+            rating,
+            responseTime,
+            stability,
+            difficulty,
+            nextReviewDate
+        });
+    } catch (error) {
+        throw new Error('Failed to record review: ' + error.message);
+    }
+}
+
+async function loadNextDueCard() {
+    try {
+        const card = await database.getNextDueCard();
+        if (card) {
+            currentCard = {
+                ...card,
+                startTime: new Date()
+            };
+            updateCardDisplay(currentCard);
+        } else {
+            showNoMoreCardsMessage();
+        }
+    } catch (error) {
+        throw new Error('Failed to load next card: ' + error.message);
+    }
+}
+
+function updateCardDisplay(card) {
+    const frontContent = document.querySelector('.card-front p');
+    const backContent = document.querySelector('.card-back p');
+    
+    frontContent.textContent = card.question;
+    backContent.textContent = card.answer;
+    
+    // Update progress display
+    currentCardSpan.textContent = card.position || '?';
+    totalCardsSpan.textContent = card.total || '?';
+}
+
+function showNoMoreCardsMessage() {
+    const content = document.getElementById('content');
+    content.innerHTML = `
+        <div class="no-cards-message">
+            <h2>Great job!</h2>
+            <p>You've completed all your reviews for now.</p>
+            <p>Come back later for more cards.</p>
+        </div>
+    `;
+}
+
 /**
  * Initialize the application
  */
