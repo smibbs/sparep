@@ -51,7 +51,11 @@ function showLoading() {
     document.getElementById('content').classList.add('hidden');
 }
 
-function showError() {
+function showError(message) {
+    const errorMessage = document.getElementById('error-message');
+    if (errorMessage) {
+        errorMessage.textContent = message || 'Failed to load flashcards. Please try again later.';
+    }
     document.getElementById('loading-state').classList.add('hidden');
     document.getElementById('error-state').classList.remove('hidden');
     document.getElementById('content').classList.add('hidden');
@@ -77,76 +81,40 @@ function updateProgress() {
 }
 
 /**
- * Loads cards from the database
+ * Load cards from the database
  */
 async function loadCards() {
     try {
         console.log('Starting to load cards...');
+        
+        if (!appState.user) {
+            throw new Error('No user found');
+        }
+
         showLoading();
-        
-        // First try to get due cards
+
+        // Initialize progress for new user if needed
+        await appState.dbService.initializeUserProgress(appState.user.id);
+        console.log('User progress initialized');
+
+        // Get due cards for the user
         console.log('Attempting to get due cards...');
-        let cards = await appState.dbService.getCardsDue(appState.user.id);
-        console.log('Due cards received:', cards);
+        const cards = await appState.dbService.getDueCards(appState.user.id);
         
-        // If no due cards, get some new cards
         if (!cards || cards.length === 0) {
-            console.log('No due cards found, fetching new cards...');
-            const newCards = await appState.dbService.getNewCards(appState.user.id, 10);
-            console.log('New cards received:', newCards);
-            cards = newCards;
-            
-            // Initialize progress for new cards
-            console.log('Initializing progress for new cards...');
-            for (const card of newCards) {
-                await appState.dbService.initializeUserProgress(appState.user.id, card.id);
-            }
+            showError('No cards due for review. Check back later!');
+            return;
         }
-        
-        // Transform cards to match expected format
-        console.log('Transforming card data...');
-        appState.questions = cards.map(card => {
-            // Handle both due cards (with nested card data) and new cards
-            if (card.cards) {
-                return {
-                    id: card.cards.id,
-                    question: card.cards.question,
-                    answer: card.cards.answer,
-                    progress: {
-                        stability: card.stability,
-                        difficulty: card.difficulty,
-                        state: card.state,
-                        next_review_date: card.next_review_date
-                    }
-                };
-            } else {
-                return {
-                    id: card.id,
-                    question: card.question,
-                    answer: card.answer,
-                    progress: null // New card, no progress yet
-                };
-            }
-        });
-        
-        console.log('Transformed questions:', appState.questions);
-        
-        appState.totalCards = appState.questions.length;
+
+        appState.cards = cards;
         appState.currentCardIndex = 0;
+        displayCurrentCard();
+        hideLoading();
         
-        if (appState.questions.length > 0) {
-            console.log('Rendering first card...');
-            renderCard();
-            showContent();
-        } else {
-            console.log('No cards available for review');
-            document.getElementById('error-state').textContent = 'No cards available for review at this time.';
-            showError();
-        }
+        console.log('Cards loaded successfully:', cards.length, 'cards');
     } catch (error) {
         console.error('Error loading cards:', error);
-        document.getElementById('error-state').textContent = 'Failed to load flashcards. Please try again later.';
-        showError();
+        showError('Failed to load cards. Please try again later.');
     }
 }
 
@@ -318,6 +286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const flipButton = document.getElementById('flip-button');
         const logoutButton = document.getElementById('logout-button');
         const retryButton = document.getElementById('retry-button');
+        const errorLogoutButton = document.getElementById('error-logout-button');
         
         if (prevButton) {
             prevButton.addEventListener('click', previousCard);
@@ -348,11 +317,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             console.error('Retry button not found');
         }
+        
+        if (errorLogoutButton) {
+            errorLogoutButton.addEventListener('click', () => AuthService.signOut());
+        } else {
+            console.error('Error logout button not found');
+        }
 
         console.log('App initialization complete!');
     } catch (error) {
         console.error('Error initializing app:', error);
-        document.getElementById('error-state').textContent = 'Failed to initialize the application. Please try again later.';
-        showError();
+        showError('Failed to initialize the application. Please try again later.');
     }
 }); 

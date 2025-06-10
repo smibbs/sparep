@@ -205,4 +205,71 @@ function initDatabaseService() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', initDatabaseService); 
+document.addEventListener('DOMContentLoaded', initDatabaseService);
+
+/**
+ * Initialize progress records for a new user
+ * @param {string} userId - The user's ID
+ * @returns {Promise<void>}
+ */
+async function initializeUserProgress(userId) {
+    try {
+        console.log('Initializing progress for user:', userId);
+        
+        // Get all cards that don't have progress records for this user
+        const { data: cards, error: cardsError } = await supabase
+            .from('cards')
+            .select('card_id')
+            .not('card_id', 'in', (
+                supabase
+                    .from('user_card_progress')
+                    .select('card_id')
+                    .eq('user_id', userId)
+            ));
+
+        if (cardsError) {
+            console.error('Error fetching cards for initialization:', cardsError);
+            throw cardsError;
+        }
+
+        if (!cards || cards.length === 0) {
+            console.log('No new cards to initialize for user');
+            return;
+        }
+
+        console.log('Initializing', cards.length, 'cards for user');
+
+        // Create progress records for each card
+        const progressRecords = cards.map(card => ({
+            user_id: userId,
+            card_id: card.card_id,
+            stability: 1.0,
+            difficulty: 5.0,
+            card_state: 'new',
+            next_review_date: new Date().toISOString(),
+            total_reviews: 0,
+            last_review_date: null
+        }));
+
+        const { error: insertError } = await supabase
+            .from('user_card_progress')
+            .insert(progressRecords);
+
+        if (insertError) {
+            console.error('Error initializing user progress:', insertError);
+            throw insertError;
+        }
+
+        console.log('Successfully initialized progress for', progressRecords.length, 'cards');
+    } catch (error) {
+        console.error('Error in initializeUserProgress:', error);
+        throw error;
+    }
+}
+
+// Export the new function along with existing ones
+export {
+    getDueCards,
+    initializeUserProgress
+    // ... other existing exports ...
+}; 
