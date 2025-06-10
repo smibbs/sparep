@@ -15,27 +15,13 @@ async function initializeSupabase() {
             throw new Error('Missing Supabase configuration values');
         }
 
-        // Create Supabase client
-        supabase = supabase || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        // Test the connection
-        console.log('Testing Supabase connection...');
-        const { data, error } = await supabase.from('cards').select('count').single();
-        
-        if (error) {
-            throw error;
+        // Create Supabase client if not already created
+        if (!supabase) {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log('Supabase client created successfully');
         }
         
-        console.log('Supabase connection test successful');
-        
-        // Set up auth state change listener
-        supabase.auth.onAuthStateChange((event, session) => {
-            console.log('Supabase auth event:', event, session ? 'with session' : 'no session');
-        });
-        
-        console.log('Supabase client fully initialized');
         return supabase;
-        
     } catch (error) {
         console.error('Failed to initialize Supabase client:', error);
         throw error;

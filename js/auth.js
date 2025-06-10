@@ -8,20 +8,37 @@ class AuthService {
         this.authStateListeners = new Set();
         this.setupDOMElements();
         this.setupEventListeners();
-        this.initializeAuthState();
+        this.initializeAuthState().catch(error => {
+            console.error('Failed to initialize auth state:', error);
+            // Only redirect to login if we're not already on the login page and not on the test page
+            if (!window.location.pathname.includes('login.html') && 
+                !window.location.pathname.includes('database-test.html')) {
+                AuthService.redirectToLogin();
+            }
+        });
         console.log('AuthService initialized');
     }
 
     async getSupabase() {
-        return await this.supabasePromise;
+        try {
+            return await this.supabasePromise;
+        } catch (error) {
+            console.error('Error getting Supabase client:', error);
+            throw error;
+        }
     }
 
     // Get current user
     async getCurrentUser() {
-        const supabase = await this.getSupabase();
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (error) throw error;
-        return user;
+        try {
+            const supabase = await this.getSupabase();
+            const { data: { user }, error } = await supabase.auth.getUser();
+            if (error) throw error;
+            return user;
+        } catch (error) {
+            console.error('Error getting current user:', error);
+            return null;
+        }
     }
 
     // Subscribe to auth state changes
@@ -30,6 +47,8 @@ class AuthService {
             supabase.auth.onAuthStateChange((event, session) => {
                 callback(session?.user || null, event);
             });
+        }).catch(error => {
+            console.error('Error setting up auth state change listener:', error);
         });
     }
 
@@ -130,7 +149,8 @@ class AuthService {
 
     async initializeAuthState() {
         try {
-            const { data: { session }, error } = await this.getSupabase().auth.getSession();
+            const supabase = await this.getSupabase();
+            const { data: { session }, error } = await supabase.auth.getSession();
             if (error) throw error;
             
             if (session) {
@@ -147,10 +167,8 @@ class AuthService {
                 AuthService.redirectToLogin();
             }
         } catch (error) {
-            console.error('Error checking auth state:', error.message);
-            if (!window.location.pathname.includes('database-test.html')) {
-                AuthService.redirectToLogin();
-            }
+            console.error('Error checking auth state:', error);
+            throw error; // Let the constructor handle the error
         }
     }
 
