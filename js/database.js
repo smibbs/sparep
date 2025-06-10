@@ -29,8 +29,8 @@ class DatabaseService {
                     )
                 `)
                 .eq('user_id', userId)
-                .lte('next_review_at', new Date().toISOString())
-                .order('next_review_at', { ascending: true });
+                .lte('next_review_date', new Date().toISOString())
+                .order('next_review_date', { ascending: true });
 
             if (error) throw error;
             console.log('Due cards response:', data);
@@ -113,7 +113,7 @@ class DatabaseService {
                 stability_before: progressData?.stability || 1.0,
                 difficulty_before: progressData?.difficulty || 5.0,
                 elapsed_days: progressData ? 
-                    (now - new Date(progressData.last_review_at)) / (1000 * 60 * 60 * 24) : 
+                    (now - new Date(progressData.last_review_date)) / (1000 * 60 * 60 * 24) : 
                     0,
                 scheduled_days: progressData?.scheduled_days || 0
             };
@@ -151,8 +151,8 @@ class DatabaseService {
                 reps: 0,
                 lapses: 0,
                 state: 'new',
-                last_review_at: null,
-                next_review_at: new Date().toISOString()
+                last_review_date: null,
+                next_review_date: new Date().toISOString()
             };
 
             const { data, error } = await this.supabase
@@ -164,7 +164,7 @@ class DatabaseService {
             if (error) throw error;
             return data;
         } catch (error) {
-            console.error('Error initializing user progress:', error.message);
+            console.error('Error initializing user progress:', error);
             throw error;
         }
     }

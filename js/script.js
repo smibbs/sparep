@@ -116,7 +116,7 @@ async function loadCards() {
                         stability: card.stability,
                         difficulty: card.difficulty,
                         state: card.state,
-                        next_review_at: card.next_review_at
+                        next_review_date: card.next_review_date
                     }
                 };
             } else {
@@ -304,10 +304,50 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Add event listeners
         console.log('Setting up event listeners...');
         document.addEventListener('keydown', handleKeydown);
-        document.querySelector('.card').addEventListener('click', flipCard);
-        document.getElementById('prev-button').addEventListener('click', previousCard);
-        document.getElementById('next-button').addEventListener('click', nextCard);
-        document.getElementById('logout-button').addEventListener('click', () => AuthService.signOut());
+        
+        // Check if elements exist before adding event listeners
+        const cardElement = document.querySelector('.card');
+        if (cardElement) {
+            cardElement.addEventListener('click', flipCard);
+        } else {
+            console.error('Card element not found');
+        }
+        
+        const prevButton = document.getElementById('prev-button');
+        const nextButton = document.getElementById('next-button');
+        const flipButton = document.getElementById('flip-button');
+        const logoutButton = document.getElementById('logout-button');
+        const retryButton = document.getElementById('retry-button');
+        
+        if (prevButton) {
+            prevButton.addEventListener('click', previousCard);
+        } else {
+            console.error('Previous button not found');
+        }
+        
+        if (nextButton) {
+            nextButton.addEventListener('click', nextCard);
+        } else {
+            console.error('Next button not found');
+        }
+        
+        if (flipButton) {
+            flipButton.addEventListener('click', flipCard);
+        } else {
+            console.error('Flip button not found');
+        }
+        
+        if (logoutButton) {
+            logoutButton.addEventListener('click', () => AuthService.signOut());
+        } else {
+            console.error('Logout button not found');
+        }
+        
+        if (retryButton) {
+            retryButton.addEventListener('click', () => location.reload());
+        } else {
+            console.error('Retry button not found');
+        }
 
         console.log('App initialization complete!');
     } catch (error) {

@@ -9,7 +9,7 @@
 <body>
     <div id="app-container">
         <div class="header-nav">
-            <button id="signout-button" class="nav-button" onclick="AuthService.signOut()">Sign Out</button>
+            <button id="logout-button" class="nav-button">Sign Out</button>
         </div>
         <div id="loading-state" class="loading-state">
             <div class="loading-spinner"></div>
@@ -17,7 +17,7 @@
         </div>
         <div id="error-state" class="error-state hidden">
             <p class="error-text">Failed to load flashcards.</p>
-            <button onclick="location.reload()" class="nav-button">Retry</button>
+            <button id="retry-button" class="nav-button">Retry</button>
         </div>
         <div id="content" class="content hidden">
             <div class="progress">Card <span id="current-card">1</span> of <span id="total-cards">3</span></div>
@@ -32,9 +32,9 @@
                 </div>
             </div>
             <div class="controls">
-                <button onclick="previousCard()" class="nav-button">Previous</button>
-                <button onclick="flipCard()" class="nav-button">Flip</button>
-                <button onclick="nextCard()" class="nav-button">Next</button>
+                <button id="prev-button" class="nav-button">Previous</button>
+                <button id="flip-button" class="nav-button">Flip</button>
+                <button id="next-button" class="nav-button">Next</button>
             </div>
         </div>
     </div>
