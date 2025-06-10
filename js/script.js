@@ -321,6 +321,7 @@ let isCardFlipped = false;
 async function initializeApp() {
     try {
         showLoading(true);
+        showError(null); // Clear any previous errors
         
         // Check authentication
         const user = await auth.getCurrentUser();
@@ -346,7 +347,8 @@ async function initializeApp() {
         showContent(true);
     } catch (error) {
         console.error('Error initializing app:', error);
-        showError('Failed to initialize the app. Please try again.');
+        showLoading(false);
+        showError(error.message || 'Failed to initialize the app. Please try again.');
     }
 }
 
@@ -424,18 +426,24 @@ async function recordReview(cardId, rating, responseTime, stability, difficulty,
 
 async function loadNextDueCard() {
     try {
+        showLoading(true);
         const card = await database.getNextDueCard();
+        
         if (card) {
             currentCard = {
                 ...card,
                 startTime: new Date()
             };
             updateCardDisplay(currentCard);
+            showContent(true);
         } else {
             showNoMoreCardsMessage();
         }
+        showLoading(false);
     } catch (error) {
-        throw new Error('Failed to load next card: ' + error.message);
+        console.error('Error loading next card:', error);
+        showLoading(false);
+        throw error; // Let the caller handle the error
     }
 }
 

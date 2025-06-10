@@ -22,90 +22,110 @@ class DatabaseService {
     async ensureReviewHistorySchema() {
         const supabase = await this.getSupabase();
         
-        // Check if review_history table exists and has all required columns
+        // Just check if the table exists by trying to select a single row
         const { error } = await supabase
             .from('review_history')
-            .select('response_time')
+            .select('id')
             .limit(1);
 
-        if (error && error.message.includes('column "response_time" does not exist')) {
-            console.error('Review history table needs update:', error);
-            // We can't create/alter tables from the client side
-            // Instead, show a more helpful error message
-            throw new Error('Database schema needs to be updated. Please contact the administrator.');
+        if (error) {
+            console.error('Review history table check failed:', error);
         }
     }
 
     async getNextDueCard() {
-        const supabase = await this.getSupabase();
-        const user = (await supabase.auth.getUser()).data.user;
+        try {
+            const supabase = await this.getSupabase();
+            const user = (await supabase.auth.getUser()).data.user;
 
-        // First try to get a card that's due for review
-        const { data: dueCards, error: dueError } = await supabase
-            .from('user_card_progress')
-            .select(`
-                card_id,
-                stability,
-                difficulty,
-                next_review_date,
-                cards (
-                    id,
-                    question,
-                    answer
-                )
-            `)
-            .eq('user_id', user.id)
-            .lte('next_review_date', new Date().toISOString())
-            .order('next_review_date', { ascending: true })
-            .limit(1);
+            // First try to get a card that's due for review
+            const { data: dueCards, error: dueError } = await supabase
+                .from('user_card_progress')
+                .select(`
+                    card_id,
+                    stability,
+                    difficulty,
+                    next_review_date,
+                    cards (
+                        id,
+                        question,
+                        answer
+                    )
+                `)
+                .eq('user_id', user.id)
+                .lte('next_review_date', new Date().toISOString())
+                .order('next_review_date', { ascending: true })
+                .limit(1);
 
-        if (dueError) throw dueError;
+            if (dueError) {
+                console.error('Error fetching due cards:', dueError);
+                throw dueError;
+            }
 
-        // If we found a due card, return it
-        if (dueCards && dueCards.length > 0) {
-            const dueCard = dueCards[0];
-            return {
-                id: dueCard.card_id,
-                question: dueCard.cards.question,
-                answer: dueCard.cards.answer,
-                stability: dueCard.stability,
-                difficulty: dueCard.difficulty
-            };
+            // If we found a due card, return it
+            if (dueCards && dueCards.length > 0) {
+                const dueCard = dueCards[0];
+                return {
+                    id: dueCard.card_id,
+                    question: dueCard.cards.question,
+                    answer: dueCard.cards.answer,
+                    stability: dueCard.stability,
+                    difficulty: dueCard.difficulty
+                };
+            }
+
+            // Get all card IDs that the user has progress for
+            const { data: progressData, error: progressError } = await supabase
+                .from('user_card_progress')
+                .select('card_id')
+                .eq('user_id', user.id);
+
+            if (progressError) {
+                console.error('Error fetching progress data:', progressError);
+                throw progressError;
+            }
+
+            // Get a new card that the user hasn't seen yet
+            const seenCardIds = progressData?.map(p => p.card_id) || [];
+            const query = supabase
+                .from('cards')
+                .select('id, question, answer');
+
+            if (seenCardIds.length > 0) {
+                query.not('id', 'in', `(${seenCardIds.join(',')})`);
+            }
+
+            const { data: newCards, error: newError } = await query.limit(1);
+
+            if (newError) {
+                console.error('Error fetching new cards:', newError);
+                throw newError;
+            }
+
+            // If we found a new card, return it with default values
+            if (newCards && newCards.length > 0) {
+                return {
+                    ...newCards[0],
+                    stability: 1.0,
+                    difficulty: 5.0
+                };
+            }
+
+            // No cards available
+            return null;
+
+        } catch (error) {
+            console.error('Error in getNextDueCard:', error);
+            throw new Error('Failed to load next card: ' + error.message);
         }
-
-        // If no due cards, get a new card that the user hasn't seen yet
-        const { data: newCards, error: newError } = await supabase
-            .from('cards')
-            .select('id, question, answer')
-            .not('id', 'in', (
-                supabase
-                    .from('user_card_progress')
-                    .select('card_id')
-                    .eq('user_id', user.id)
-            ))
-            .limit(1);
-
-        if (newError) throw newError;
-
-        // If we found a new card, return it with default values
-        if (newCards && newCards.length > 0) {
-            return {
-                ...newCards[0],
-                stability: 1.0,
-                difficulty: 5.0
-            };
-        }
-
-        // No cards available
-        return null;
     }
 
     async recordReview(reviewData) {
-        const supabase = await this.getSupabase();
-        const user = (await supabase.auth.getUser()).data.user;
-        const { cardId, rating, responseTime, stability, difficulty, nextReviewDate } = reviewData;
-
         try {
+            const supabase = await this.getSupabase();
+            const user = (await supabase.auth.getUser()).data.user;
+            const { cardId, rating, responseTime, stability, difficulty, nextReviewDate } = reviewData;
+
             // Update or insert progress
             const { error: progressError } = await supabase
                 .from('user_card_progress')
@@ -118,7 +138,10 @@ class DatabaseService {
                     last_review_date: new Date().toISOString()
                 });
 
-            if (progressError) throw progressError;
+            if (progressError) {
+                console.error('Error updating progress:', progressError);
+                throw progressError;
+            }
 
             // Record the review
             const { error: reviewError } = await supabase
