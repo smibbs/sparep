@@ -98,12 +98,29 @@ async function loadCards() {
         }
         
         // Transform cards to match expected format
-        appState.questions = cards.map(card => ({
-            id: card.id || card.cards.id,
-            question: card.question || card.cards.question,
-            answer: card.answer || card.cards.answer,
-            progress: card.progress
-        }));
+        appState.questions = cards.map(card => {
+            // Handle both due cards (with nested card data) and new cards
+            if (card.cards) {
+                return {
+                    id: card.cards.id,
+                    question: card.cards.question,
+                    answer: card.cards.answer,
+                    progress: {
+                        stability: card.stability,
+                        difficulty: card.difficulty,
+                        state: card.state,
+                        next_review_at: card.next_review_at
+                    }
+                };
+            } else {
+                return {
+                    id: card.id,
+                    question: card.question,
+                    answer: card.answer,
+                    progress: null // New card, no progress yet
+                };
+            }
+        });
         
         appState.totalCards = appState.questions.length;
         appState.currentCardIndex = 0;
@@ -230,6 +247,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLoading();
     
     try {
+        // Wait for database service to be initialized
+        let attempts = 0;
+        while (!window.dbService && attempts < 10) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
+        if (!window.dbService) {
+            throw new Error('Database service failed to initialize');
+        }
+        
+        appState.dbService = window.dbService;
+        
         // Check authentication
         const user = await AuthService.getCurrentUser();
         if (!user) {
@@ -238,7 +268,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         appState.user = user;
-        appState.dbService = window.dbService;
 
         // Subscribe to auth changes
         AuthService.onAuthStateChange((user, event) => {

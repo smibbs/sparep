@@ -1,7 +1,11 @@
 // Database operations wrapper for Supabase
 class DatabaseService {
     constructor() {
+        if (!window.supabaseClient) {
+            throw new Error('Supabase client not initialized');
+        }
         this.supabase = window.supabaseClient;
+        console.log('DatabaseService initialized with Supabase client');
     }
 
     /**
@@ -176,7 +180,16 @@ class DatabaseService {
     }
 }
 
-// Initialize database service when the DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    window.dbService = new DatabaseService();
-}); 
+// Initialize database service when the DOM is loaded and Supabase client is available
+function initDatabaseService() {
+    try {
+        window.dbService = new DatabaseService();
+        console.log('Database service initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize database service:', error);
+        // Try again in 100ms if Supabase client isn't ready
+        setTimeout(initDatabaseService, 100);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initDatabaseService); 
