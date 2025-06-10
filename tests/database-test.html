@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Operations Test</title>
+    <style>
+        body {
+            font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .success {
+            color: #28a745;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Database Operations Test</h1>
+    <div id="auth-status" class="test-section">
+        <h2>Authentication Status</h2>
+        <div id="auth-result" class="result">Checking...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Get Cards Due</h2>
+        <button onclick="testGetCardsDue()">Test getCardsDue()</button>
+        <div id="cards-due-result" class="result">Click button to test</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Get New Cards</h2>
+        <input type="number" id="new-cards-limit" value="5" min="1" max="20">
+        <button onclick="testGetNewCards()">Test getNewCards()</button>
+        <div id="new-cards-result" class="result">Click button to test</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Initialize User Progress</h2>
+        <input type="text" id="card-id" placeholder="Card ID">
+        <button onclick="testInitializeProgress()">Test initializeUserProgress()</button>
+        <div id="init-progress-result" class="result">Click button to test</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Record Review</h2>
+        <input type="text" id="review-card-id" placeholder="Card ID">
+        <select id="rating">
+            <option value="1">Again (1)</option>
+            <option value="2">Hard (2)</option>
+            <option value="3">Good (3)</option>
+            <option value="4">Easy (4)</option>
+        </select>
+        <button onclick="testRecordReview()">Test recordReview()</button>
+        <div id="record-review-result" class="result">Click button to test</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Get User Progress</h2>
+        <input type="text" id="progress-card-id" placeholder="Card ID">
+        <button onclick="testGetUserProgress()">Test getUserProgress()</button>
+        <div id="get-progress-result" class="result">Click button to test</div>
+    </div>
+
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../js/supabase-client.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/database.js"></script>
+
+    <script>
+        let currentUser = null;
+
+        async function updateAuthStatus() {
+            try {
+                currentUser = await AuthService.getCurrentUser();
+                const result = document.getElementById('auth-result');
+                if (currentUser) {
+                    result.textContent = `Authenticated as: ${currentUser.email}`;
+                    result.classList.add('success');
+                } else {
+                    result.textContent = 'Not authenticated. Please login first.';
+                    result.classList.add('error');
+                }
+            } catch (error) {
+                document.getElementById('auth-result').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testGetCardsDue() {
+            const result = document.getElementById('cards-due-result');
+            try {
+                if (!currentUser) throw new Error('Not authenticated');
+                const cards = await window.dbService.getCardsDue(currentUser.id);
+                result.textContent = `Found ${cards.length} cards due:\n${JSON.stringify(cards, null, 2)}`;
+                result.classList.add('success');
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+                result.classList.add('error');
+            }
+        }
+
+        async function testGetNewCards() {
+            const result = document.getElementById('new-cards-result');
+            try {
+                if (!currentUser) throw new Error('Not authenticated');
+                const limit = parseInt(document.getElementById('new-cards-limit').value);
+                const cards = await window.dbService.getNewCards(currentUser.id, limit);
+                result.textContent = `Found ${cards.length} new cards:\n${JSON.stringify(cards, null, 2)}`;
+                result.classList.add('success');
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+                result.classList.add('error');
+            }
+        }
+
+        async function testInitializeProgress() {
+            const result = document.getElementById('init-progress-result');
+            try {
+                if (!currentUser) throw new Error('Not authenticated');
+                const cardId = document.getElementById('card-id').value;
+                if (!cardId) throw new Error('Please enter a card ID');
+                const progress = await window.dbService.initializeUserProgress(currentUser.id, cardId);
+                result.textContent = `Progress initialized:\n${JSON.stringify(progress, null, 2)}`;
+                result.classList.add('success');
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+                result.classList.add('error');
+            }
+        }
+
+        async function testRecordReview() {
+            const result = document.getElementById('record-review-result');
+            try {
+                if (!currentUser) throw new Error('Not authenticated');
+                const cardId = document.getElementById('review-card-id').value;
+                if (!cardId) throw new Error('Please enter a card ID');
+                const rating = parseInt(document.getElementById('rating').value);
+                const responseTime = 1000; // Mock 1 second response time
+                const review = await window.dbService.recordReview(currentUser.id, cardId, rating, responseTime);
+                result.textContent = `Review recorded:\n${JSON.stringify(review, null, 2)}`;
+                result.classList.add('success');
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+                result.classList.add('error');
+            }
+        }
+
+        async function testGetUserProgress() {
+            const result = document.getElementById('get-progress-result');
+            try {
+                if (!currentUser) throw new Error('Not authenticated');
+                const cardId = document.getElementById('progress-card-id').value;
+                if (!cardId) throw new Error('Please enter a card ID');
+                const progress = await window.dbService.getUserProgress(currentUser.id, cardId);
+                result.textContent = `User progress:\n${JSON.stringify(progress, null, 2)}`;
+                result.classList.add('success');
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+                result.classList.add('error');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            updateAuthStatus();
+        });
+    </script>
+</body>
+</html> 
