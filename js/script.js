@@ -98,6 +98,9 @@ function displayCurrentCard() {
     }
 
     const currentCard = appState.cards[appState.currentCardIndex];
+    appState.currentCard = currentCard; // Store current card in state
+    appState.cardStartTime = Date.now(); // Track when the card was shown
+    
     const cardFront = document.querySelector('.card-front p');
     const cardBack = document.querySelector('.card-back p');
     
@@ -123,11 +126,15 @@ function displayCurrentCard() {
         cardFront.appendChild(progressElement);
     }
 
-    // Reset card to front face
+    // Reset card to front face and show rating buttons
     const card = document.querySelector('.card');
     if (card) {
         card.classList.remove('flipped');
     }
+
+    // Enable rating buttons
+    const ratingButtons = document.querySelectorAll('.rating-button');
+    ratingButtons.forEach(btn => btn.disabled = false);
 
     showContent(true);
 }
@@ -376,51 +383,52 @@ function handleFlip() {
 }
 
 async function handleRating(event) {
-    if (!currentCard) return;
-    
-    const rating = parseInt(event.target.dataset.rating);
-    const startTime = currentCard.startTime || new Date();
-    const responseTime = (new Date() - startTime) / 1000; // Convert to seconds
-    
     try {
-        // Calculate new FSRS values
-        const stability = currentCard.stability || 1.0;
-        const difficulty = currentCard.difficulty || 5.0;
-        
-        const newStability = updateStability(stability, rating);
-        const newDifficulty = updateDifficulty(difficulty, rating);
-        const { nextReviewDate, interval } = calculateNextReview(newStability, newDifficulty, rating);
-        
-        // Record the review in the database
-        await recordReview(currentCard.id, rating, responseTime, newStability, newDifficulty, nextReviewDate);
-        
-        // Load the next card
-        await loadNextDueCard();
-        
-        // Reset the card state
-        isCardFlipped = false;
-        cardInner.classList.remove('flipped');
-        ratingButtons.classList.add('hidden');
-        flipButton.classList.remove('hidden');
-        
-    } catch (error) {
-        console.error('Error handling rating:', error);
-        showError('Failed to save review. Please try again.');
-    }
-}
+        const button = event.target;
+        const rating = parseInt(button.dataset.rating);
+        if (!rating || !appState.currentCard) return;
 
-async function recordReview(cardId, rating, responseTime, stability, difficulty, nextReviewDate) {
-    try {
-        await database.recordReview({
-            cardId,
+        // Disable rating buttons while processing
+        const ratingButtons = document.querySelectorAll('.rating-button');
+        ratingButtons.forEach(btn => btn.disabled = true);
+
+        // Calculate response time (if we have a start time)
+        const responseTime = appState.cardStartTime ? 
+            (Date.now() - appState.cardStartTime) / 1000 : // Convert to seconds
+            null;
+
+        // Get current card's FSRS parameters
+        const currentStability = appState.currentCard.stability || 1.0;
+        const currentDifficulty = appState.currentCard.difficulty || 5.0;
+
+        // Calculate new FSRS values
+        const newStability = updateStability(currentStability, rating);
+        const newDifficulty = updateDifficulty(currentDifficulty, rating);
+        const { nextReviewDate } = calculateNextReview(newStability, newDifficulty, rating);
+
+        // Record the review
+        await appState.dbService.recordReview({
+            cardId: appState.currentCard.id,
             rating,
             responseTime,
-            stability,
-            difficulty,
-            nextReviewDate
+            stability: newStability,
+            difficulty: newDifficulty,
+            nextReviewDate: nextReviewDate.toISOString()
         });
+
+        // Load the next card
+        await loadNextDueCard();
+
+        // Re-enable rating buttons
+        ratingButtons.forEach(btn => btn.disabled = false);
+
     } catch (error) {
-        throw new Error('Failed to record review: ' + error.message);
+        console.error('Error handling rating:', error);
+        showError('Failed to record your rating. Please try again.');
+        
+        // Re-enable rating buttons on error
+        const ratingButtons = document.querySelectorAll('.rating-button');
+        ratingButtons.forEach(btn => btn.disabled = false);
     }
 }
 
