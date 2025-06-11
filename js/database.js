@@ -38,6 +38,20 @@ class DatabaseService {
             const supabase = await this.getSupabase();
             const user = (await supabase.auth.getUser()).data.user;
 
+            // Get user's settings for new cards per day
+            const { data: userProfile, error: profileError } = await supabase
+                .from('user_profiles')
+                .select('daily_new_cards_limit')
+                .eq('id', user.id)
+                .single();
+
+            if (profileError) {
+                console.error('Error fetching user profile:', profileError);
+                throw profileError;
+            }
+
+            const newCardsLimit = userProfile?.daily_new_cards_limit || 20;
+
             // First try to get a card that's due for review
             const { data: dueCards, error: dueError } = await supabase
                 .from('user_card_progress')
@@ -74,41 +88,36 @@ class DatabaseService {
                 };
             }
 
-            // Get all card IDs that the user has progress for
-            const { data: progressData, error: progressError } = await supabase
+            // Get count of new cards studied today
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const { data: newCardsToday, error: countError } = await supabase
                 .from('user_card_progress')
                 .select('card_id')
-                .eq('user_id', user.id);
+                .eq('user_id', user.id)
+                .eq('state', 'new')
+                .gte('created_at', today.toISOString())
+                .limit(1);
 
-            if (progressError) {
-                console.error('Error fetching progress data:', progressError);
-                throw progressError;
+            if (countError) {
+                console.error('Error counting new cards:', countError);
+                throw countError;
             }
 
-            // Get a new card that the user hasn't seen yet
-            const seenCardIds = progressData?.map(p => p.card_id) || [];
-            const query = supabase
-                .from('cards')
-                .select('id, question, answer');
-
-            if (seenCardIds.length > 0) {
-                query.not('id', 'in', `(${seenCardIds.join(',')})`);
-            }
-
-            const { data: newCards, error: newError } = await query.limit(1);
-
-            if (newError) {
-                console.error('Error fetching new cards:', newError);
-                throw newError;
-            }
-
-            // If we found a new card, return it with default values
-            if (newCards && newCards.length > 0) {
-                return {
-                    ...newCards[0],
-                    stability: 1.0,
-                    difficulty: 5.0
-                };
+            // If we haven't reached the daily limit, get a new card
+            if (!newCardsToday || newCardsToday.length < newCardsLimit) {
+                const newCards = await this.getNewCards(user.id, 1);
+                if (newCards && newCards.length > 0) {
+                    const newCard = newCards[0];
+                    return {
+                        id: newCard.id,
+                        question: newCard.question,
+                        answer: newCard.answer,
+                        stability: 1.0,
+                        difficulty: 5.0
+                    };
+                }
             }
 
             // No cards available
@@ -116,7 +125,7 @@ class DatabaseService {
 
         } catch (error) {
             console.error('Error in getNextDueCard:', error);
-            throw new Error('Failed to load next card: ' + error.message);
+            throw error;
         }
     }
 
@@ -248,43 +257,47 @@ class DatabaseService {
     }
 
     /**
-     * Fetches new cards that the user hasn't seen yet
+     * Get new cards that haven't been studied yet
      * @param {string} userId - The user's ID
-     * @param {number} limit - Maximum number of new cards to fetch
+     * @param {number} limit - Maximum number of new cards to return
      * @returns {Promise<Array>} Array of new cards
      */
-    async getNewCards(userId, limit = 10) {
+    async getNewCards(userId, limit = 20) {
         try {
-            console.log('Fetching new cards for user:', userId);
-            // First, get all card IDs that the user has progress for
-            const { data: progressData, error: progressError } = await this.supabase
+            const supabase = await this.getSupabase();
+
+            // Get all card IDs that the user has progress for
+            const { data: progressData, error: progressError } = await supabase
                 .from('user_card_progress')
                 .select('card_id')
                 .eq('user_id', userId);
 
-            if (progressError) throw progressError;
-            console.log('Progress data:', progressData);
+            if (progressError) {
+                console.error('Error fetching progress data:', progressError);
+                throw progressError;
+            }
 
+            // Get new cards that the user hasn't seen yet
             const seenCardIds = progressData?.map(p => p.card_id) || [];
-            console.log('Seen card IDs:', seenCardIds);
-
-            // Then get cards that aren't in that list
-            const query = this.supabase
+            const query = supabase
                 .from('cards')
-                .select('*');
-                
+                .select('id, question, answer')
+                .limit(limit);
+
             if (seenCardIds.length > 0) {
                 query.not('id', 'in', `(${seenCardIds.join(',')})`);
             }
-            query.limit(limit);
 
-            const { data, error } = await query;
+            const { data: newCards, error: newError } = await query;
 
-            if (error) throw error;
-            console.log('New cards response:', data);
-            return data || [];
+            if (newError) {
+                console.error('Error fetching new cards:', newError);
+                throw newError;
+            }
+
+            return newCards || [];
         } catch (error) {
-            console.error('Error fetching new cards:', error);
+            console.error('Error in getNewCards:', error);
             throw error;
         }
     }
