@@ -127,92 +127,67 @@ class DatabaseService {
             const { cardId, rating, responseTime, stability, difficulty, nextReviewDate } = reviewData;
             const now = new Date().toISOString();
 
-            // Update progress using raw SQL query
-            const { error: progressError } = await supabase.from('user_card_progress').upsert({
-                user_id: user.id,
-                card_id: cardId,
-                stability,
-                difficulty,
-                due_date: nextReviewDate,
-                last_review_date: now,
-                next_review_date: nextReviewDate,
-                reps: 1,
-                total_reviews: 1,
-                correct_reviews: rating >= 3 ? 1 : 0,
-                incorrect_reviews: rating < 3 ? 1 : 0,
-                last_rating: rating,
-                state: 'learning',
-                streak: rating >= 3 ? 1 : 0,
-                average_time_ms: responseTime,
-                elapsed_days: 0,
-                scheduled_days: 0,
-                lapses: rating < 3 ? 1 : 0
-            }, {
-                onConflict: 'user_id,card_id',
-                returning: true
-            }).select().single();
-
-            if (progressError) {
-                console.error('Error updating progress:', progressError);
-                throw progressError;
-            }
-
-            // If we got an existing record, update the counters
-            const { data: existingProgress } = await supabase
+            // First, get the current progress to use as "before" state
+            const { data: currentProgress, error: progressError } = await supabase
                 .from('user_card_progress')
                 .select('*')
                 .eq('user_id', user.id)
                 .eq('card_id', cardId)
                 .single();
 
-            if (existingProgress) {
-                const { error: updateError } = await supabase
-                    .from('user_card_progress')
-                    .update({
-                        reps: existingProgress.reps + 1,
-                        total_reviews: existingProgress.total_reviews + 1,
-                        correct_reviews: existingProgress.correct_reviews + (rating >= 3 ? 1 : 0),
-                        incorrect_reviews: existingProgress.incorrect_reviews + (rating < 3 ? 1 : 0),
-                        streak: rating >= 3 ? existingProgress.streak + 1 : 0,
-                        lapses: existingProgress.lapses + (rating < 3 ? 1 : 0),
-                        last_rating: rating,
-                        state: 'learning',
-                        stability,
-                        difficulty,
-                        due_date: nextReviewDate,
-                        last_review_date: now,
-                        next_review_date: nextReviewDate,
-                        average_time_ms: responseTime,
-                        elapsed_days: 0,
-                        scheduled_days: 0
-                    })
-                    .eq('user_id', user.id)
-                    .eq('card_id', cardId);
-
-                if (updateError) {
-                    console.error('Error updating counters:', updateError);
-                    throw updateError;
-                }
+            if (progressError && progressError.code !== 'PGRST116') { // PGRST116 is "not found"
+                console.error('Error fetching current progress:', progressError);
+                throw progressError;
             }
 
-            // Record the review
+            const currentState = currentProgress?.state || 'new';
+            const currentStability = currentProgress?.stability || 1.0;
+            const currentDifficulty = currentProgress?.difficulty || 5.0;
+
+            // Update user_card_progress
+            const { error: updateError } = await supabase
+                .from('user_card_progress')
+                .upsert({
+                    user_id: user.id,
+                    card_id: cardId,
+                    stability: stability,
+                    difficulty: difficulty,
+                    next_review_at: nextReviewDate,
+                    last_review_at: now,
+                    reps: (currentProgress?.reps || 0) + 1,
+                    total_reviews: (currentProgress?.total_reviews || 0) + 1,
+                    correct_reviews: (currentProgress?.correct_reviews || 0) + (rating >= 3 ? 1 : 0),
+                    average_response_time: responseTime,
+                    state: 'learning',
+                    lapses: (currentProgress?.lapses || 0) + (rating < 3 ? 1 : 0),
+                    elapsed_days: 0,
+                    scheduled_days: 0,
+                    updated_at: now
+                }, {
+                    onConflict: 'user_id,card_id'
+                });
+
+            if (updateError) {
+                console.error('Error updating progress:', updateError);
+                throw updateError;
+            }
+
+            // Record the review in review_history
             const { error: reviewError } = await supabase
                 .from('review_history')
                 .insert({
                     user_id: user.id,
                     card_id: cardId,
-                    rating,
-                    response_time_ms: responseTime,
-                    review_date: now,
-                    stability_before: stability,
-                    difficulty_before: difficulty,
+                    rating: rating,
+                    response_time: responseTime,
+                    stability_before: currentStability,
+                    difficulty_before: currentDifficulty,
                     elapsed_days: 0,
                     scheduled_days: 0,
                     stability_after: stability,
                     difficulty_after: difficulty,
-                    state_before: 'new',
+                    state_before: currentState,
                     state_after: 'learning',
-                    was_relearning: false,
                     created_at: now
                 });
 
@@ -220,6 +195,8 @@ class DatabaseService {
                 console.error('Error recording review:', reviewError);
                 throw reviewError;
             }
+
+            return { success: true };
         } catch (error) {
             console.error('Error in recordReview:', error);
             throw new Error('Failed to record review: ' + error.message);
