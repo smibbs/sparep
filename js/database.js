@@ -37,6 +37,7 @@ class DatabaseService {
         try {
             const supabase = await this.getSupabase();
             const user = (await supabase.auth.getUser()).data.user;
+            console.log('Getting next due card for user:', user.id);
 
             // Get user's settings for new cards per day
             const { data: userProfile, error: profileError } = await supabase
@@ -46,11 +47,11 @@ class DatabaseService {
                 .single();
 
             if (profileError) {
-                console.error('Error fetching user profile:', profileError);
-                throw profileError;
+                console.log('No user profile found, using default limit of 20');
             }
 
             const newCardsLimit = userProfile?.daily_new_cards_limit || 20;
+            console.log('New cards limit:', newCardsLimit);
 
             // First try to get a card that's due for review
             const { data: dueCards, error: dueError } = await supabase
@@ -76,9 +77,12 @@ class DatabaseService {
                 throw dueError;
             }
 
+            console.log('Due cards found:', dueCards?.length || 0);
+
             // If we found a due card, return it
             if (dueCards && dueCards.length > 0) {
                 const dueCard = dueCards[0];
+                console.log('Returning due card:', dueCard.card_id);
                 return {
                     id: dueCard.card_id,
                     question: dueCard.cards.question,
@@ -105,11 +109,16 @@ class DatabaseService {
                 throw countError;
             }
 
+            console.log('New cards studied today:', newCardsToday?.length || 0);
+
             // If we haven't reached the daily limit, get a new card
             if (!newCardsToday || newCardsToday.length < newCardsLimit) {
+                console.log('Under daily limit, fetching new card');
                 const newCards = await this.getNewCards(user.id, 1);
+                console.log('New cards fetched:', newCards?.length || 0);
                 if (newCards && newCards.length > 0) {
                     const newCard = newCards[0];
+                    console.log('Returning new card:', newCard.id);
                     return {
                         id: newCard.id,
                         question: newCard.question,
@@ -117,10 +126,15 @@ class DatabaseService {
                         stability: 1.0,
                         difficulty: 5.0
                     };
+                } else {
+                    console.log('No new cards available');
                 }
+            } else {
+                console.log('Daily new cards limit reached');
             }
 
             // No cards available
+            console.log('No cards available to return');
             return null;
 
         } catch (error) {
@@ -264,6 +278,7 @@ class DatabaseService {
      */
     async getNewCards(userId, limit = 20) {
         try {
+            console.log('Getting new cards for user:', userId, 'limit:', limit);
             const supabase = await this.getSupabase();
 
             // Get all card IDs that the user has progress for
@@ -277,8 +292,12 @@ class DatabaseService {
                 throw progressError;
             }
 
+            console.log('Found progress records:', progressData?.length || 0);
+
             // Get new cards that the user hasn't seen yet
             const seenCardIds = progressData?.map(p => p.card_id) || [];
+            console.log('Seen card IDs:', seenCardIds);
+
             const query = supabase
                 .from('cards')
                 .select('id, question, answer')
@@ -295,8 +314,11 @@ class DatabaseService {
                 throw newError;
             }
 
+            console.log('Found new cards:', newCards?.length || 0);
+
             // Initialize progress for the new card
             if (newCards && newCards.length > 0) {
+                console.log('Initializing progress for new cards');
                 const now = new Date().toISOString();
                 const progressRecords = newCards.map(card => ({
                     user_id: userId,
@@ -327,6 +349,7 @@ class DatabaseService {
                     console.error('Error initializing progress for new cards:', insertError);
                     throw insertError;
                 }
+                console.log('Successfully initialized progress for new cards');
             }
 
             return newCards || [];
