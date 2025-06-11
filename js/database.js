@@ -281,16 +281,25 @@ class DatabaseService {
             console.log('Getting new cards for user:', userId, 'limit:', limit);
             const supabase = await this.getSupabase();
 
-            // Get new cards that haven't been seen yet using a single query
+            // First get all seen card IDs
+            const { data: seenCards, error: seenError } = await supabase
+                .from('user_card_progress')
+                .select('card_id')
+                .eq('user_id', userId);
+
+            if (seenError) {
+                console.error('Error fetching seen cards:', seenError);
+                throw seenError;
+            }
+
+            const seenCardIds = seenCards?.map(p => p.card_id) || [];
+            console.log('Number of seen cards:', seenCardIds.length);
+
+            // Then get new cards
             const { data: newCards, error: newError } = await supabase
                 .from('cards')
-                .select('id, question, answer')
-                .not('id', 'in', (
-                    supabase
-                        .from('user_card_progress')
-                        .select('card_id')
-                        .eq('user_id', userId)
-                ))
+                .select('*')
+                .not('id', 'in', `(${seenCardIds.join(',')})`)
                 .limit(limit);
 
             if (newError) {
@@ -300,7 +309,10 @@ class DatabaseService {
 
             console.log('Found new cards:', newCards?.length || 0);
             if (newCards?.length > 0) {
-                console.log('Sample new card:', newCards[0]);
+                console.log('Sample new card:', {
+                    id: newCards[0].id,
+                    question: newCards[0].question.substring(0, 50) + '...'
+                });
             }
 
             // Initialize progress for the new card

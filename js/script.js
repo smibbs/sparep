@@ -490,8 +490,8 @@ async function loadNextDueCard() {
             const ratingButtons = document.getElementById('rating-buttons');
             
             if (frontContent && backContent) {
-                frontContent.textContent = card.question;
-                backContent.textContent = card.answer;
+                frontContent.textContent = card.question || 'No question available';
+                backContent.textContent = card.answer || 'No answer available';
             }
             
             // Reset card to front face
