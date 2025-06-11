@@ -157,7 +157,7 @@ class DatabaseService {
                     reps: (currentProgress?.reps || 0) + 1,
                     total_reviews: (currentProgress?.total_reviews || 0) + 1,
                     correct_reviews: (currentProgress?.correct_reviews || 0) + (rating >= 3 ? 1 : 0),
-                    average_response_time: responseTime,
+                    average_response_time_int: responseTime,
                     state: 'learning',
                     lapses: (currentProgress?.lapses || 0) + (rating < 3 ? 1 : 0),
                     elapsed_days: 0,
