@@ -295,6 +295,40 @@ class DatabaseService {
                 throw newError;
             }
 
+            // Initialize progress for the new card
+            if (newCards && newCards.length > 0) {
+                const now = new Date().toISOString();
+                const progressRecords = newCards.map(card => ({
+                    user_id: userId,
+                    card_id: card.id,
+                    stability: 1.0,
+                    difficulty: 5.0,
+                    state: 'new',
+                    next_review_date: now,
+                    last_review_date: null,
+                    due_date: now,
+                    reps: 0,
+                    total_reviews: 0,
+                    correct_reviews: 0,
+                    incorrect_reviews: 0,
+                    lapses: 0,
+                    average_time_ms: 0,
+                    elapsed_days: 0,
+                    scheduled_days: 0
+                }));
+
+                const { error: insertError } = await supabase
+                    .from('user_card_progress')
+                    .upsert(progressRecords, {
+                        onConflict: 'user_id,card_id'
+                    });
+
+                if (insertError) {
+                    console.error('Error initializing progress for new cards:', insertError);
+                    throw insertError;
+                }
+            }
+
             return newCards || [];
         } catch (error) {
             console.error('Error in getNewCards:', error);
