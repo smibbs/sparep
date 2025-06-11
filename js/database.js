@@ -298,16 +298,29 @@ class DatabaseService {
             const seenCardIds = progressData?.map(p => p.card_id) || [];
             console.log('Seen card IDs:', seenCardIds);
 
-            const query = supabase
+            // First, get total count of cards
+            const { count: totalCards, error: countError } = await supabase
                 .from('cards')
-                .select('id, question, answer')
-                .limit(limit);
+                .select('*', { count: 'exact', head: true });
 
-            if (seenCardIds.length > 0) {
-                query.not('id', 'in', `(${seenCardIds.join(',')})`);
+            if (countError) {
+                console.error('Error getting total card count:', countError);
+                throw countError;
             }
 
-            const { data: newCards, error: newError } = await query;
+            console.log('Total cards in database:', totalCards);
+
+            // Then get new cards
+            let query = supabase
+                .from('cards')
+                .select('id, question, answer');
+
+            if (seenCardIds.length > 0) {
+                // Use the not.in filter with an array
+                query = query.not('id', 'in', seenCardIds);
+            }
+
+            const { data: newCards, error: newError } = await query.limit(limit);
 
             if (newError) {
                 console.error('Error fetching new cards:', newError);
@@ -315,6 +328,9 @@ class DatabaseService {
             }
 
             console.log('Found new cards:', newCards?.length || 0);
+            if (newCards?.length > 0) {
+                console.log('Sample new card:', newCards[0]);
+            }
 
             // Initialize progress for the new card
             if (newCards && newCards.length > 0) {
