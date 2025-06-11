@@ -140,9 +140,17 @@ class DatabaseService {
                 throw progressError;
             }
 
+            // Determine state transition
             const currentState = currentProgress?.state || 'new';
-            const currentStability = currentProgress?.stability || 1.0;
-            const currentDifficulty = currentProgress?.difficulty || 5.0;
+            let nextState = currentState;
+            
+            if (currentState === 'new') {
+                nextState = rating >= 3 ? 'review' : 'learning';
+            } else if (currentState === 'learning') {
+                nextState = rating >= 3 ? 'review' : 'learning';
+            } else if (currentState === 'review') {
+                nextState = rating === 1 ? 'learning' : 'review';
+            }
 
             // Update user_card_progress
             const { error: updateError } = await supabase
@@ -152,17 +160,17 @@ class DatabaseService {
                     card_id: cardId,
                     stability: stability,
                     difficulty: difficulty,
-                    next_review_date: nextReviewDate,
-                    last_review_date: now,
+                    next_review_at: nextReviewDate,
+                    last_review_at: now,
                     reps: (currentProgress?.reps || 0) + 1,
                     total_reviews: (currentProgress?.total_reviews || 0) + 1,
                     correct_reviews: (currentProgress?.correct_reviews || 0) + (rating >= 3 ? 1 : 0),
                     incorrect_reviews: (currentProgress?.incorrect_reviews || 0) + (rating < 3 ? 1 : 0),
-                    average_time_ms: responseTime,
-                    state: 'learning',
-                    lapses: (currentProgress?.lapses || 0) + (rating < 3 ? 1 : 0),
+                    average_response_time_ms: responseTime,
+                    state: nextState,
+                    lapses: (currentProgress?.lapses || 0) + (rating === 1 ? 1 : 0),
                     elapsed_days: 0,
-                    scheduled_days: 0,
+                    scheduled_days: Math.ceil((new Date(nextReviewDate) - new Date(now)) / (1000 * 60 * 60 * 24)),
                     updated_at: now
                 }, {
                     onConflict: 'user_id,card_id'
@@ -181,26 +189,26 @@ class DatabaseService {
                     card_id: cardId,
                     rating: rating,
                     response_time_ms: responseTime,
-                    stability_before: currentStability,
-                    difficulty_before: currentDifficulty,
-                    elapsed_days: 0,
-                    scheduled_days: 0,
+                    stability_before: currentProgress?.stability || 1.0,
+                    difficulty_before: currentProgress?.difficulty || 5.0,
+                    elapsed_days: currentProgress ? 
+                        Math.ceil((new Date(now) - new Date(currentProgress.last_review_at || now)) / (1000 * 60 * 60 * 24)) : 0,
+                    scheduled_days: currentProgress?.scheduled_days || 0,
                     stability_after: stability,
                     difficulty_after: difficulty,
                     state_before: currentState,
-                    state_after: 'learning',
+                    state_after: nextState,
                     created_at: now
                 });
 
             if (reviewError) {
-                console.error('Error recording review:', reviewError);
+                console.error('Error recording review history:', reviewError);
                 throw reviewError;
             }
 
-            return { success: true };
         } catch (error) {
             console.error('Error in recordReview:', error);
-            throw new Error('Failed to record review: ' + error.message);
+            throw error;
         }
     }
 
