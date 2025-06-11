@@ -296,7 +296,7 @@ class DatabaseService {
 
             // Get new cards that the user hasn't seen yet
             const seenCardIds = progressData?.map(p => p.card_id) || [];
-            console.log('Seen card IDs:', seenCardIds);
+            console.log('Seen card IDs count:', seenCardIds.length);
 
             // First, get total count of cards
             const { count: totalCards, error: countError } = await supabase
@@ -310,17 +310,23 @@ class DatabaseService {
 
             console.log('Total cards in database:', totalCards);
 
-            // Then get new cards
-            let query = supabase
-                .from('cards')
-                .select('id, question, answer');
-
+            // Then get new cards using a simpler query approach
+            let query;
             if (seenCardIds.length > 0) {
-                // Use the not.in filter with an array
-                query = query.not('id', 'in', seenCardIds);
+                // Use a select where id is not in the seen cards
+                query = supabase.rpc('get_unseen_cards', { 
+                    user_id_param: userId,
+                    limit_param: limit
+                });
+            } else {
+                // If no seen cards, just get any cards up to the limit
+                query = supabase
+                    .from('cards')
+                    .select('id, question, answer')
+                    .limit(limit);
             }
 
-            const { data: newCards, error: newError } = await query.limit(limit);
+            const { data: newCards, error: newError } = await query;
 
             if (newError) {
                 console.error('Error fetching new cards:', newError);
