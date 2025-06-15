@@ -355,7 +355,7 @@ async function initializeApp() {
         });
 
         // Load first card
-        await loadNextDueCard();
+        await loadCards();
         
         // Set up event listeners
         setupEventListeners();
@@ -474,51 +474,6 @@ async function handleRating(event) {
         // Re-enable rating buttons on error
         const ratingButtons = document.querySelectorAll('.rating-button');
         ratingButtons.forEach(btn => btn.disabled = false);
-    }
-}
-
-async function loadNextDueCard() {
-    try {
-        showLoading(true);
-        const card = await appState.dbService.getNextDueCard();
-        
-        if (card) {
-            // Update app state
-            appState.currentCard = card;
-            appState.cardStartTime = Date.now();
-            
-            // Update display
-            const frontContent = document.querySelector('.card-front p');
-            const backContent = document.querySelector('.card-back p');
-            const cardInner = document.querySelector('.card-inner');
-            const flipButton = document.getElementById('flip-button');
-            const ratingButtons = document.getElementById('rating-buttons');
-            
-            if (frontContent && backContent) {
-                frontContent.textContent = card.question || 'No question available';
-                backContent.textContent = card.answer || 'No answer available';
-            }
-            
-            // Reset card to front face
-            if (cardInner) {
-                cardInner.classList.remove('flipped');
-            }
-            
-            // Show flip button, hide rating buttons
-            if (flipButton && ratingButtons) {
-                flipButton.classList.remove('hidden');
-                ratingButtons.classList.add('hidden');
-            }
-            
-            showContent(true);
-        } else {
-            showNoMoreCardsMessage();
-        }
-        showLoading(false);
-    } catch (error) {
-        console.error('Error loading next card:', error);
-        showLoading(false);
-        showError('Failed to load the next card. Please try again.');
     }
 }
 
