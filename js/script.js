@@ -452,6 +452,15 @@ async function handleRating(event) {
         const rating = parseInt(button.dataset.rating);
         if (!rating || !appState.currentCard) return;
 
+        // Defensive logging for card_id and user_id
+        const cardId = appState.currentCard.id;
+        const userId = appState.user?.id;
+        if (!cardId || !userId) {
+            console.error('handleRating: Missing cardId or userId', { cardId, userId, currentCard: appState.currentCard, user: appState.user });
+            showError('Failed to record your rating. Card or user information is missing.');
+            return;
+        }
+
         // Disable rating buttons while processing
         const ratingButtons = document.querySelectorAll('.rating-button');
         ratingButtons.forEach(btn => btn.disabled = true);
@@ -463,7 +472,7 @@ async function handleRating(event) {
 
         // Only pass minimal data; FSRS logic is now in database.js
         await appState.dbService.recordReview({
-            card_id: appState.currentCard.id,
+            card_id: cardId,
             rating,
             responseTime
         });

@@ -151,6 +151,16 @@ class DatabaseService {
             const { card_id, rating, responseTime } = reviewData;
             const now = new Date().toISOString();
 
+            // Defensive checks for user_id and card_id
+            if (!user || !user.id) {
+                console.error('recordReview: Missing or invalid user:', user);
+                throw new Error('User not authenticated or missing user ID.');
+            }
+            if (!card_id || typeof card_id !== 'string' || card_id === 'undefined') {
+                console.error('recordReview: Missing or invalid card_id:', card_id);
+                throw new Error('Missing or invalid card_id for review.');
+            }
+
             // Fetch current progress
             const { data: currentProgress, error: progressError } = await supabase
                 .from('user_card_progress')
