@@ -124,7 +124,7 @@ function displayCurrentCard() {
     appState.cardStartTime = Date.now(); // Track when the card was shown
     
     // Robust check for card data
-    if (!currentCard || typeof currentCard.question !== 'string' || typeof currentCard.answer !== 'string') {
+    if (!currentCard || typeof currentCard.cards?.question !== 'string' || typeof currentCard.cards?.answer !== 'string') {
         showError('Card data is missing or invalid. Please refresh or contact support.');
         return;
     }
@@ -138,8 +138,8 @@ function displayCurrentCard() {
     }
 
     // Update card content
-    cardFront.textContent = currentCard.question;
-    cardBack.textContent = currentCard.answer;
+    cardFront.textContent = currentCard.cards.question;
+    cardBack.textContent = currentCard.cards.answer;
 
     // Update progress display
     updateProgress();
@@ -453,7 +453,7 @@ async function handleRating(event) {
         if (!rating || !appState.currentCard) return;
 
         // Defensive logging for card_id and user_id
-        const cardId = appState.currentCard.id;
+        const cardId = appState.currentCard.card_id;
         const userId = appState.user?.id;
         if (!cardId || !userId) {
             console.error('handleRating: Missing cardId or userId', { cardId, userId, currentCard: appState.currentCard, user: appState.user });
