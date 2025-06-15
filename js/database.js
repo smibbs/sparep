@@ -322,29 +322,25 @@ class DatabaseService {
                 throw seenError;
             }
 
-            const seenCardIds = seenCards?.map(p => p.card_id) || [];
-            console.log('Number of seen cards:', seenCardIds.length);
+            const seenCardIds = seenCards?.map(p => p.card_id).filter(Boolean) || [];
+            console.log('Number of seen cards:', seenCardIds.length, 'IDs:', seenCardIds);
 
             // Then get new cards
-            const { data: newCards, error: newError } = await supabase
+            let newCardsQuery = supabase
                 .from('cards')
-                .select('*')
-                .not('id', 'in', `(${seenCardIds.join(',')})`)
-                .limit(limit);
+                .select('*');
+            if (seenCardIds.length > 0) {
+                newCardsQuery = newCardsQuery.not('id', 'in', `(${seenCardIds.join(',')})`);
+            }
+            newCardsQuery = newCardsQuery.limit(limit);
+            const { data: newCards, error: newError } = await newCardsQuery;
 
             if (newError) {
                 console.error('Error fetching new cards:', newError);
                 throw newError;
             }
 
-            console.log('Found new cards:', newCards?.length || 0);
-            if (newCards?.length > 0) {
-                console.log('Sample new card:', {
-                    id: newCards[0].id,
-                    question: newCards[0].question.substring(0, 50) + '...'
-                });
-            }
-
+            console.log('Found new cards:', newCards?.length || 0, newCards);
             // Initialize progress for the new card
             if (newCards && newCards.length > 0) {
                 console.log('Initializing progress for new cards:', newCards);
@@ -369,7 +365,7 @@ class DatabaseService {
                         elapsed_days: 0,
                         scheduled_days: 0
                     }));
-
+                console.log('Progress records to insert:', progressRecords);
                 if (progressRecords.length > 0) {
                     const { error: insertError } = await supabase
                         .from('user_card_progress')
@@ -402,6 +398,10 @@ class DatabaseService {
      */
     async initializeUserProgress(user_id, card_id) {
         try {
+            if (!card_id) {
+                console.error('initializeUserProgress called with null/undefined card_id:', card_id);
+                return null;
+            }
             const supabase = await this.getSupabase();
             const now = new Date().toISOString();
             const initialProgress = {
@@ -418,7 +418,7 @@ class DatabaseService {
                 next_review_date: now,
                 due_date: now
             };
-
+            console.log('Inserting initial progress record:', initialProgress);
             const { data, error } = await supabase
                 .from('user_card_progress')
                 .insert([initialProgress])
