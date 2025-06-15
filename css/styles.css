@@ -65,6 +65,7 @@ body {
     perspective: 1200px;
     margin-bottom: 24px;
     box-sizing: border-box;
+    overflow: hidden !important;
 }
 
 .card-inner {
@@ -79,7 +80,6 @@ body {
     cursor: pointer;
     min-width: 0 !important;
     min-height: 0 !important;
-    overflow: hidden !important;
     box-sizing: border-box;
 }
 
