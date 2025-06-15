@@ -83,6 +83,13 @@ function showContent(show) {
     content.classList.toggle('hidden', !show);
 }
 
+function hideLoading() {
+    const loadingState = document.getElementById('loading-state');
+    if (loadingState) {
+        loadingState.classList.add('hidden');
+    }
+}
+
 /**
  * Updates the progress indicator with current card position
  */
