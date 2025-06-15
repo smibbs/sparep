@@ -76,6 +76,8 @@ body {
     border-radius: 16px;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
     cursor: pointer;
+    min-width: 0 !important;
+    min-height: 0 !important;
 }
 
 .card.flipped .card-inner {
@@ -99,6 +101,12 @@ body {
     background: white;
     font-size: 1.5rem;
     line-height: 1.6;
+    overflow: visible !important;
+    flex-shrink: 1 !important;
+    flex-grow: 1 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    word-break: break-word;
 }
 
 .card-back {
