@@ -396,6 +396,7 @@ class DatabaseService {
      */
     async initializeUserProgress(user_id, card_id) {
         try {
+            const supabase = await this.getSupabase();
             const now = new Date().toISOString();
             const initialProgress = {
                 user_id: user_id,
@@ -412,7 +413,7 @@ class DatabaseService {
                 due_date: now
             };
 
-            const { data, error } = await this.supabase
+            const { data, error } = await supabase
                 .from('user_card_progress')
                 .insert([initialProgress])
                 .select()
@@ -434,7 +435,8 @@ class DatabaseService {
      */
     async getUserProgress(user_id, card_id) {
         try {
-            const { data, error } = await this.supabase
+            const supabase = await this.getSupabase();
+            const { data, error } = await supabase
                 .from('user_card_progress')
                 .select('*')
                 .eq('user_id', user_id)
