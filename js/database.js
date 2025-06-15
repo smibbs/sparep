@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabase-client.js';
+import { updateStability, updateDifficulty, calculateNextReview } from './fsrs.js';
 
 class DatabaseService {
     constructor() {
@@ -147,26 +148,32 @@ class DatabaseService {
         try {
             const supabase = await this.getSupabase();
             const user = (await supabase.auth.getUser()).data.user;
-            const { cardId, rating, responseTime, stability, difficulty, nextReviewDate } = reviewData;
+            const { card_id, rating, responseTime } = reviewData;
             const now = new Date().toISOString();
 
-            // First, get the current progress to use as "before" state
+            // Fetch current progress
             const { data: currentProgress, error: progressError } = await supabase
                 .from('user_card_progress')
                 .select('*')
                 .eq('user_id', user.id)
-                .eq('card_id', cardId)
+                .eq('card_id', card_id)
                 .single();
 
-            if (progressError && progressError.code !== 'PGRST116') { // PGRST116 is "not found"
+            if (progressError && progressError.code !== 'PGRST116') {
                 console.error('Error fetching current progress:', progressError);
                 throw progressError;
             }
 
-            // Determine state transition
+            // FSRS calculations
+            const currentStability = currentProgress?.stability || 1.0;
+            const currentDifficulty = currentProgress?.difficulty || 5.0;
+            const newStability = updateStability(currentStability, rating);
+            const newDifficulty = updateDifficulty(currentDifficulty, rating);
+            const { nextReviewDate } = calculateNextReview(newStability, newDifficulty, rating);
+
+            // State transition logic
             const currentState = currentProgress?.state || 'new';
             let nextState = currentState;
-            
             if (currentState === 'new') {
                 nextState = rating >= 3 ? 'review' : 'learning';
             } else if (currentState === 'learning') {
@@ -180,12 +187,12 @@ class DatabaseService {
                 .from('user_card_progress')
                 .upsert({
                     user_id: user.id,
-                    card_id: cardId,
-                    stability: stability,
-                    difficulty: difficulty,
-                    due_date: nextReviewDate,
+                    card_id: card_id,
+                    stability: newStability,
+                    difficulty: newDifficulty,
+                    due_date: nextReviewDate.toISOString(),
                     last_review_date: now,
-                    next_review_date: nextReviewDate,
+                    next_review_date: nextReviewDate.toISOString(),
                     reps: (currentProgress?.reps || 0) + 1,
                     total_reviews: (currentProgress?.total_reviews || 0) + 1,
                     correct_reviews: (currentProgress?.correct_reviews || 0) + (rating >= 3 ? 1 : 0),
@@ -211,16 +218,16 @@ class DatabaseService {
                 .from('review_history')
                 .insert({
                     user_id: user.id,
-                    card_id: cardId,
+                    card_id: card_id,
                     rating: rating,
                     response_time_ms: responseTime,
-                    stability_before: currentProgress?.stability || 1.0,
-                    difficulty_before: currentProgress?.difficulty || 5.0,
+                    stability_before: currentStability,
+                    difficulty_before: currentDifficulty,
                     elapsed_days: currentProgress ? 
                         Math.ceil((new Date(now) - new Date(currentProgress.last_review_date || now)) / (1000 * 60 * 60 * 24)) : 0,
                     scheduled_days: currentProgress?.scheduled_days || 0,
-                    stability_after: stability,
-                    difficulty_after: difficulty,
+                    stability_after: newStability,
+                    difficulty_after: newDifficulty,
                     state_before: currentState,
                     state_after: nextState,
                     created_at: now
@@ -244,8 +251,19 @@ class DatabaseService {
      */
     async getCardsDue(userId) {
         try {
-            console.log('Fetching due cards for user:', userId);
-            const { data, error } = await this.supabase
+            const supabase = await this.getSupabase();
+            const now = new Date();
+            const nowISOString = now.toISOString();
+            // 1. Get user's daily new cards limit
+            const { data: userProfile, error: profileError } = await supabase
+                .from('user_profiles')
+                .select('daily_new_cards_limit')
+                .eq('id', userId)
+                .single();
+            const newCardsLimit = userProfile?.daily_new_cards_limit || 20;
+
+            // 2. Get due cards
+            const { data: dueCards, error: dueError } = await supabase
                 .from('user_card_progress')
                 .select(`
                     *,
@@ -258,14 +276,51 @@ class DatabaseService {
                     )
                 `)
                 .eq('user_id', userId)
-                .lte('next_review_date', new Date().toISOString())
+                .lte('next_review_date', nowISOString)
                 .order('next_review_date', { ascending: true });
+            if (dueError) throw dueError;
 
-            if (error) throw error;
-            console.log('Due cards response:', data);
-            return data || [];
+            // 3. Count new cards studied today
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const { data: newCardsToday, error: countError } = await supabase
+                .from('user_card_progress')
+                .select('card_id')
+                .eq('user_id', userId)
+                .eq('state', 'new')
+                .gte('created_at', today.toISOString());
+            if (countError) throw countError;
+            const newCardsStudiedCount = newCardsToday?.length || 0;
+            const newCardsToShow = Math.max(0, newCardsLimit - newCardsStudiedCount);
+
+            // 4. Get new cards (if under limit)
+            let newCards = [];
+            if (newCardsToShow > 0) {
+                const { data: newCardsData, error: newCardsError } = await supabase
+                    .from('user_card_progress')
+                    .select(`
+                        *,
+                        cards:card_id (
+                            id,
+                            question,
+                            answer,
+                            subject_id,
+                            subsection
+                        )
+                    `)
+                    .eq('user_id', userId)
+                    .eq('state', 'new')
+                    .order('created_at', { ascending: true })
+                    .limit(newCardsToShow);
+                if (newCardsError) throw newCardsError;
+                newCards = newCardsData || [];
+            }
+
+            // 5. Combine due cards and new cards
+            const allCards = [...(dueCards || []), ...newCards];
+            return allCards;
         } catch (error) {
-            console.error('Error fetching due cards:', error);
+            console.error('Error fetching due and new cards:', error);
             throw error;
         }
     }
@@ -360,15 +415,15 @@ class DatabaseService {
 
     /**
      * Initializes progress tracking for a user-card pair
-     * @param {string} userId - The user's ID
-     * @param {string} cardId - The card's ID
+     * @param {string} user_id - The user's ID
+     * @param {string} card_id - The card's ID
      * @returns {Promise<Object>} The created progress record
      */
-    async initializeUserProgress(userId, cardId) {
+    async initializeUserProgress(user_id, card_id) {
         try {
             const initialProgress = {
-                user_id: userId,
-                card_id: cardId,
+                user_id: user_id,
+                card_id: card_id,
                 stability: 1.0,
                 difficulty: 5.0,
                 elapsed_days: 0,
@@ -396,17 +451,17 @@ class DatabaseService {
 
     /**
      * Gets user's progress for a specific card
-     * @param {string} userId - The user's ID
-     * @param {string} cardId - The card's ID
+     * @param {string} user_id - The user's ID
+     * @param {string} card_id - The card's ID
      * @returns {Promise<Object>} The user's progress for the card
      */
-    async getUserProgress(userId, cardId) {
+    async getUserProgress(user_id, card_id) {
         try {
             const { data, error } = await this.supabase
                 .from('user_card_progress')
                 .select('*')
-                .eq('user_id', userId)
-                .eq('card_id', cardId)
+                .eq('user_id', user_id)
+                .eq('card_id', card_id)
                 .single();
 
             if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "not found"

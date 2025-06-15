@@ -42,7 +42,9 @@ const appState = {
     dbService: database,  // Use the default database instance
     authService: auth,    // Use the default auth instance
     currentCard: null,
-    cardStartTime: null
+    cardStartTime: null,
+    sessionReviewedCount: 0, // Track cards reviewed in this session
+    sessionTotal: 0          // Total cards in this session
 };
 
 // Animation duration in milliseconds (matches CSS transition)
@@ -89,8 +91,9 @@ function updateProgress() {
     const totalCardsElement = document.getElementById('total-cards');
     
     if (currentCardElement && totalCardsElement) {
-        currentCardElement.textContent = appState.currentCardIndex + 1;
-        totalCardsElement.textContent = appState.totalCards;
+        // Show session progress: Card X of Y
+        currentCardElement.textContent = appState.sessionReviewedCount + 1;
+        totalCardsElement.textContent = appState.sessionTotal;
     }
 }
 
@@ -100,6 +103,11 @@ function updateProgress() {
 function displayCurrentCard() {
     if (!appState.cards || appState.cards.length === 0) {
         showError('No cards available for review.');
+        return;
+    }
+    // If session is complete, show completion message
+    if (appState.sessionReviewedCount >= appState.sessionTotal) {
+        showNoMoreCardsMessage();
         return;
     }
 
@@ -120,8 +128,7 @@ function displayCurrentCard() {
     cardBack.textContent = currentCard.answer;
 
     // Update progress display
-    document.getElementById('current-card').textContent = (appState.currentCardIndex + 1).toString();
-    document.getElementById('total-cards').textContent = appState.cards.length.toString();
+    updateProgress();
 
     // Add progress information if available
     const progressInfo = getProgressInfo(currentCard);
@@ -191,7 +198,7 @@ async function loadCards() {
 
         // Get due cards for the user
         console.log('Attempting to get due cards...');
-        const cards = await appState.dbService.getDueCards(appState.user.id);
+        const cards = await appState.dbService.getCardsDue(appState.user.id);
         
         if (!cards || cards.length === 0) {
             const message = 'No cards are due for review right now. Great job! Check back later.';
@@ -201,6 +208,8 @@ async function loadCards() {
 
         appState.cards = cards;
         appState.currentCardIndex = 0;
+        appState.sessionReviewedCount = 0;
+        appState.sessionTotal = cards.length;
         displayCurrentCard();
         hideLoading();
         
@@ -437,27 +446,23 @@ async function handleRating(event) {
             Date.now() - appState.cardStartTime : // Keep in milliseconds
             null;
 
-        // Get current card's FSRS parameters
-        const currentStability = appState.currentCard.stability || 1.0;
-        const currentDifficulty = appState.currentCard.difficulty || 5.0;
-
-        // Calculate new FSRS values
-        const newStability = updateStability(currentStability, rating);
-        const newDifficulty = updateDifficulty(currentDifficulty, rating);
-        const { nextReviewDate } = calculateNextReview(newStability, newDifficulty, rating);
-
-        // Record the review
+        // Only pass minimal data; FSRS logic is now in database.js
         await appState.dbService.recordReview({
-            cardId: appState.currentCard.id,
+            card_id: appState.currentCard.id,
             rating,
-            responseTime,
-            stability: newStability,
-            difficulty: newDifficulty,
-            nextReviewDate: nextReviewDate.toISOString()
+            responseTime
         });
 
-        // Load the next card
-        await loadNextDueCard();
+        // Increment session reviewed count
+        appState.sessionReviewedCount++;
+
+        // Move to next card or show completion
+        if (appState.sessionReviewedCount >= appState.sessionTotal) {
+            showNoMoreCardsMessage();
+        } else {
+            appState.currentCardIndex++;
+            displayCurrentCard();
+        }
 
         // Re-enable rating buttons
         ratingButtons.forEach(btn => btn.disabled = false);
