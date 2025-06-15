@@ -129,28 +129,20 @@ function displayCurrentCard() {
         return;
     }
 
-    const cardFront = document.querySelector('.card-front p');
-    const cardBack = document.querySelector('.card-back p');
+    const cardFront = document.querySelector('.card-front');
+    const cardBack = document.querySelector('.card-back');
     
     if (!cardFront || !cardBack) {
         console.error('Card elements not found');
         return;
     }
 
-    // Update card content
-    cardFront.textContent = currentCard.cards.question;
-    cardBack.textContent = currentCard.cards.answer;
-
-    // Update progress display
-    updateProgress();
-
-    // Add progress information if available
+    // Update card content and progress info
+    cardFront.innerHTML = `<p>${currentCard.cards.question}</p>`;
+    cardBack.innerHTML = `<p>${currentCard.cards.answer}</p>`;
     const progressInfo = getProgressInfo(currentCard);
     if (progressInfo) {
-        const progressElement = document.createElement('div');
-        progressElement.className = 'progress-info';
-        progressElement.innerHTML = progressInfo;
-        cardFront.appendChild(progressElement);
+        cardFront.innerHTML += progressInfo;
     }
 
     // Reset card to front face and show rating buttons
@@ -158,6 +150,9 @@ function displayCurrentCard() {
     if (card) {
         card.classList.remove('flipped');
     }
+
+    // Update progress display
+    updateProgress();
 
     // Enable rating buttons
     const ratingButtons = document.querySelectorAll('.rating-button');
