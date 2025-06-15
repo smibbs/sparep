@@ -62,8 +62,9 @@ body {
     width: 100%;
     height: 300px;
     position: relative;
-    perspective: 1000px;
+    perspective: 1200px;
     margin-bottom: 24px;
+    box-sizing: border-box;
 }
 
 .card-inner {
@@ -78,6 +79,8 @@ body {
     cursor: pointer;
     min-width: 0 !important;
     min-height: 0 !important;
+    overflow: hidden !important;
+    box-sizing: border-box;
 }
 
 .card.flipped .card-inner {
