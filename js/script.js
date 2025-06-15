@@ -430,20 +430,20 @@ function setupEventListeners() {
 function handleFlip() {
     if (!appState.currentCard) return;
     
-    const cardInner = document.querySelector('.card-inner');
+    const card = document.querySelector('.card');
     const flipButton = document.getElementById('flip-button');
     const ratingButtons = document.getElementById('rating-buttons');
     
-    if (!cardInner || !flipButton || !ratingButtons) {
+    if (!card || !flipButton || !ratingButtons) {
         console.error('Required DOM elements not found');
         return;
     }
 
-    // Toggle flip state
-    cardInner.classList.toggle('flipped');
+    // Toggle flip state on the .card element
+    card.classList.toggle('flipped');
     
     // Show/hide appropriate buttons
-    if (cardInner.classList.contains('flipped')) {
+    if (card.classList.contains('flipped')) {
         ratingButtons.classList.remove('hidden');
         flipButton.classList.add('hidden');
     } else {
