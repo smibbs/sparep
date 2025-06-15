@@ -112,9 +112,16 @@ function displayCurrentCard() {
     }
 
     const currentCard = appState.cards[appState.currentCardIndex];
+    console.log('Displaying card:', currentCard);
     appState.currentCard = currentCard; // Store current card in state
     appState.cardStartTime = Date.now(); // Track when the card was shown
     
+    // Robust check for card data
+    if (!currentCard || typeof currentCard.question !== 'string' || typeof currentCard.answer !== 'string') {
+        showError('Card data is missing or invalid. Please refresh or contact support.');
+        return;
+    }
+
     const cardFront = document.querySelector('.card-front p');
     const cardBack = document.querySelector('.card-back p');
     
@@ -199,6 +206,7 @@ async function loadCards() {
         // Get due cards for the user
         console.log('Attempting to get due cards...');
         const cards = await appState.dbService.getCardsDue(appState.user.id);
+        console.log('Loaded cards:', cards);
         
         if (!cards || cards.length === 0) {
             const message = 'No cards are due for review right now. Great job! Check back later.';
