@@ -391,10 +391,16 @@ function setupEventListeners() {
     const retryButton = document.getElementById('retry-button');
     const logoutButton = document.getElementById('logout-button');
     const errorLogoutButton = document.getElementById('error-logout-button');
+    const cardInner = document.querySelector('.card-inner');
 
     // Add event listeners
     if (flipButton) {
         flipButton.addEventListener('click', handleFlip);
+    }
+    
+    // Enable click-to-flip on the card itself
+    if (cardInner) {
+        cardInner.addEventListener('click', handleFlip);
     }
     
     if (ratingButtons) {
