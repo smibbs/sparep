@@ -1,0 +1,183 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 [\
+  \{\
+    "schemaname": "public",\
+    "tablename": "cards",\
+    "indexname": "cards_created_at_idx",\
+    "indexdef": "CREATE INDEX cards_created_at_idx ON public.cards USING btree (created_at)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "cards",\
+    "indexname": "cards_creator_id_idx",\
+    "indexdef": "CREATE INDEX cards_creator_id_idx ON public.cards USING btree (creator_id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "cards",\
+    "indexname": "cards_is_public_idx",\
+    "indexdef": "CREATE INDEX cards_is_public_idx ON public.cards USING btree (is_public)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "cards",\
+    "indexname": "cards_pkey",\
+    "indexdef": "CREATE UNIQUE INDEX cards_pkey ON public.cards USING btree (id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "cards",\
+    "indexname": "cards_subject_id_idx",\
+    "indexdef": "CREATE INDEX cards_subject_id_idx ON public.cards USING btree (subject_id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "cards",\
+    "indexname": "cards_subsection_idx",\
+    "indexdef": "CREATE INDEX cards_subsection_idx ON public.cards USING btree (subsection)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "cards",\
+    "indexname": "cards_tags_idx",\
+    "indexdef": "CREATE INDEX cards_tags_idx ON public.cards USING gin (tags)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "fsrs_parameters",\
+    "indexname": "fsrs_parameters_pkey",\
+    "indexdef": "CREATE UNIQUE INDEX fsrs_parameters_pkey ON public.fsrs_parameters USING btree (user_id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "review_history",\
+    "indexname": "review_history_card_id_idx",\
+    "indexdef": "CREATE INDEX review_history_card_id_idx ON public.review_history USING btree (card_id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "review_history",\
+    "indexname": "review_history_created_at_idx",\
+    "indexdef": "CREATE INDEX review_history_created_at_idx ON public.review_history USING btree (created_at)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "review_history",\
+    "indexname": "review_history_pkey",\
+    "indexdef": "CREATE UNIQUE INDEX review_history_pkey ON public.review_history USING btree (id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "review_history",\
+    "indexname": "review_history_rating_idx",\
+    "indexdef": "CREATE INDEX review_history_rating_idx ON public.review_history USING btree (rating)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "review_history",\
+    "indexname": "review_history_review_date_idx",\
+    "indexdef": "CREATE INDEX review_history_review_date_idx ON public.review_history USING btree (review_date)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "review_history",\
+    "indexname": "review_history_user_card_date_idx",\
+    "indexdef": "CREATE INDEX review_history_user_card_date_idx ON public.review_history USING btree (user_id, card_id, review_date DESC)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "review_history",\
+    "indexname": "review_history_user_id_idx",\
+    "indexdef": "CREATE INDEX review_history_user_id_idx ON public.review_history USING btree (user_id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "subjects",\
+    "indexname": "subjects_creator_id_idx",\
+    "indexdef": "CREATE INDEX subjects_creator_id_idx ON public.subjects USING btree (creator_id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "subjects",\
+    "indexname": "subjects_display_order_idx",\
+    "indexdef": "CREATE INDEX subjects_display_order_idx ON public.subjects USING btree (display_order)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "subjects",\
+    "indexname": "subjects_is_public_idx",\
+    "indexdef": "CREATE INDEX subjects_is_public_idx ON public.subjects USING btree (is_public)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "subjects",\
+    "indexname": "subjects_parent_id_idx",\
+    "indexdef": "CREATE INDEX subjects_parent_id_idx ON public.subjects USING btree (parent_id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "subjects",\
+    "indexname": "subjects_pkey",\
+    "indexdef": "CREATE UNIQUE INDEX subjects_pkey ON public.subjects USING btree (id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "user_card_progress",\
+    "indexname": "user_card_progress_card_id_idx",\
+    "indexdef": "CREATE INDEX user_card_progress_card_id_idx ON public.user_card_progress USING btree (card_id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "user_card_progress",\
+    "indexname": "user_card_progress_due_date_idx",\
+    "indexdef": "CREATE INDEX user_card_progress_due_date_idx ON public.user_card_progress USING btree (due_date)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "user_card_progress",\
+    "indexname": "user_card_progress_next_review_idx",\
+    "indexdef": "CREATE INDEX user_card_progress_next_review_idx ON public.user_card_progress USING btree (next_review_date)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "user_card_progress",\
+    "indexname": "user_card_progress_pkey",\
+    "indexdef": "CREATE UNIQUE INDEX user_card_progress_pkey ON public.user_card_progress USING btree (user_id, card_id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "user_card_progress",\
+    "indexname": "user_card_progress_state_idx",\
+    "indexdef": "CREATE INDEX user_card_progress_state_idx ON public.user_card_progress USING btree (state)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "user_card_progress",\
+    "indexname": "user_card_progress_user_id_idx",\
+    "indexdef": "CREATE INDEX user_card_progress_user_id_idx ON public.user_card_progress USING btree (user_id)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "user_profiles",\
+    "indexname": "user_profiles_created_at_idx",\
+    "indexdef": "CREATE INDEX user_profiles_created_at_idx ON public.user_profiles USING btree (created_at)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "user_profiles",\
+    "indexname": "user_profiles_email_idx",\
+    "indexdef": "CREATE INDEX user_profiles_email_idx ON public.user_profiles USING btree (email)"\
+  \},\
+  \{\
+    "schemaname": "public",\
+    "tablename": "user_profiles",\
+    "indexname": "user_profiles_pkey",\
+    "indexdef": "CREATE UNIQUE INDEX user_profiles_pkey ON public.user_profiles USING btree (id)"\
+  \}\
+]}

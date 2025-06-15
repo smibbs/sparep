@@ -449,8 +449,8 @@ async function initializeUserProgress(userId) {
         // Get all cards that don't have progress records for this user
         const { data: cards, error: cardsError } = await supabase
             .from('cards')
-            .select('card_id')
-            .not('card_id', 'in', (
+            .select('id')
+            .not('id', 'in', (
                 supabase
                     .from('user_card_progress')
                     .select('card_id')
@@ -472,10 +472,10 @@ async function initializeUserProgress(userId) {
         // Create progress records for each card
         const progressRecords = cards.map(card => ({
             user_id: userId,
-            card_id: card.card_id,
+            card_id: card.id,
             stability: 1.0,
             difficulty: 5.0,
-            card_state: 'new',
+            state: 'new',
             next_review_date: new Date().toISOString(),
             total_reviews: 0,
             last_review_date: null
@@ -510,20 +510,20 @@ async function getDueCards(userId) {
         
         // Get cards that are either:
         // 1. Due for review (next_review_date <= now)
-        // 2. New cards (card_state = 'new')
+        // 2. New cards (state = 'new')
         const { data, error } = await supabase
             .from('user_card_progress')
             .select(`
                 *,
                 cards (
-                    card_id,
+                    id,
                     question,
                     answer,
                     subject_id
                 )
             `)
             .eq('user_id', userId)
-            .or(`next_review_date.lte.${now},card_state.eq.new`)
+            .or(`next_review_date.lte.${now},state.eq.new`)
             .order('next_review_date', { ascending: true });
 
         if (error) {
@@ -538,14 +538,14 @@ async function getDueCards(userId) {
 
         // Transform the data to a more usable format
         const dueCards = data.map(record => ({
-            id: record.cards.card_id,
+            id: record.cards.id,
             question: record.cards.question,
             answer: record.cards.answer,
             subject_id: record.cards.subject_id,
             progress: {
                 stability: record.stability,
                 difficulty: record.difficulty,
-                state: record.card_state,
+                state: record.state,
                 next_review_date: record.next_review_date,
                 last_review_date: record.last_review_date,
                 total_reviews: record.total_reviews
