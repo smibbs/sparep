@@ -381,8 +381,8 @@ class DatabaseService {
                     difficulty: 5.0,
                     state: 'new',
                     next_review_date: now,
-                    last_review_date: null,
                     due_date: now,
+                    last_review_date: null,
                     reps: 0,
                     total_reviews: 0,
                     correct_reviews: 0,
@@ -421,6 +421,7 @@ class DatabaseService {
      */
     async initializeUserProgress(user_id, card_id) {
         try {
+            const now = new Date().toISOString();
             const initialProgress = {
                 user_id: user_id,
                 card_id: card_id,
@@ -432,7 +433,8 @@ class DatabaseService {
                 lapses: 0,
                 state: 'new',
                 last_review_date: null,
-                next_review_date: new Date().toISOString()
+                next_review_date: now,
+                due_date: now
             };
 
             const { data, error } = await this.supabase

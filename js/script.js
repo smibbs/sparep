@@ -453,14 +453,14 @@ async function handleRating(event) {
             responseTime
         });
 
-        // Increment session reviewed count
+        // Increment session reviewed count and move to next card in session
         appState.sessionReviewedCount++;
+        appState.currentCardIndex++;
 
         // Move to next card or show completion
         if (appState.sessionReviewedCount >= appState.sessionTotal) {
             showNoMoreCardsMessage();
         } else {
-            appState.currentCardIndex++;
             displayCurrentCard();
         }
 
