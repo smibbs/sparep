@@ -254,15 +254,8 @@ class DatabaseService {
             const supabase = await this.getSupabase();
             const now = new Date();
             const nowISOString = now.toISOString();
-            // 1. Get user's daily new cards limit
-            const { data: userProfile, error: profileError } = await supabase
-                .from('user_profiles')
-                .select('daily_new_cards_limit')
-                .eq('id', userId)
-                .single();
-            const newCardsLimit = userProfile?.daily_new_cards_limit || 20;
 
-            // 2. Get due cards
+            // 1. Get due cards
             const { data: dueCards, error: dueError } = await supabase
                 .from('user_card_progress')
                 .select(`
@@ -280,44 +273,26 @@ class DatabaseService {
                 .order('next_review_date', { ascending: true });
             if (dueError) throw dueError;
 
-            // 3. Count new cards studied today
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const { data: newCardsToday, error: countError } = await supabase
+            // 2. Get ALL new cards (no limit)
+            const { data: newCards, error: newCardsError } = await supabase
                 .from('user_card_progress')
-                .select('card_id')
+                .select(`
+                    *,
+                    cards:card_id (
+                        id,
+                        question,
+                        answer,
+                        subject_id,
+                        subsection
+                    )
+                `)
                 .eq('user_id', userId)
                 .eq('state', 'new')
-                .gte('created_at', today.toISOString());
-            if (countError) throw countError;
-            const newCardsStudiedCount = newCardsToday?.length || 0;
-            const newCardsToShow = Math.max(0, newCardsLimit - newCardsStudiedCount);
+                .order('created_at', { ascending: true });
+            if (newCardsError) throw newCardsError;
 
-            // 4. Get new cards (if under limit)
-            let newCards = [];
-            if (newCardsToShow > 0) {
-                const { data: newCardsData, error: newCardsError } = await supabase
-                    .from('user_card_progress')
-                    .select(`
-                        *,
-                        cards:card_id (
-                            id,
-                            question,
-                            answer,
-                            subject_id,
-                            subsection
-                        )
-                    `)
-                    .eq('user_id', userId)
-                    .eq('state', 'new')
-                    .order('created_at', { ascending: true })
-                    .limit(newCardsToShow);
-                if (newCardsError) throw newCardsError;
-                newCards = newCardsData || [];
-            }
-
-            // 5. Combine due cards and new cards
-            const allCards = [...(dueCards || []), ...newCards];
+            // 3. Combine due cards and all new cards
+            const allCards = [...(dueCards || []), ...(newCards || [])];
             return allCards;
         } catch (error) {
             console.error('Error fetching due and new cards:', error);
