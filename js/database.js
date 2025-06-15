@@ -347,38 +347,44 @@ class DatabaseService {
 
             // Initialize progress for the new card
             if (newCards && newCards.length > 0) {
-                console.log('Initializing progress for new cards');
+                console.log('Initializing progress for new cards:', newCards);
                 const now = new Date().toISOString();
-                const progressRecords = newCards.map(card => ({
-                    user_id: userId,
-                    card_id: card.id,
-                    stability: 1.0,
-                    difficulty: 5.0,
-                    state: 'new',
-                    next_review_date: now,
-                    due_date: now,
-                    last_review_date: null,
-                    reps: 0,
-                    total_reviews: 0,
-                    correct_reviews: 0,
-                    incorrect_reviews: 0,
-                    lapses: 0,
-                    average_time_ms: 0,
-                    elapsed_days: 0,
-                    scheduled_days: 0
-                }));
+                const progressRecords = newCards
+                    .filter(card => card && card.id)
+                    .map(card => ({
+                        user_id: userId,
+                        card_id: card.id,
+                        stability: 1.0,
+                        difficulty: 5.0,
+                        state: 'new',
+                        next_review_date: now,
+                        due_date: now,
+                        last_review_date: null,
+                        reps: 0,
+                        total_reviews: 0,
+                        correct_reviews: 0,
+                        incorrect_reviews: 0,
+                        lapses: 0,
+                        average_time_ms: 0,
+                        elapsed_days: 0,
+                        scheduled_days: 0
+                    }));
 
-                const { error: insertError } = await supabase
-                    .from('user_card_progress')
-                    .upsert(progressRecords, {
-                        onConflict: 'user_id,card_id'
-                    });
+                if (progressRecords.length > 0) {
+                    const { error: insertError } = await supabase
+                        .from('user_card_progress')
+                        .upsert(progressRecords, {
+                            onConflict: 'user_id,card_id'
+                        });
 
-                if (insertError) {
-                    console.error('Error initializing progress for new cards:', insertError);
-                    throw insertError;
+                    if (insertError) {
+                        console.error('Error initializing progress for new cards:', insertError);
+                        throw insertError;
+                    }
+                    console.log('Successfully initialized progress for new cards');
+                } else {
+                    console.log('No valid new cards to initialize progress for.');
                 }
-                console.log('Successfully initialized progress for new cards');
             }
 
             return newCards || [];
