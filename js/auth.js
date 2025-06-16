@@ -408,4 +408,5 @@ class AuthService {
 // Export both the class and the singleton instance
 export { AuthService };
 const auth = new AuthService();
-export default auth; 
+export default auth;
+window.authService = auth; 
