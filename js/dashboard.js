@@ -71,16 +71,19 @@ export async function getUserStats(userId) {
  */
 export async function getSubjectProgress(userId) {
     const supabase = await getSupabaseClient();
+    console.debug('[dashboard] getSubjectProgress: userId', userId);
     // Get all subjects
     const { data: subjects, error: subjectsError } = await supabase
         .from('subjects')
         .select('id, name');
+    console.debug('[dashboard] getSubjectProgress: subjects result', { subjects, subjectsError });
     if (subjectsError) throw subjectsError;
     // Get all cards for user with progress
     const { data: progress, error: progressError } = await supabase
         .from('user_card_progress')
         .select('card_id, state, cards:card_id(subject_id)')
         .eq('user_id', userId);
+    console.debug('[dashboard] getSubjectProgress: progress result', { progress, progressError });
     if (progressError) throw progressError;
     // Group by subject
     const subjectMap = {};
