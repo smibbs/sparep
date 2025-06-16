@@ -304,34 +304,25 @@ function setupEventListeners() {
     if (flipButton) {
         flipButton.addEventListener('click', handleFlip);
     }
-    
-    // Enable click-to-flip on the card itself
     if (cardInner) {
         cardInner.addEventListener('click', handleFlip);
     }
-    
     if (ratingButtons) {
         const buttons = ratingButtons.querySelectorAll('.rating-button');
         buttons.forEach(button => {
             button.addEventListener('click', handleRating);
         });
     }
-
     // Add retry and logout handlers
     if (retryButton) {
         retryButton.addEventListener('click', loadCards);
     }
-    
     if (logoutButton) {
         logoutButton.addEventListener('click', () => auth.signOut());
     }
-    
     if (errorLogoutButton) {
         errorLogoutButton.addEventListener('click', () => auth.signOut());
     }
-
-    // Add keyboard navigation
-    document.addEventListener('keydown', handleKeydown);
 }
 
 function handleFlip() {
