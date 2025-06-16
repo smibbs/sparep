@@ -74,7 +74,7 @@ export async function getSubjectProgress(userId) {
     // Get all subjects
     const { data: subjects, error: subjectsError } = await supabase
         .from('subjects')
-        .select('subject_id, name');
+        .select('id, name');
     if (subjectsError) throw subjectsError;
     // Get all cards for user with progress
     const { data: progress, error: progressError } = await supabase
@@ -85,7 +85,7 @@ export async function getSubjectProgress(userId) {
     // Group by subject
     const subjectMap = {};
     (subjects || []).forEach(s => {
-        subjectMap[s.subject_id] = { subject_id: s.subject_id, subject_name: s.name, total: 0, completed: 0 };
+        subjectMap[s.id] = { subject_id: s.id, subject_name: s.name, total: 0, completed: 0 };
     });
     (progress || []).forEach(p => {
         const sid = p.cards?.subject_id;
