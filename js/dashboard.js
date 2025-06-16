@@ -144,7 +144,13 @@ async function updateDashboard() {
             subjectProgress.forEach(s => {
                 const div = document.createElement('div');
                 div.className = 'subject-progress-item';
-                div.innerHTML = `<strong>${s.subject_name}</strong>: ${s.percent}% (${s.completed}/${s.total})`;
+                div.innerHTML = `
+                    <span class="subject-progress-label"><strong>${s.subject_name}</strong></span>
+                    <div class="subject-progress-bar">
+                        <div class="subject-progress-bar-inner" style="width: ${s.percent}%;"></div>
+                    </div>
+                    <span class="subject-progress-percent">${s.percent}% (${s.completed}/${s.total})</span>
+                `;
                 list.appendChild(div);
             });
         }
