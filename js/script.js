@@ -33,10 +33,8 @@ function redirectToLogin() {
 // Initialize app state
 const appState = {
     currentCardIndex: 0,
-    isFlipped: false,
     cards: [],
     totalCards: 0,
-    isAnimating: false,
     isLoading: true,
     user: null,
     dbService: database,  // Use the default database instance
@@ -46,9 +44,6 @@ const appState = {
     sessionReviewedCount: 0, // Track cards reviewed in this session
     sessionTotal: 0          // Total cards in this session
 };
-
-// Animation duration in milliseconds (matches CSS transition)
-const ANIMATION_DURATION = 600;
 
 /**
  * UI State Management Functions
@@ -148,7 +143,7 @@ function displayCurrentCard() {
     // Reset card to front face and show rating buttons
     const card = document.querySelector('.card');
     if (card) {
-        card.classList.remove('flipped');
+        card.classList.remove('revealed');
     }
 
     // Update progress display
@@ -247,89 +242,6 @@ function renderCard() {
     }
 }
 
-/**
- * Handles card flip animation and state
- */
-function flipCard() {
-    if (appState.isAnimating) return;
-
-    const card = document.querySelector('.card');
-    if (!card) return;
-
-    appState.isAnimating = true;
-    appState.isFlipped = !appState.isFlipped;
-    card.classList.toggle('flipped');
-
-    setTimeout(() => {
-        appState.isAnimating = false;
-    }, ANIMATION_DURATION);
-}
-
-/**
- * Navigates to the next card
- */
-function nextCard() {
-    if (appState.isAnimating) return;
-
-    appState.isAnimating = true;
-
-    const card = document.querySelector('.card');
-    if (card && appState.isFlipped) {
-        card.classList.remove('flipped');
-        appState.isFlipped = false;
-    }
-
-    appState.currentCardIndex = (appState.currentCardIndex + 1) % appState.totalCards;
-    renderCard();
-
-    setTimeout(() => {
-        appState.isAnimating = false;
-    }, ANIMATION_DURATION);
-}
-
-/**
- * Navigates to the previous card
- */
-function previousCard() {
-    if (appState.isAnimating) return;
-
-    appState.isAnimating = true;
-
-    const card = document.querySelector('.card');
-    if (card && appState.isFlipped) {
-        card.classList.remove('flipped');
-        appState.isFlipped = false;
-    }
-
-    appState.currentCardIndex = ((appState.currentCardIndex - 1) + appState.totalCards) % appState.totalCards;
-    renderCard();
-
-    setTimeout(() => {
-        appState.isAnimating = false;
-    }, ANIMATION_DURATION);
-}
-
-/**
- * Handles keyboard navigation
- */
-function handleKeydown(event) {
-    if (['ArrowLeft', 'ArrowRight', ' '].includes(event.key)) {
-        event.preventDefault();
-    }
-
-    switch (event.key) {
-        case 'ArrowRight':
-            nextCard();
-            break;
-        case 'ArrowLeft':
-            previousCard();
-            break;
-        case ' ':
-            flipCard();
-            break;
-    }
-}
-
 // DOM Elements
 const flipButton = document.getElementById('flip-button');
 const ratingButtons = document.getElementById('rating-buttons');
@@ -424,21 +336,15 @@ function setupEventListeners() {
 
 function handleFlip() {
     if (!appState.currentCard) return;
-    
     const card = document.querySelector('.card');
     const flipButton = document.getElementById('flip-button');
     const ratingButtons = document.getElementById('rating-buttons');
-    
     if (!card || !flipButton || !ratingButtons) {
         console.error('Required DOM elements not found');
         return;
     }
-
-    // Toggle flip state on the .card element
-    card.classList.toggle('flipped');
-    
-    // Show/hide appropriate buttons
-    if (card.classList.contains('flipped')) {
+    card.classList.toggle('revealed');
+    if (card.classList.contains('revealed')) {
         ratingButtons.classList.remove('hidden');
         flipButton.classList.add('hidden');
     } else {
