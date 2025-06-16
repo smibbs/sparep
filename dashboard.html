@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Flashcard App</title>
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Inline Supabase configuration for GitHub Pages
+        window.supabaseConfig = {
+            SUPABASE_URL: 'https://fcncyvokyypauanqgaxd.supabase.co',
+            SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjbmN5dm9reXlwYXVhbnFnYXhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkzOTczODQsImV4cCI6MjA2NDk3MzM4NH0.V4ux2pLgZaELwbWTj6U7R48LgNlaMrj51uxLqEBfw-s'
+        };
+    </script>
+    <script src="js/supabase-client.js" type="module"></script>
+    <script src="js/auth.js" type="module"></script>
+    <script src="js/database.js" type="module"></script>
+    <script src="js/dashboard.js" type="module"></script>
+</head>
+<body>
+    <div id="dashboard-container">
+        <div class="header-nav">
+            <nav class="navigation">
+                <a href="index.html" class="nav-button">Study Now</a>
+                <button id="logout-button" class="nav-button">Sign Out</button>
+            </nav>
+        </div>
+        <div id="dashboard-content" class="content">
+            <h1>Dashboard</h1>
+            <div id="dashboard-loading" class="loading-state">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Loading statistics...</p>
+            </div>
+            <div id="dashboard-error" class="error-state hidden">
+                <div class="error-content">
+                    <p id="dashboard-error-message" class="error-text">Failed to load statistics.</p>
+                    <div class="error-actions">
+                        <button id="dashboard-retry-button" class="nav-button">Try Again</button>
+                        <button id="dashboard-error-logout-button" class="nav-button">Sign Out</button>
+                    </div>
+                </div>
+            </div>
+            <div id="dashboard-stats" class="dashboard-stats hidden">
+                <div class="stats-cards">
+                    <div class="stat-card">
+                        <h2 id="total-cards">0</h2>
+                        <p>Total Cards Studied</p>
+                    </div>
+                    <div class="stat-card">
+                        <h2 id="accuracy-rate">0%</h2>
+                        <p>Review Accuracy</p>
+                    </div>
+                    <div class="stat-card">
+                        <h2 id="cards-due">0</h2>
+                        <p>Cards Due Today</p>
+                    </div>
+                    <div class="stat-card">
+                        <h2 id="study-streak">0</h2>
+                        <p>Study Streak</p>
+                    </div>
+                </div>
+                <div class="subject-breakdown">
+                    <h3>Subject Progress</h3>
+                    <div id="subject-progress-list">
+                        <!-- Subject progress will be rendered here -->
+                    </div>
+                </div>
+                <div class="dashboard-actions">
+                    <button id="refresh-dashboard" class="nav-button">Refresh</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
