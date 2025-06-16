@@ -98,4 +98,67 @@ export async function getSubjectProgress(userId) {
         ...s,
         percent: s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0
     }));
-} 
+}
+
+// --- Dashboard Page Logic ---
+
+async function updateDashboard() {
+    const loading = document.getElementById('dashboard-loading');
+    const error = document.getElementById('dashboard-error');
+    const stats = document.getElementById('dashboard-stats');
+    const errorMsg = document.getElementById('dashboard-error-message');
+    loading.classList.remove('hidden');
+    error.classList.add('hidden');
+    stats.classList.add('hidden');
+    try {
+        // Get user
+        const user = await window.authService.getCurrentUser();
+        if (!user) throw new Error('Not logged in');
+        // Fetch stats
+        const [userStats, subjectProgress] = await Promise.all([
+            getUserStats(user.id),
+            getSubjectProgress(user.id)
+        ]);
+        // Update stat cards
+        document.getElementById('total-cards').textContent = userStats.totalStudied;
+        document.getElementById('accuracy-rate').textContent = userStats.accuracy + '%';
+        document.getElementById('cards-due').textContent = userStats.cardsDue;
+        document.getElementById('study-streak').textContent = userStats.streak;
+        // Update subject progress
+        const list = document.getElementById('subject-progress-list');
+        list.innerHTML = '';
+        if (subjectProgress.length === 0) {
+            list.innerHTML = '<p>No subjects found.</p>';
+        } else {
+            subjectProgress.forEach(s => {
+                const div = document.createElement('div');
+                div.className = 'subject-progress-item';
+                div.innerHTML = `<strong>${s.subject_name}</strong>: ${s.percent}% (${s.completed}/${s.total})`;
+                list.appendChild(div);
+            });
+        }
+        loading.classList.add('hidden');
+        error.classList.add('hidden');
+        stats.classList.remove('hidden');
+    } catch (e) {
+        loading.classList.add('hidden');
+        stats.classList.add('hidden');
+        error.classList.remove('hidden');
+        errorMsg.textContent = e.message || 'Failed to load statistics.';
+    }
+}
+
+function setupDashboardEvents() {
+    document.getElementById('refresh-dashboard')?.addEventListener('click', updateDashboard);
+    document.getElementById('dashboard-retry-button')?.addEventListener('click', updateDashboard);
+    document.getElementById('logout-button')?.addEventListener('click', () => window.authService.signOut());
+    document.getElementById('dashboard-error-logout-button')?.addEventListener('click', () => window.authService.signOut());
+}
+
+// Wait for DOM and authService
+window.addEventListener('DOMContentLoaded', async () => {
+    // Wait for authService to be available
+    while (!window.authService) await new Promise(r => setTimeout(r, 50));
+    setupDashboardEvents();
+    updateDashboard();
+}); 
