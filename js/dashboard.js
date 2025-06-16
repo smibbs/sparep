@@ -106,6 +106,14 @@ export async function getSubjectProgress(userId) {
 // --- Dashboard Page Logic ---
 
 async function updateDashboard() {
+    // DEBUG: Direct query to subjects
+    try {
+        const supabase = await window.authService.getSupabase();
+        const { data, error } = await supabase.from('subjects').select('id, name');
+        console.log('[dashboard][DEBUG] Direct query to subjects:', { data, error });
+    } catch (e) {
+        console.error('[dashboard][DEBUG] Direct query error:', e);
+    }
     const loading = document.getElementById('dashboard-loading');
     const error = document.getElementById('dashboard-error');
     const stats = document.getElementById('dashboard-stats');
