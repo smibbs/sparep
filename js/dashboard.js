@@ -103,6 +103,15 @@ export async function getSubjectProgress(userId) {
     }));
 }
 
+// Debounce utility
+function debounce(fn, delay) {
+    let timeout;
+    return function(...args) {
+        if (timeout) clearTimeout(timeout);
+        timeout = setTimeout(() => fn.apply(this, args), delay);
+    };
+}
+
 // --- Dashboard Page Logic ---
 
 function setDashboardButtonsDisabled(disabled) {
@@ -186,8 +195,8 @@ async function updateDashboard() {
 }
 
 function setupDashboardEvents() {
-    document.getElementById('refresh-dashboard')?.addEventListener('click', updateDashboard);
-    document.getElementById('dashboard-retry-button')?.addEventListener('click', updateDashboard);
+    document.getElementById('refresh-dashboard')?.addEventListener('click', debounce(updateDashboard, 400));
+    document.getElementById('dashboard-retry-button')?.addEventListener('click', debounce(updateDashboard, 400));
     document.getElementById('logout-button')?.addEventListener('click', () => window.authService.signOut());
     document.getElementById('dashboard-error-logout-button')?.addEventListener('click', () => window.authService.signOut());
 }
