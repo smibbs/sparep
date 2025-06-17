@@ -13,7 +13,7 @@ class AuthService {
         try {
             await this.initializeWithRetry();
         } catch (error) {
-            console.error('Failed to initialize AuthService after retries:', error);
+            // Failed to initialize AuthService after retries
             throw error;
         }
     }
@@ -33,11 +33,11 @@ class AuthService {
 
                 // Initialize auth state
                 await this.initializeAuthState();
-                console.log('AuthService initialized successfully');
+                // AuthService initialized successfully
                 return;
             } catch (error) {
                 retries++;
-                console.error(`Failed to initialize AuthService (attempt ${retries}/${maxRetries}):`, error);
+                // Failed to initialize AuthService
                 
                 if (retries === maxRetries) {
                     // Only redirect to login if we're not already on the login page and not on the test page
@@ -68,7 +68,7 @@ class AuthService {
             if (error) throw error;
             return user;
         } catch (error) {
-            console.error('Error getting current user:', error);
+            // Error getting current user
             return null;
         }
     }
@@ -80,7 +80,7 @@ class AuthService {
                 callback(session?.user || null, event);
             });
         }).catch(error => {
-            console.error('Error setting up auth state change listener:', error);
+            // Error setting up auth state change listener
         });
     }
 
@@ -199,7 +199,7 @@ class AuthService {
                 AuthService.redirectToLogin();
             }
         } catch (error) {
-            console.error('Error checking auth state:', error);
+            // Error checking auth state
             throw error;
         }
     }
@@ -271,7 +271,7 @@ class AuthService {
             }, 1000);
             
         } catch (error) {
-            console.error('Login error:', error);
+            // Login error
             this.showMessage(this.loginMessage, error.message || 'Failed to sign in');
         } finally {
             this.showLoading(false);
@@ -329,7 +329,7 @@ class AuthService {
             setTimeout(() => this.switchTab('login'), 3000);
             
         } catch (error) {
-            console.error('Registration error:', error);
+            // Registration error
             this.showMessage(this.registerMessage, error.message || 'Failed to register');
         } finally {
             this.showLoading(false);
@@ -350,7 +350,7 @@ class AuthService {
             
             // Get the redirect URL
             const redirectUrl = AuthService.getAbsoluteUrl('reset-password.html');
-            console.log('Redirect URL:', redirectUrl);
+            // Redirect URL for password reset
             
             const { error } = await this.getSupabase().auth.resetPasswordForEmail(email, {
                 redirectTo: AuthService.getAbsoluteUrl('reset-password.html')
@@ -402,7 +402,7 @@ class AuthService {
             try {
                 listener(user, event);
             } catch (error) {
-                console.error('Error in auth state listener:', error);
+                // Error in auth state listener
             }
         });
     }

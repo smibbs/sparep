@@ -124,7 +124,7 @@ function displayCurrentCard() {
     }
 
     const currentCard = appState.cards[appState.currentCardIndex];
-    console.log('Displaying card:', currentCard);
+    // Displaying card
     appState.currentCard = currentCard; // Store current card in state
     appState.cardStartTime = Date.now(); // Track when the card was shown
     
@@ -138,7 +138,7 @@ function displayCurrentCard() {
     const cardBack = document.querySelector('.card-back');
     
     if (!cardFront || !cardBack) {
-        console.error('Card elements not found');
+        // Card elements not found
         return;
     }
 
@@ -198,7 +198,7 @@ function getProgressInfo(card) {
  */
 async function loadCards() {
     try {
-        console.log('Starting to load cards...');
+        // Starting to load cards
         
         if (!appState.user) {
             throw new Error('No user found');
@@ -208,12 +208,12 @@ async function loadCards() {
 
         // Initialize progress for new user if needed
         await appState.dbService.initializeUserProgress(appState.user.id);
-        console.log('User progress initialized');
+        // User progress initialized
 
         // Get due cards for the user
-        console.log('Attempting to get due cards...');
+        // Attempting to get due cards
         const cards = await appState.dbService.getCardsDue(appState.user.id);
-        console.log('Loaded cards:', cards);
+        // Loaded cards
         
         if (!cards || cards.length === 0) {
             const message = 'No cards are due for review right now. Great job! Check back later.';
@@ -228,9 +228,9 @@ async function loadCards() {
         displayCurrentCard();
         hideLoading();
         
-        console.log('Cards loaded successfully:', cards.length, 'cards');
+        // Cards loaded successfully
     } catch (error) {
-        console.error('Error loading cards:', error);
+        // Error loading cards
         showError('Failed to load cards. Please try again later.');
     }
 }
@@ -295,7 +295,7 @@ async function initializeApp() {
         showLoading(false);
         showContent(true);
     } catch (error) {
-        console.error('Error initializing app:', error);
+        // Error initializing app
         showLoading(false);
         showError(error.message || 'Failed to initialize the app. Please try again.');
     }
@@ -349,7 +349,7 @@ function handleFlip() {
     const flipButton = document.getElementById('flip-button');
     const ratingButtons = document.getElementById('rating-buttons');
     if (!card || !flipButton || !ratingButtons) {
-        console.error('Required DOM elements not found');
+        // Required DOM elements not found
         return;
     }
     card.classList.toggle('revealed');
@@ -372,7 +372,7 @@ async function handleRating(event) {
         const cardId = appState.currentCard.card_id;
         const userId = appState.user?.id;
         if (!cardId || !userId) {
-            console.error('handleRating: Missing cardId or userId', { cardId, userId, currentCard: appState.currentCard, user: appState.user });
+            // handleRating: Missing cardId or userId
             showError('Failed to record your rating. Card or user information is missing.');
             return;
         }
@@ -408,7 +408,7 @@ async function handleRating(event) {
         ratingButtons.forEach(btn => btn.disabled = false);
 
     } catch (error) {
-        console.error('Error handling rating:', error);
+        // Error handling rating
         showError('Failed to record your rating. Please try again.');
         
         // Re-enable rating buttons on error

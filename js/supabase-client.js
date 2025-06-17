@@ -1,5 +1,5 @@
 // Initialize Supabase client
-console.log('Initializing Supabase client...');
+// Initializing Supabase client
 
 let supabase = null;
 let initializationPromise = null;
@@ -53,10 +53,10 @@ async function initializeSupabase() {
         // Test the client
         await supabase.auth.getSession();
         
-        console.log('Supabase client created and tested successfully');
+        // Supabase client created and tested successfully
         return supabase;
     } catch (error) {
-        console.error('Failed to initialize Supabase client:', error);
+        // Failed to initialize Supabase client
         
         // Clear the failed client
         supabase = null;
@@ -64,7 +64,7 @@ async function initializeSupabase() {
         // Retry initialization if under max retries
         if (initializationRetries < MAX_RETRIES) {
             initializationRetries++;
-            console.log(`Retrying Supabase initialization (attempt ${initializationRetries}/${MAX_RETRIES})...`);
+            // Retrying Supabase initialization
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
             return initializeSupabase();
         }
