@@ -301,6 +301,15 @@ async function initializeApp() {
     }
 }
 
+// Debounce utility
+function debounce(fn, delay) {
+    let timeout;
+    return function(...args) {
+        if (timeout) clearTimeout(timeout);
+        timeout = setTimeout(() => fn.apply(this, args), delay);
+    };
+}
+
 function setupEventListeners() {
     // Get DOM elements
     const flipButton = document.getElementById('flip-button');
@@ -318,9 +327,8 @@ function setupEventListeners() {
         cardInner.addEventListener('click', handleFlip);
     }
     if (ratingButtons) {
-        const buttons = ratingButtons.querySelectorAll('.rating-button');
-        buttons.forEach(button => {
-            button.addEventListener('click', handleRating);
+        ratingButtons.querySelectorAll('.rating-button').forEach(btn => {
+            btn.addEventListener('click', debounce(handleRating, 400));
         });
     }
     // Add retry and logout handlers
