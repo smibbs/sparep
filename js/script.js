@@ -46,53 +46,136 @@ const appState = {
 };
 
 /**
- * UI State Management Functions
+ * UI State Management Functions with Smooth Transitions
  */
-function showLoading(show) {
+
+// Global state tracking
+let currentState = 'loading';
+let stateChangePromise = null;
+let minimumLoadingStartTime = null;
+
+// Minimum loading duration to prevent flashes
+const MINIMUM_LOADING_TIME = 800; // 800ms
+const TRANSITION_DURATION = 300; // 300ms
+
+async function transitionToState(newState, message = null) {
+    if (currentState === newState) return;
+    
     const loadingState = document.getElementById('loading-state');
     const errorState = document.getElementById('error-state');
     const content = document.getElementById('content');
-    loadingState.classList.toggle('hidden', !show);
-    errorState.classList.add('hidden');
-    content.classList.toggle('hidden', !show);
+    
+    // Ensure minimum loading time if transitioning away from loading
+    if (currentState === 'loading' && minimumLoadingStartTime) {
+        const elapsed = Date.now() - minimumLoadingStartTime;
+        if (elapsed < MINIMUM_LOADING_TIME) {
+            await new Promise(resolve => setTimeout(resolve, MINIMUM_LOADING_TIME - elapsed));
+        }
+    }
+    
+    // Fade out current state
+    const currentElement = getCurrentStateElement();
+    if (currentElement && !currentElement.classList.contains('hidden')) {
+        currentElement.classList.add('fade-out');
+        await new Promise(resolve => setTimeout(resolve, TRANSITION_DURATION));
+        currentElement.classList.add('hidden');
+        currentElement.classList.remove('fade-out');
+    }
+    
+    // Update message if provided
+    if (message && newState === 'error') {
+        const errorMessage = document.getElementById('error-message');
+        if (errorMessage) {
+            errorMessage.textContent = getUserFriendlyMessage(message);
+        }
+    }
+    
+    // Show new state
+    const newElement = getElementForState(newState);
+    if (newElement) {
+        newElement.classList.remove('hidden');
+        newElement.classList.add('fade-in');
+        setTimeout(() => newElement.classList.remove('fade-in'), TRANSITION_DURATION);
+    }
+    
+    currentState = newState;
+    
+    // Track loading start time
+    if (newState === 'loading') {
+        minimumLoadingStartTime = Date.now();
+    }
+}
+
+function getCurrentStateElement() {
+    switch (currentState) {
+        case 'loading': return document.getElementById('loading-state');
+        case 'error': return document.getElementById('error-state');
+        case 'content': return document.getElementById('content');
+        default: return null;
+    }
+}
+
+function getElementForState(state) {
+    switch (state) {
+        case 'loading': return document.getElementById('loading-state');
+        case 'error': return document.getElementById('error-state');
+        case 'content': return document.getElementById('content');
+        default: return null;
+    }
+}
+
+function getUserFriendlyMessage(message) {
+    if (!message) return 'Something went wrong. Please try again.';
+    
+    // Convert technical errors to user-friendly messages
+    if (/no cards.*due/i.test(message)) {
+        return 'Great job! You\'re all caught up. No cards are due for review right now. Check back later or study ahead!';
+    }
+    if (/no cards.*available/i.test(message)) {
+        return 'Getting your study session ready... This may take a moment.';
+    }
+    if (/permission denied|42501/i.test(message)) {
+        return 'Access issue detected. Please try refreshing the page or contact support.';
+    }
+    if (/not found|PGRST116/i.test(message)) {
+        return 'Study content is being prepared. Please try again in a moment.';
+    }
+    if (/network|fetch/i.test(message)) {
+        return 'Connection issue. Please check your internet and try again.';
+    }
+    if (/not logged in|not authenticated/i.test(message)) {
+        return 'Session expired. Please log in again.';
+    }
+    if (/failed to load/i.test(message)) {
+        return 'Having trouble loading your study session. Please try again.';
+    }
+    
+    // Return a generic friendly message for unknown errors
+    return 'Something went wrong. Please try again or refresh the page.';
+}
+
+// Legacy function for compatibility
+function showLoading(show) {
+    if (show) {
+        transitionToState('loading');
+    } else {
+        // Don't automatically hide loading - let other functions transition to the appropriate state
+    }
 }
 
 function showError(message) {
-    const errorMessage = document.getElementById('error-message');
-    let userMessage = message || 'Failed to load flashcards. Please try again later.';
-    if (/permission denied|42501/i.test(userMessage)) {
-        userMessage = 'You do not have permission to access some data. Please contact support if this is unexpected.';
-    } else if (/not found|PGRST116/i.test(userMessage)) {
-        userMessage = 'Some data could not be found. Try refreshing or contact support.';
-    } else if (/network|fetch/i.test(userMessage)) {
-        userMessage = 'Network error: Please check your internet connection and try again.';
-    } else if (/not logged in|not authenticated/i.test(userMessage)) {
-        userMessage = 'You are not logged in. Please sign in again.';
-    }
-    if (errorMessage) {
-        errorMessage.textContent = userMessage;
-    }
-    const errorState = document.getElementById('error-state');
-    const content = document.getElementById('content');
-    errorState.classList.remove('hidden');
-    content.classList.add('hidden');
-    loadingState.classList.add('hidden');
+    transitionToState('error', message);
 }
 
 function showContent(show) {
-    const loadingState = document.getElementById('loading-state');
-    const errorState = document.getElementById('error-state');
-    const content = document.getElementById('content');
-    loadingState.classList.add('hidden');
-    errorState.classList.add('hidden');
-    content.classList.toggle('hidden', !show);
+    if (show) {
+        transitionToState('content');
+    }
 }
 
 function hideLoading() {
-    const loadingState = document.getElementById('loading-state');
-    if (loadingState) {
-        loadingState.classList.add('hidden');
-    }
+    // Deprecated - use transitionToState() instead
+    // Kept for compatibility
 }
 
 /**
@@ -198,26 +281,33 @@ function getProgressInfo(card) {
  */
 async function loadCards() {
     try {
-        // Starting to load cards
-        
         if (!appState.user) {
             throw new Error('No user found');
         }
 
-        showLoading(true);
+        // Start loading state
+        await transitionToState('loading');
+        
+        // Update loading message to be more specific
+        const loadingText = document.querySelector('.loading-text');
+        if (loadingText) {
+            loadingText.textContent = 'Preparing your study session...';
+        }
 
         // Initialize progress for new user if needed
         await appState.dbService.initializeUserProgress(appState.user.id);
-        // User progress initialized
+        
+        // Update loading message
+        if (loadingText) {
+            loadingText.textContent = 'Loading your flashcards...';
+        }
 
         // Get due cards for the user
-        // Attempting to get due cards
         const cards = await appState.dbService.getCardsDue(appState.user.id);
-        // Loaded cards
         
         if (!cards || cards.length === 0) {
-            const message = 'No cards are due for review right now. Great job! Check back later.';
-            showError(message);
+            // Use a more positive message for no cards
+            showError('no cards due for review');
             return;
         }
 
@@ -225,13 +315,15 @@ async function loadCards() {
         appState.currentCardIndex = 0;
         appState.sessionReviewedCount = 0;
         appState.sessionTotal = cards.length;
-        displayCurrentCard();
-        hideLoading();
         
-        // Cards loaded successfully
+        // Display the first card
+        displayCurrentCard();
+        
+        // Transition to content
+        await transitionToState('content');
+        
     } catch (error) {
-        // Error loading cards
-        showError('Failed to load cards. Please try again later.');
+        showError(error.message || 'Failed to load your study session');
     }
 }
 
@@ -265,8 +357,14 @@ const errorState = document.getElementById('error-state');
 // Initialize the app
 async function initializeApp() {
     try {
-        showLoading(true);
-        showError(null); // Clear any previous errors
+        // Start with loading state
+        await transitionToState('loading');
+        
+        // Update loading message
+        const loadingText = document.querySelector('.loading-text');
+        if (loadingText) {
+            loadingText.textContent = 'Initializing your study session...';
+        }
         
         // Check authentication
         const user = await auth.getCurrentUser();
@@ -286,18 +384,14 @@ async function initializeApp() {
             }
         });
 
-        // Load first card
-        await loadCards();
-        
-        // Set up event listeners
+        // Set up event listeners first
         setupEventListeners();
         
-        showLoading(false);
-        showContent(true);
+        // Load cards (this will handle its own state transitions)
+        await loadCards();
+        
     } catch (error) {
-        // Error initializing app
-        showLoading(false);
-        showError(error.message || 'Failed to initialize the app. Please try again.');
+        showError(error.message || 'Failed to start your study session');
     }
 }
 
