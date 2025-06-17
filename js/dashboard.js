@@ -71,19 +71,19 @@ export async function getUserStats(userId) {
  */
 export async function getSubjectProgress(userId) {
     const supabase = await getSupabaseClient();
-    console.debug('[dashboard] getSubjectProgress: userId', userId);
+    // Getting subject progress for user
     // Get all subjects
     const { data: subjects, error: subjectsError } = await supabase
         .from('subjects')
         .select('id, name');
-    console.debug('[dashboard] getSubjectProgress: subjects result', { subjects, subjectsError });
+    // Subjects query result
     if (subjectsError) throw subjectsError;
     // Get all cards for user with progress
     const { data: progress, error: progressError } = await supabase
         .from('user_card_progress')
         .select('card_id, state, cards:card_id(subject_id)')
         .eq('user_id', userId);
-    console.debug('[dashboard] getSubjectProgress: progress result', { progress, progressError });
+    // Progress query result
     if (progressError) throw progressError;
     // Group by subject
     const subjectMap = {};
@@ -128,9 +128,9 @@ async function updateDashboard() {
     try {
         const supabase = await window.authService.getSupabase();
         const { data, error } = await supabase.from('subjects').select('id, name');
-        console.log('[dashboard][DEBUG] Direct query to subjects:', { data, error });
+        // Direct query to subjects for debugging
     } catch (e) {
-        console.error('[dashboard][DEBUG] Direct query error:', e);
+        // Direct query error
     }
     const loading = document.getElementById('dashboard-loading');
     const error = document.getElementById('dashboard-error');

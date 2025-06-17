@@ -10,9 +10,9 @@ class DatabaseService {
     async initialize() {
         try {
             await this.ensureReviewHistorySchema();
-            console.log('Database service initialized successfully');
+            // Database service initialized successfully
         } catch (error) {
-            console.error('Failed to initialize database service:', error);
+            // Failed to initialize database service
         }
     }
 
@@ -30,7 +30,7 @@ class DatabaseService {
             .limit(1);
 
         if (error) {
-            console.error('Review history table check failed:', error);
+            // Review history table check failed
         }
     }
 
@@ -38,7 +38,7 @@ class DatabaseService {
         try {
             const supabase = await this.getSupabase();
             const user = (await supabase.auth.getUser()).data.user;
-            console.log('Getting next due card for user:', user.id);
+            // Getting next due card for user
 
             // Get user's settings for new cards per day
             const { data: userProfile, error: profileError } = await supabase
@@ -48,11 +48,11 @@ class DatabaseService {
                 .single();
 
             if (profileError) {
-                console.log('No user profile found, using default limit of 20');
+                // No user profile found, using default limit of 20
             }
 
             const newCardsLimit = userProfile?.daily_new_cards_limit || 20;
-            console.log('New cards limit:', newCardsLimit);
+            // New cards limit set
 
             // First try to get a card that's due for review
             const { data: dueCards, error: dueError } = await supabase
@@ -74,16 +74,16 @@ class DatabaseService {
                 .limit(1);
 
             if (dueError) {
-                console.error('Error fetching due cards:', dueError);
+                // Error fetching due cards
                 throw dueError;
             }
 
-            console.log('Due cards found:', dueCards?.length || 0);
+            // Due cards found
 
             // If we found a due card, return it
             if (dueCards && dueCards.length > 0) {
                 const dueCard = dueCards[0];
-                console.log('Returning due card:', dueCard.card_id);
+                // Returning due card
                 return {
                     id: dueCard.card_id,
                     question: dueCard.cards.question,
@@ -106,20 +106,20 @@ class DatabaseService {
                 .limit(1);
 
             if (countError) {
-                console.error('Error counting new cards:', countError);
+                // Error counting new cards
                 throw countError;
             }
 
-            console.log('New cards studied today:', newCardsToday?.length || 0);
+            // New cards studied today
 
             // If we haven't reached the daily limit, get a new card
             if (!newCardsToday || newCardsToday.length < newCardsLimit) {
-                console.log('Under daily limit, fetching new card');
+                // Under daily limit, fetching new card
                 const newCards = await this.getNewCards(user.id, 1);
-                console.log('New cards fetched:', newCards?.length || 0);
+                // New cards fetched
                 if (newCards && newCards.length > 0) {
                     const newCard = newCards[0];
-                    console.log('Returning new card:', newCard.id);
+                    // Returning new card
                     return {
                         id: newCard.id,
                         question: newCard.question,
@@ -128,18 +128,18 @@ class DatabaseService {
                         difficulty: 5.0
                     };
                 } else {
-                    console.log('No new cards available');
+                    // No new cards available
                 }
             } else {
-                console.log('Daily new cards limit reached');
+                // Daily new cards limit reached
             }
 
             // No cards available
-            console.log('No cards available to return');
+            // No cards available to return
             return null;
 
         } catch (error) {
-            console.error('Error in getNextDueCard:', error);
+            // Error in getNextDueCard
             throw error;
         }
     }
@@ -153,11 +153,11 @@ class DatabaseService {
 
             // Defensive checks for user_id and card_id
             if (!user || !user.id) {
-                console.error('recordReview: Missing or invalid user:', user);
+                // recordReview: Missing or invalid user
                 throw new Error('User not authenticated or missing user ID.');
             }
             if (!card_id || typeof card_id !== 'string' || card_id === 'undefined') {
-                console.error('recordReview: Missing or invalid card_id:', card_id);
+                // recordReview: Missing or invalid card_id
                 throw new Error('Missing or invalid card_id for review.');
             }
 
@@ -170,7 +170,7 @@ class DatabaseService {
                 .single();
 
             if (progressError && progressError.code !== 'PGRST116') {
-                console.error('Error fetching current progress:', progressError);
+                // Error fetching current progress
                 throw new Error(progressError.message || 'Failed to fetch card progress. Please try again.');
             }
 
@@ -219,7 +219,7 @@ class DatabaseService {
                 });
 
             if (updateError) {
-                console.error('Error updating progress:', updateError);
+                // Error updating progress
                 throw updateError;
             }
 
@@ -244,7 +244,7 @@ class DatabaseService {
                 });
 
             if (reviewError) {
-                console.error('Error recording review history:', reviewError);
+                // Error recording review history
                 throw reviewError;
             }
 
@@ -256,7 +256,7 @@ class DatabaseService {
             } else if (/not logged in|not authenticated/i.test(error.message)) {
                 throw new Error('You are not logged in. Please sign in again.');
             }
-            console.error('Error in recordReview:', error);
+            // Error in recordReview
             throw error;
         }
     }
@@ -312,7 +312,7 @@ class DatabaseService {
             const allCards = [...(dueCards || []), ...(newCards || [])];
             return allCards;
         } catch (error) {
-            console.error('Error fetching due and new cards:', error);
+            // Error fetching due and new cards
             throw error;
         }
     }
@@ -325,7 +325,7 @@ class DatabaseService {
      */
     async getNewCards(userId, limit = 20) {
         try {
-            console.log('Getting new cards for user:', userId, 'limit:', limit);
+            // Getting new cards for user
             const supabase = await this.getSupabase();
 
             // First get all seen card IDs
@@ -335,12 +335,12 @@ class DatabaseService {
                 .eq('user_id', userId);
 
             if (seenError) {
-                console.error('Error fetching seen cards:', seenError);
+                // Error fetching seen cards
                 throw seenError;
             }
 
             const seenCardIds = seenCards?.map(p => p.card_id).filter(Boolean) || [];
-            console.log('Number of seen cards:', seenCardIds.length, 'IDs:', seenCardIds);
+            // Number of seen cards tracked
 
             // Then get new cards
             let newCardsQuery = supabase
@@ -353,14 +353,14 @@ class DatabaseService {
             const { data: newCards, error: newError } = await newCardsQuery;
 
             if (newError) {
-                console.error('Error fetching new cards:', newError);
+                // Error fetching new cards
                 throw newError;
             }
 
-            console.log('Found new cards:', newCards?.length || 0, newCards);
+            // Found new cards
             // Initialize progress for the new card
             if (newCards && newCards.length > 0) {
-                console.log('Initializing progress for new cards:', newCards);
+                // Initializing progress for new cards
                 const now = new Date().toISOString();
                 const progressRecords = newCards
                     .filter(card => card && card.id)
@@ -382,7 +382,7 @@ class DatabaseService {
                         elapsed_days: 0,
                         scheduled_days: 0
                     }));
-                console.log('Progress records to insert:', progressRecords);
+                // Progress records to insert
                 if (progressRecords.length > 0) {
                     const { error: insertError } = await supabase
                         .from('user_card_progress')
@@ -391,18 +391,18 @@ class DatabaseService {
                         });
 
                     if (insertError) {
-                        console.error('Error initializing progress for new cards:', insertError);
+                        // Error initializing progress for new cards
                         throw insertError;
                     }
-                    console.log('Successfully initialized progress for new cards');
+                    // Successfully initialized progress for new cards
                 } else {
-                    console.log('No valid new cards to initialize progress for.');
+                    // No valid new cards to initialize progress for
                 }
             }
 
             return newCards || [];
         } catch (error) {
-            console.error('Error in getNewCards:', error);
+            // Error in getNewCards
             throw error;
         }
     }
@@ -416,7 +416,7 @@ class DatabaseService {
     async initializeUserProgress(user_id, card_id) {
         try {
             if (!card_id) {
-                console.error('initializeUserProgress called with null/undefined card_id:', card_id);
+                // initializeUserProgress called with invalid card_id
                 return null;
             }
             const supabase = await this.getSupabase();
@@ -435,7 +435,7 @@ class DatabaseService {
                 next_review_date: now,
                 due_date: now
             };
-            console.log('Inserting initial progress record:', initialProgress);
+            // Inserting initial progress record
             const { data, error } = await supabase
                 .from('user_card_progress')
                 .insert([initialProgress])
@@ -445,7 +445,7 @@ class DatabaseService {
             if (error) throw error;
             return data;
         } catch (error) {
-            console.error('Error initializing user progress:', error);
+            // Error initializing user progress
             throw error;
         }
     }
@@ -469,7 +469,7 @@ class DatabaseService {
             if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "not found"
             return data;
         } catch (error) {
-            console.error('Error fetching user progress:', error.message);
+            // Error fetching user progress
             throw error;
         }
     }
@@ -484,9 +484,9 @@ export default database;
 function initDatabaseService() {
     try {
         window.dbService = database; // Use the same instance
-        console.log('Database service initialized successfully');
+        // Database service initialized successfully
     } catch (error) {
-        console.error('Failed to initialize database service:', error);
+        // Failed to initialize database service
         // Try again in 100ms if Supabase client isn't ready
         setTimeout(initDatabaseService, 100);
     }
@@ -501,7 +501,7 @@ document.addEventListener('DOMContentLoaded', initDatabaseService);
  */
 async function initializeUserProgress(userId) {
     try {
-        console.log('Initializing progress for user:', userId);
+        // Initializing progress for user
         
         // Get all cards that don't have progress records for this user
         const { data: cards, error: cardsError } = await supabase
@@ -515,16 +515,16 @@ async function initializeUserProgress(userId) {
             ));
 
         if (cardsError) {
-            console.error('Error fetching cards for initialization:', cardsError);
+            // Error fetching cards for initialization
             throw cardsError;
         }
 
         if (!cards || cards.length === 0) {
-            console.log('No new cards to initialize for user');
+            // No new cards to initialize for user
             return;
         }
 
-        console.log('Initializing', cards.length, 'cards for user');
+        // Initializing cards for user
 
         // Create progress records for each card
         const progressRecords = cards.map(card => ({
@@ -543,13 +543,13 @@ async function initializeUserProgress(userId) {
             .insert(progressRecords);
 
         if (insertError) {
-            console.error('Error initializing user progress:', insertError);
+            // Error initializing user progress
             throw insertError;
         }
 
-        console.log('Successfully initialized progress for', progressRecords.length, 'cards');
+        // Successfully initialized progress for cards
     } catch (error) {
-        console.error('Error in initializeUserProgress:', error);
+        // Error in initializeUserProgress
         throw error;
     }
 }
@@ -561,7 +561,7 @@ async function initializeUserProgress(userId) {
  */
 async function getDueCards(userId) {
     try {
-        console.log('Fetching due cards for user:', userId);
+        // Fetching due cards for user
         
         const now = new Date().toISOString();
         
@@ -584,12 +584,12 @@ async function getDueCards(userId) {
             .order('next_review_date', { ascending: true });
 
         if (error) {
-            console.error('Error fetching due cards:', error);
+            // Error fetching due cards
             throw error;
         }
 
         if (!data || data.length === 0) {
-            console.log('No cards due for review');
+            // No cards due for review
             return [];
         }
 
@@ -609,10 +609,10 @@ async function getDueCards(userId) {
             }
         }));
 
-        console.log(`Found ${dueCards.length} cards due for review`);
+        // Found cards due for review
         return dueCards;
     } catch (error) {
-        console.error('Error in getDueCards:', error);
+        // Error in getDueCards
         throw error;
     }
 }
