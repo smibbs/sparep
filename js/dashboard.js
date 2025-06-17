@@ -115,10 +115,11 @@ function debounce(fn, delay) {
 // --- Dashboard Page Logic ---
 
 function setDashboardButtonsDisabled(disabled) {
-    document.getElementById('refresh-dashboard')?.setAttribute('disabled', disabled);
-    document.getElementById('dashboard-retry-button')?.setAttribute('disabled', disabled);
-    document.getElementById('logout-button')?.setAttribute('disabled', disabled);
-    document.getElementById('dashboard-error-logout-button')?.setAttribute('disabled', disabled);
+    const refreshBtn = document.getElementById('refresh-dashboard');
+    const retryBtn = document.getElementById('dashboard-retry-button');
+    if (refreshBtn) refreshBtn.disabled = !!disabled;
+    if (retryBtn) retryBtn.disabled = !!disabled;
+    // Never disable logout buttons
 }
 
 async function updateDashboard() {
