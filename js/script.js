@@ -59,8 +59,18 @@ function showLoading(show) {
 
 function showError(message) {
     const errorMessage = document.getElementById('error-message');
+    let userMessage = message || 'Failed to load flashcards. Please try again later.';
+    if (/permission denied|42501/i.test(userMessage)) {
+        userMessage = 'You do not have permission to access some data. Please contact support if this is unexpected.';
+    } else if (/not found|PGRST116/i.test(userMessage)) {
+        userMessage = 'Some data could not be found. Try refreshing or contact support.';
+    } else if (/network|fetch/i.test(userMessage)) {
+        userMessage = 'Network error: Please check your internet connection and try again.';
+    } else if (/not logged in|not authenticated/i.test(userMessage)) {
+        userMessage = 'You are not logged in. Please sign in again.';
+    }
     if (errorMessage) {
-        errorMessage.textContent = message || 'Failed to load flashcards. Please try again later.';
+        errorMessage.textContent = userMessage;
     }
     const errorState = document.getElementById('error-state');
     const content = document.getElementById('content');

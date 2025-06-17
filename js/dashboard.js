@@ -161,7 +161,17 @@ async function updateDashboard() {
         loading.classList.add('hidden');
         stats.classList.add('hidden');
         error.classList.remove('hidden');
-        errorMsg.textContent = e.message || 'Failed to load statistics.';
+        let message = e.message || 'Failed to load statistics.';
+        if (e.code === '42501' || /permission denied/i.test(message)) {
+            message = 'You do not have permission to view some data. Please contact support if this is unexpected.';
+        } else if (e.code === 'PGRST116' || /not found/i.test(message)) {
+            message = 'Some data could not be found. Try refreshing or contact support.';
+        } else if (/network|fetch/i.test(message)) {
+            message = 'Network error: Please check your internet connection and try again.';
+        } else if (/not logged in|not authenticated/i.test(message)) {
+            message = 'You are not logged in. Please sign in again.';
+        }
+        errorMsg.textContent = message;
     }
 }
 

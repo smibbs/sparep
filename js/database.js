@@ -171,7 +171,7 @@ class DatabaseService {
 
             if (progressError && progressError.code !== 'PGRST116') {
                 console.error('Error fetching current progress:', progressError);
-                throw progressError;
+                throw new Error(progressError.message || 'Failed to fetch card progress. Please try again.');
             }
 
             // FSRS calculations
@@ -249,6 +249,13 @@ class DatabaseService {
             }
 
         } catch (error) {
+            if (error.code === '42501' || /permission denied/i.test(error.message)) {
+                throw new Error('You do not have permission to access this data.');
+            } else if (/network|fetch/i.test(error.message)) {
+                throw new Error('Network error: Please check your internet connection and try again.');
+            } else if (/not logged in|not authenticated/i.test(error.message)) {
+                throw new Error('You are not logged in. Please sign in again.');
+            }
             console.error('Error in recordReview:', error);
             throw error;
         }
