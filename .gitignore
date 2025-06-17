@@ -8,7 +8,7 @@ node_modules/
 *.log
 
 # Configuration and environment files
-/config/supabase-config.js
+# Note: supabase-config.js contains public anon key (safe to commit)
 .env
 .env.*
 .env-*
