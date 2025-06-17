@@ -114,6 +114,12 @@ function debounce(fn, delay) {
 
 // --- Dashboard Page Logic ---
 
+// Dashboard state management
+let dashboardState = 'loading';
+let dashboardLoadingStartTime = null;
+const DASHBOARD_MINIMUM_LOADING_TIME = 600;
+const DASHBOARD_TRANSITION_DURATION = 300;
+
 function setDashboardButtonsDisabled(disabled) {
     const refreshBtn = document.getElementById('refresh-dashboard');
     const retryBtn = document.getElementById('dashboard-retry-button');
@@ -122,23 +128,99 @@ function setDashboardButtonsDisabled(disabled) {
     // Never disable logout buttons
 }
 
-async function updateDashboard() {
-    setDashboardButtonsDisabled(true);
-    // DEBUG: Direct query to subjects
-    try {
-        const supabase = await window.authService.getSupabase();
-        const { data, error } = await supabase.from('subjects').select('id, name');
-        // Direct query to subjects for debugging
-    } catch (e) {
-        // Direct query error
-    }
+async function transitionDashboardToState(newState, message = null) {
+    if (dashboardState === newState) return;
+    
     const loading = document.getElementById('dashboard-loading');
     const error = document.getElementById('dashboard-error');
     const stats = document.getElementById('dashboard-stats');
     const errorMsg = document.getElementById('dashboard-error-message');
-    loading.classList.remove('hidden');
-    error.classList.add('hidden');
-    stats.classList.add('hidden');
+    
+    // Ensure minimum loading time
+    if (dashboardState === 'loading' && dashboardLoadingStartTime) {
+        const elapsed = Date.now() - dashboardLoadingStartTime;
+        if (elapsed < DASHBOARD_MINIMUM_LOADING_TIME) {
+            await new Promise(resolve => setTimeout(resolve, DASHBOARD_MINIMUM_LOADING_TIME - elapsed));
+        }
+    }
+    
+    // Fade out current state
+    const currentElement = getDashboardCurrentStateElement();
+    if (currentElement && !currentElement.classList.contains('hidden')) {
+        currentElement.classList.add('fade-out');
+        await new Promise(resolve => setTimeout(resolve, DASHBOARD_TRANSITION_DURATION));
+        currentElement.classList.add('hidden');
+        currentElement.classList.remove('fade-out');
+    }
+    
+    // Update error message if provided
+    if (message && newState === 'error' && errorMsg) {
+        errorMsg.textContent = getDashboardFriendlyMessage(message);
+    }
+    
+    // Show new state
+    const newElement = getDashboardElementForState(newState);
+    if (newElement) {
+        newElement.classList.remove('hidden');
+        newElement.classList.add('fade-in');
+        setTimeout(() => newElement.classList.remove('fade-in'), DASHBOARD_TRANSITION_DURATION);
+    }
+    
+    dashboardState = newState;
+    
+    if (newState === 'loading') {
+        dashboardLoadingStartTime = Date.now();
+    }
+}
+
+function getDashboardCurrentStateElement() {
+    switch (dashboardState) {
+        case 'loading': return document.getElementById('dashboard-loading');
+        case 'error': return document.getElementById('dashboard-error');
+        case 'stats': return document.getElementById('dashboard-stats');
+        default: return null;
+    }
+}
+
+function getDashboardElementForState(state) {
+    switch (state) {
+        case 'loading': return document.getElementById('dashboard-loading');
+        case 'error': return document.getElementById('dashboard-error');
+        case 'stats': return document.getElementById('dashboard-stats');
+        default: return null;
+    }
+}
+
+function getDashboardFriendlyMessage(message) {
+    if (!message) return 'Unable to load dashboard statistics. Please try again.';
+    
+    if (/permission denied|42501/i.test(message)) {
+        return 'Access issue detected. Please refresh the page or contact support.';
+    }
+    if (/not found|PGRST116/i.test(message)) {
+        return 'Dashboard data is being prepared. Please try again in a moment.';
+    }
+    if (/network|fetch/i.test(message)) {
+        return 'Connection issue. Please check your internet and try again.';
+    }
+    if (/not logged in|not authenticated/i.test(message)) {
+        return 'Session expired. Please log in again.';
+    }
+    
+    return 'Unable to load your statistics. Please try refreshing the page.';
+}
+
+async function updateDashboard() {
+    setDashboardButtonsDisabled(true);
+    
+    // Start loading state
+    await transitionDashboardToState('loading');
+    
+    // Update loading message
+    const loadingText = document.querySelector('#dashboard-loading .loading-text');
+    if (loadingText) {
+        loadingText.textContent = 'Loading your study statistics...';
+    }
     try {
         // Get user
         const user = await window.authService.getCurrentUser();
@@ -172,24 +254,12 @@ async function updateDashboard() {
                 list.appendChild(div);
             });
         }
-        loading.classList.add('hidden');
-        error.classList.add('hidden');
-        stats.classList.remove('hidden');
+        
+        // Transition to stats view
+        await transitionDashboardToState('stats');
     } catch (e) {
-        loading.classList.add('hidden');
-        stats.classList.add('hidden');
-        error.classList.remove('hidden');
-        let message = e.message || 'Failed to load statistics.';
-        if (e.code === '42501' || /permission denied/i.test(message)) {
-            message = 'You do not have permission to view some data. Please contact support if this is unexpected.';
-        } else if (e.code === 'PGRST116' || /not found/i.test(message)) {
-            message = 'Some data could not be found. Try refreshing or contact support.';
-        } else if (/network|fetch/i.test(message)) {
-            message = 'Network error: Please check your internet connection and try again.';
-        } else if (/not logged in|not authenticated/i.test(message)) {
-            message = 'You are not logged in. Please sign in again.';
-        }
-        errorMsg.textContent = message;
+        // Transition to error state with friendly message
+        await transitionDashboardToState('error', e.message || 'Failed to load statistics');
     } finally {
         setDashboardButtonsDisabled(false);
     }
