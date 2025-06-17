@@ -265,7 +265,8 @@ class AuthService {
             if (error) throw error;
 
             this.showMessage(this.loginMessage, 'Login successful! Redirecting...', 'success');
-            AuthService.redirectToApp();
+            console.log('About to redirect to:', AuthService.getUrl('index.html'));
+            setTimeout(() => AuthService.redirectToApp(), 1000); // Add small delay to see the message
             
         } catch (error) {
             console.error('Login error:', error);
