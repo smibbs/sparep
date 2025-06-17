@@ -54,7 +54,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Application Scripts -->
     <script type="module">
-      import '/config/supabase-config.js';
+      import './config/supabase-config.js';
       if (!window.supabaseConfig || !window.supabaseConfig.SUPABASE_URL || !window.supabaseConfig.SUPABASE_ANON_KEY) {
         document.body.innerHTML = '<div style="color:red;text-align:center;margin-top:2em;">Supabase configuration missing. Please set up <code>config/supabase-config.js</code>.</div>';
         throw new Error('Supabase configuration missing');
