@@ -105,7 +105,15 @@ export async function getSubjectProgress(userId) {
 
 // --- Dashboard Page Logic ---
 
+function setDashboardButtonsDisabled(disabled) {
+    document.getElementById('refresh-dashboard')?.setAttribute('disabled', disabled);
+    document.getElementById('dashboard-retry-button')?.setAttribute('disabled', disabled);
+    document.getElementById('logout-button')?.setAttribute('disabled', disabled);
+    document.getElementById('dashboard-error-logout-button')?.setAttribute('disabled', disabled);
+}
+
 async function updateDashboard() {
+    setDashboardButtonsDisabled(true);
     // DEBUG: Direct query to subjects
     try {
         const supabase = await window.authService.getSupabase();
@@ -172,6 +180,8 @@ async function updateDashboard() {
             message = 'You are not logged in. Please sign in again.';
         }
         errorMsg.textContent = message;
+    } finally {
+        setDashboardButtonsDisabled(false);
     }
 }
 
