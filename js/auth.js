@@ -265,8 +265,10 @@ class AuthService {
             if (error) throw error;
 
             this.showMessage(this.loginMessage, 'Login successful! Redirecting...', 'success');
-            console.log('About to redirect to:', AuthService.getUrl('index.html'));
-            setTimeout(() => AuthService.redirectToApp(), 1000); // Add small delay to see the message
+            // Direct redirect for GitHub Pages - use relative path
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1000);
             
         } catch (error) {
             console.error('Login error:', error);
