@@ -116,15 +116,26 @@ class AuthService {
 
     // Redirect to login page
     static redirectToLogin() {
-        window.location.href = AuthService.getUrl('login.html');
+        const loginUrl = AuthService.getUrl('login.html');
+        try {
+            window.location.href = loginUrl;
+        } catch (error) {
+            // Fallback: try direct assignment
+            window.location = loginUrl;
+        }
     }
 
     // Sign out
     async signOut() {
-        const supabase = await this.getSupabase();
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-        AuthService.redirectToLogin();
+        try {
+            const supabase = await this.getSupabase();
+            const { error } = await supabase.auth.signOut();
+            if (error) throw error;
+            AuthService.redirectToLogin();
+        } catch (error) {
+            // Still attempt redirect on error to ensure user gets logged out
+            AuthService.redirectToLogin();
+        }
     }
 
     setupDOMElements() {

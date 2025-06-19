@@ -98,6 +98,34 @@
     font-weight: 600;
 }
 
+/* Progress Legend */
+.progress-legend {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 #subject-progress-list {
     display: flex;
     flex-direction: column;
@@ -105,35 +133,82 @@
 }
 
 .subject-progress-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     background: #fff;
     border-radius: 8px;
-    padding: 10px 16px;
+    padding: 12px 16px;
     box-shadow: 0 1px 3px rgba(44, 62, 80, 0.03);
     font-size: 1rem;
 }
 
-.subject-progress-label {
+.subject-progress-title {
     font-weight: 500;
     color: #2c3e50;
+    margin-bottom: 8px;
+    font-size: 1rem;
 }
 
 .subject-progress-bar {
-    flex: 1;
-    height: 10px;
+    width: 100%;
+    height: 12px;
     background: #e4e9f2;
-    border-radius: 5px;
-    margin: 0 12px;
+    border-radius: 6px;
     overflow: hidden;
     position: relative;
+    display: flex;
 }
 
+.subject-progress-bar-segment {
+    height: 100%;
+    transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.segment-number {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    line-height: 1;
+    user-select: none;
+}
+
+.subject-progress-bar-segment:first-child {
+    border-radius: 6px 0 0 6px;
+}
+
+.subject-progress-bar-segment:last-child {
+    border-radius: 0 6px 6px 0;
+}
+
+.subject-progress-bar-segment:only-child {
+    border-radius: 6px;
+}
+
+/* Card state colors */
+.state-new {
+    background: #007AFF;
+}
+
+.state-learning {
+    background: #FF9500;
+}
+
+.state-review {
+    background: #34C759;
+}
+
+.state-other {
+    background: #8E8E93;
+}
+
+/* Legacy support for single bar (fallback) */
 .subject-progress-bar-inner {
     height: 100%;
     background: linear-gradient(90deg, #007AFF 60%, #00c6fb 100%);
-    border-radius: 5px;
+    border-radius: 6px;
     transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
 }
 

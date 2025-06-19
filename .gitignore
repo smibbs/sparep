@@ -23,6 +23,7 @@ node_modules/
 .local
 config.local.js
 *.config.local.js
+.mcp.json
 
 # IDE and editor files
 .idea/

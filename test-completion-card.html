@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Completion Card - No Flip</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .card {
+            width: 400px;
+            height: 300px;
+            margin: 0 auto 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: white;
+            position: relative;
+        }
+        .card-inner {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 16px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .card-inner.no-flip {
+            cursor: default;
+        }
+        .no-cards-message {
+            text-align: center;
+        }
+        .no-cards-message h2 {
+            color: #28a745;
+            margin-bottom: 16px;
+        }
+        .test-info {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 8px;
+            background: #007AFF;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background: #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-info">
+        <h3>Completion Card Flip Test</h3>
+        <p>This tests the completion card functionality where flipping should be disabled.</p>
+        
+        <button onclick="showNormalCard()">Show Normal Card</button>
+        <button onclick="showCompletionCard()">Show Completion Card</button>
+        
+        <div class="status" id="status">
+            Normal card - Click the card to test flipping
+        </div>
+    </div>
+
+    <div class="card" id="test-card">
+        <div class="card-inner" id="card-inner">
+            <div id="card-content">
+                <p>Normal flashcard - Click me to flip!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simulate the app state and functions
+        const testState = {
+            isCompleted: false,
+            cardInnerClickHandler: null
+        };
+
+        function handleFlip() {
+            if (testState.isCompleted) {
+                updateStatus("Flip blocked - completion card active");
+                return;
+            }
+            
+            const content = document.getElementById('card-content');
+            if (content.textContent.includes('Normal')) {
+                content.innerHTML = '<p>Back of card - Click to flip back!</p>';
+                updateStatus("Card flipped to back");
+            } else {
+                content.innerHTML = '<p>Normal flashcard - Click me to flip!</p>';
+                updateStatus("Card flipped to front");
+            }
+        }
+
+        function showNormalCard() {
+            const cardInner = document.getElementById('card-inner');
+            const content = document.getElementById('card-content');
+            
+            // Reset state
+            testState.isCompleted = false;
+            cardInner.style.cursor = 'pointer';
+            cardInner.classList.remove('no-flip');
+            
+            // Add event listener
+            if (testState.cardInnerClickHandler) {
+                cardInner.removeEventListener('click', testState.cardInnerClickHandler);
+            }
+            testState.cardInnerClickHandler = handleFlip;
+            cardInner.addEventListener('click', testState.cardInnerClickHandler);
+            
+            content.innerHTML = '<p>Normal flashcard - Click me to flip!</p>';
+            updateStatus("Normal card - Click the card to test flipping");
+        }
+
+        function showCompletionCard() {
+            const cardInner = document.getElementById('card-inner');
+            const content = document.getElementById('card-content');
+            
+            // Set completion state
+            testState.isCompleted = true;
+            cardInner.style.cursor = 'default';
+            cardInner.classList.add('no-flip');
+            
+            // Remove event listener
+            if (testState.cardInnerClickHandler) {
+                cardInner.removeEventListener('click', testState.cardInnerClickHandler);
+            }
+            
+            content.innerHTML = `
+                <div class="no-cards-message">
+                    <h2>Great job! 🎉</h2>
+                    <p>You've completed all your reviews for now.</p>
+                    <p>Come back later for more cards.</p>
+                </div>
+            `;
+            updateStatus("Completion card - Clicking should NOT flip the card");
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        // Initialize with normal card
+        showNormalCard();
+    </script>
+</body>
+</html>
