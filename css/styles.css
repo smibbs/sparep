@@ -130,6 +130,17 @@ body {
     max-width: 100%;
 }
 
+/* Full width flip button when only flip button is visible */
+.controls.flip-only {
+    gap: 0;
+}
+
+.controls.flip-only #flip-button {
+    width: 100% !important;
+    flex: none !important;
+    max-width: none !important;
+}
+
 /* Navigation container */
 .navigation {
     display: flex;

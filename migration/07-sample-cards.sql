@@ -67,4 +67,82 @@ VALUES
 ('Who wrote "The Divine Comedy"?', 'Dante Alighieri', 'Italian poet', 'Epic poem about journey through Hell, Purgatory, and Heaven', true, 3, ARRAY['culture', 'literature']),
 ('What is calligraphy?', 'The art of beautiful handwriting', 'Important in many cultures', 'Particularly significant in East Asian and Islamic art', true, 1, ARRAY['culture', 'art']),
 ('What is the Day of the Dead?', 'Mexican holiday celebrating deceased loved ones', 'Día de los Muertos', 'Celebrated on November 1st and 2nd', true, 2, ARRAY['culture', 'holidays']),
-('Who painted the ceiling of the Sistine Chapel?', 'Michelangelo', 'Renaissance artist', 'Took four years to complete (1508-1512)', true, 1, ARRAY['culture', 'art']); 
+('Who painted the ceiling of the Sistine Chapel?', 'Michelangelo', 'Renaissance artist', 'Took four years to complete (1508-1512)', true, 1, ARRAY['culture', 'art']);
+
+-- Countries
+INSERT INTO cards (question, answer, subject_id, creator_id, is_public) VALUES
+('What is the capital of France?', 'Paris', 'fd9d32ef-f6f7-4156-ad5d-34b214ff83d7', NULL, true),
+('Which country has the largest population?', 'China', 'fd9d32ef-f6f7-4156-ad5d-34b214ff83d7', NULL, true),
+('What is the smallest country in the world?', 'Vatican City', 'fd9d32ef-f6f7-4156-ad5d-34b214ff83d7', NULL, true),
+('Which country is known as the Land of the Rising Sun?', 'Japan', 'fd9d32ef-f6f7-4156-ad5d-34b214ff83d7', NULL, true),
+('What is the official language of Brazil?', 'Portuguese', 'fd9d32ef-f6f7-4156-ad5d-34b214ff83d7', NULL, true),
+('Which country is famous for the pyramids of Giza?', 'Egypt', 'fd9d32ef-f6f7-4156-ad5d-34b214ff83d7', NULL, true),
+('What is the only country that is also a continent?', 'Australia', 'fd9d32ef-f6f7-4156-ad5d-34b214ff83d7', NULL, true),
+('Which country has the city of Istanbul?', 'Turkey', 'fd9d32ef-f6f7-4156-ad5d-34b214ff83d7', NULL, true),
+('What is the capital of Canada?', 'Ottawa', 'fd9d32ef-f6f7-4156-ad5d-34b214ff83d7', NULL, true),
+('Which country is home to the Taj Mahal?', 'India', 'fd9d32ef-f6f7-4156-ad5d-34b214ff83d7', NULL, true);
+
+-- Films
+INSERT INTO cards (question, answer, subject_id, creator_id, is_public) VALUES
+('Who directed the film "Jurassic Park"?', 'Steven Spielberg', 'edb2579f-e8eb-4d3e-9bb1-6a681dbc172a', NULL, true),
+('Which movie features the quote "I''ll be back"?', 'The Terminator', 'edb2579f-e8eb-4d3e-9bb1-6a681dbc172a', NULL, true),
+('Who played Jack in "Titanic"?', 'Leonardo DiCaprio', 'edb2579f-e8eb-4d3e-9bb1-6a681dbc172a', NULL, true),
+('Which film won Best Picture at the 2020 Oscars?', 'Parasite', 'edb2579f-e8eb-4d3e-9bb1-6a681dbc172a', NULL, true),
+('What is the highest-grossing film of all time?', 'Avatar', 'edb2579f-e8eb-4d3e-9bb1-6a681dbc172a', NULL, true),
+('Who is the main character in "The Matrix"?', 'Neo', 'edb2579f-e8eb-4d3e-9bb1-6a681dbc172a', NULL, true),
+('Which film series features a character named Frodo?', 'The Lord of the Rings', 'edb2579f-e8eb-4d3e-9bb1-6a681dbc172a', NULL, true),
+('Who voiced Woody in "Toy Story"?', 'Tom Hanks', 'edb2579f-e8eb-4d3e-9bb1-6a681dbc172a', NULL, true),
+('Which movie is about a clownfish searching for his son?', 'Finding Nemo', 'edb2579f-e8eb-4d3e-9bb1-6a681dbc172a', NULL, true),
+('What is the name of the wizarding school in "Harry Potter"?', 'Hogwarts', 'edb2579f-e8eb-4d3e-9bb1-6a681dbc172a', NULL, true);
+
+-- History
+INSERT INTO cards (question, answer, subject_id, creator_id, is_public) VALUES
+('Who was the first President of the United States?', 'George Washington', '9729677f-8a61-4e13-8783-3eec8b16f770', NULL, true),
+('In which year did World War II end?', '1945', '9729677f-8a61-4e13-8783-3eec8b16f770', NULL, true),
+('Who wrote the Declaration of Independence?', 'Thomas Jefferson', '9729677f-8a61-4e13-8783-3eec8b16f770', NULL, true),
+('What ancient wonder was located in Alexandria, Egypt?', 'The Lighthouse of Alexandria', '9729677f-8a61-4e13-8783-3eec8b16f770', NULL, true),
+('Who was the first Emperor of China?', 'Qin Shi Huang', '9729677f-8a61-4e13-8783-3eec8b16f770', NULL, true),
+('What year did the Berlin Wall fall?', '1989', '9729677f-8a61-4e13-8783-3eec8b16f770', NULL, true),
+('Who was the first woman to win a Nobel Prize?', 'Marie Curie', '9729677f-8a61-4e13-8783-3eec8b16f770', NULL, true),
+('What was the name of the first successful English colony in America?', 'Jamestown', '9729677f-8a61-4e13-8783-3eec8b16f770', NULL, true),
+('Which empire was ruled by Aztecs?', 'The Aztec Empire', '9729677f-8a61-4e13-8783-3eec8b16f770', NULL, true),
+('Who painted the Mona Lisa?', 'Leonardo da Vinci', '9729677f-8a61-4e13-8783-3eec8b16f770', NULL, true);
+
+-- Art
+INSERT INTO cards (question, answer, subject_id, creator_id, is_public) VALUES
+('Who painted "The Starry Night"?', 'Vincent van Gogh', '2ac224d8-9ace-4435-8390-7c09de29e6cb', NULL, true),
+('Who is known as the "Father of Modern Art"?', 'Pablo Picasso', '2ac224d8-9ace-4435-8390-7c09de29e6cb', NULL, true),
+('Who painted the ceiling of the Sistine Chapel?', 'Michelangelo', '2ac224d8-9ace-4435-8390-7c09de29e6cb', NULL, true),
+('Who sculpted "David"?', 'Michelangelo', '2ac224d8-9ace-4435-8390-7c09de29e6cb', NULL, true),
+('Which artist is famous for the "Campbell''s Soup Cans"?', 'Andy Warhol', '2ac224d8-9ace-4435-8390-7c09de29e6cb', NULL, true),
+('Who painted "Girl with a Pearl Earring"?', 'Johannes Vermeer', '2ac224d8-9ace-4435-8390-7c09de29e6cb', NULL, true),
+('Who created the sculpture "The Thinker"?', 'Auguste Rodin', '2ac224d8-9ace-4435-8390-7c09de29e6cb', NULL, true),
+('Which artist is known for surrealist paintings like "The Persistence of Memory"?', 'Salvador Dalí', '2ac224d8-9ace-4435-8390-7c09de29e6cb', NULL, true),
+('Who painted "Guernica"?', 'Pablo Picasso', '2ac224d8-9ace-4435-8390-7c09de29e6cb', NULL, true),
+('Who is the artist behind "The Kiss"?', 'Gustav Klimt', '2ac224d8-9ace-4435-8390-7c09de29e6cb', NULL, true);
+
+-- People
+INSERT INTO cards (question, answer, subject_id, creator_id, is_public) VALUES
+('Who developed the theory of relativity?', 'Albert Einstein', 'acdca5ea-e82d-4da6-b5fe-88b94ab4a7d4', NULL, true),
+('Who was the first person to walk on the moon?', 'Neil Armstrong', 'acdca5ea-e82d-4da6-b5fe-88b94ab4a7d4', NULL, true),
+('Who is known as the "Father of Computers"?', 'Charles Babbage', 'acdca5ea-e82d-4da6-b5fe-88b94ab4a7d4', NULL, true),
+('Who is the founder of Microsoft?', 'Bill Gates', 'acdca5ea-e82d-4da6-b5fe-88b94ab4a7d4', NULL, true),
+('Who is the current Queen of the United Kingdom?', 'Camilla', 'acdca5ea-e82d-4da6-b5fe-88b94ab4a7d4', NULL, true),
+('Who is the author of "Harry Potter"?', 'J.K. Rowling', 'acdca5ea-e82d-4da6-b5fe-88b94ab4a7d4', NULL, true),
+('Who is the famous civil rights leader who gave the "I Have a Dream" speech?', 'Martin Luther King Jr.', 'acdca5ea-e82d-4da6-b5fe-88b94ab4a7d4', NULL, true),
+('Who is the founder of SpaceX?', 'Elon Musk', 'acdca5ea-e82d-4da6-b5fe-88b94ab4a7d4', NULL, true),
+('Who is the first female Prime Minister of the UK?', 'Margaret Thatcher', 'acdca5ea-e82d-4da6-b5fe-88b94ab4a7d4', NULL, true),
+('Who is the famous Indian leader known as the "Father of the Nation"?', 'Mahatma Gandhi', 'acdca5ea-e82d-4da6-b5fe-88b94ab4a7d4', NULL, true);
+
+-- Animals
+INSERT INTO cards (question, answer, subject_id, creator_id, is_public) VALUES
+('What is the largest mammal in the world?', 'Blue whale', '6df22e18-0389-4f37-a5c0-7301e62f0476', NULL, true),
+('Which animal is known as the King of the Jungle?', 'Lion', '6df22e18-0389-4f37-a5c0-7301e62f0476', NULL, true),
+('What is the fastest land animal?', 'Cheetah', '6df22e18-0389-4f37-a5c0-7301e62f0476', NULL, true),
+('Which bird is known for its colorful tail feathers?', 'Peacock', '6df22e18-0389-4f37-a5c0-7301e62f0476', NULL, true),
+('What is the only mammal capable of true flight?', 'Bat', '6df22e18-0389-4f37-a5c0-7301e62f0476', NULL, true),
+('Which animal is famous for its black and white stripes?', 'Zebra', '6df22e18-0389-4f37-a5c0-7301e62f0476', NULL, true),
+('What is the tallest animal in the world?', 'Giraffe', '6df22e18-0389-4f37-a5c0-7301e62f0476', NULL, true),
+('Which animal is known for building dams?', 'Beaver', '6df22e18-0389-4f37-a5c0-7301e62f0476', NULL, true),
+('What is the largest species of shark?', 'Whale shark', '6df22e18-0389-4f37-a5c0-7301e62f0476', NULL, true),
+('Which animal is the symbol of the World Wildlife Fund (WWF)?', 'Giant panda', '6df22e18-0389-4f37-a5c0-7301e62f0476', NULL, true); 

@@ -65,9 +65,9 @@ export async function getUserStats(userId) {
 }
 
 /**
- * Get subject progress breakdown for the user
+ * Get subject progress breakdown for the user with card state counts
  * @param {string} userId
- * @returns {Promise<Array<{subject_id: string, subject_name: string, percent: number, total: number, completed: number}>>}
+ * @returns {Promise<Array<{subject_id: string, subject_name: string, total: number, new: number, learning: number, review: number, other: number, percentages: {new: number, learning: number, review: number, other: number}}>>}
  */
 export async function getSubjectProgress(userId) {
     const supabase = await getSupabaseClient();
@@ -85,21 +85,50 @@ export async function getSubjectProgress(userId) {
         .eq('user_id', userId);
     // Progress query result
     if (progressError) throw progressError;
-    // Group by subject
+    // Group by subject and count states
     const subjectMap = {};
     (subjects || []).forEach(s => {
-        subjectMap[s.id] = { subject_id: s.id, subject_name: s.name, total: 0, completed: 0 };
+        subjectMap[s.id] = { 
+            subject_id: s.id, 
+            subject_name: s.name, 
+            total: 0, 
+            new: 0, 
+            learning: 0, 
+            review: 0, 
+            other: 0 
+        };
     });
     (progress || []).forEach(p => {
         const sid = p.cards?.subject_id;
         if (!sid || !subjectMap[sid]) return;
         subjectMap[sid].total++;
-        if (p.state === 'review') subjectMap[sid].completed++;
+        
+        // Count by state
+        switch (p.state) {
+            case 'new':
+                subjectMap[sid].new++;
+                break;
+            case 'learning':
+                subjectMap[sid].learning++;
+                break;
+            case 'review':
+                subjectMap[sid].review++;
+                break;
+            default:
+                // relearning, buried, suspended
+                subjectMap[sid].other++;
+                break;
+        }
     });
-    // Calculate percent
+    // Calculate percentages for each state
     return Object.values(subjectMap).map(s => ({
         ...s,
-        percent: s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0
+        percentages: {
+            new: s.total > 0 ? Math.round((s.new / s.total) * 100) : 0,
+            learning: s.total > 0 ? Math.round((s.learning / s.total) * 100) : 0,
+            review: s.total > 0 ? Math.round((s.review / s.total) * 100) : 0,
+            other: s.total > 0 ? Math.round((s.other / s.total) * 100) : 0
+        }
     }));
 }
 
@@ -244,12 +273,35 @@ async function updateDashboard() {
             subjectProgress.forEach(s => {
                 const div = document.createElement('div');
                 div.className = 'subject-progress-item';
+                
+                // Create stacked bar segments
+                let barHTML = '';
+                const states = [
+                    { name: 'new', count: s.new, percentage: s.percentages.new, class: 'state-new' },
+                    { name: 'learning', count: s.learning, percentage: s.percentages.learning, class: 'state-learning' },
+                    { name: 'review', count: s.review, percentage: s.percentages.review, class: 'state-review' }
+                ];
+                
+                // Only add 'other' state if there are cards in that state
+                if (s.other > 0) {
+                    states.push({ name: 'other', count: s.other, percentage: s.percentages.other, class: 'state-other' });
+                }
+                
+                // Generate segments for states that have cards
+                states.forEach(state => {
+                    if (state.count > 0) {
+                        // Only show number if segment is wide enough (>8% of total)
+                        const showNumber = state.percentage > 8;
+                        const numberHTML = showNumber ? `<span class="segment-number">${state.count}</span>` : '';
+                        barHTML += `<div class="subject-progress-bar-segment ${state.class}" style="width: ${state.percentage}%;">${numberHTML}</div>`;
+                    }
+                });
+                
                 div.innerHTML = `
-                    <span class="subject-progress-label"><strong>${s.subject_name}</strong></span>
+                    <div class="subject-progress-title"><strong>${s.subject_name}</strong></div>
                     <div class="subject-progress-bar">
-                        <div class="subject-progress-bar-inner" style="width: ${s.percent}%;"></div>
+                        ${barHTML}
                     </div>
-                    <span class="subject-progress-percent">${s.percent}% (${s.completed}/${s.total})</span>
                 `;
                 list.appendChild(div);
             });

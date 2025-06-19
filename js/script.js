@@ -42,7 +42,9 @@ const appState = {
     currentCard: null,
     cardStartTime: null,
     sessionReviewedCount: 0, // Track cards reviewed in this session
-    sessionTotal: 0          // Total cards in this session
+    sessionTotal: 0,         // Total cards in this session
+    isCompleted: false,      // Track if session is completed
+    cardInnerClickHandler: null // Store reference to card-inner click handler
 };
 
 /**
@@ -246,6 +248,27 @@ function displayCurrentCard() {
     const ratingButtons = document.querySelectorAll('.rating-button');
     ratingButtons.forEach(btn => btn.disabled = false);
 
+    // Set up initial button visibility - flip button should be visible, rating buttons hidden
+    const flipButton = document.getElementById('flip-button');
+    const ratingButtonsDiv = document.getElementById('rating-buttons');
+    const controls = document.querySelector('.controls');
+    const cardInner = document.querySelector('.card-inner');
+    
+    if (flipButton && ratingButtonsDiv && controls) {
+        flipButton.classList.remove('hidden');
+        ratingButtonsDiv.classList.add('hidden');
+        controls.classList.add('flip-only');
+    }
+    
+    // Ensure card-inner is clickable for normal cards (reset from completion state)
+    if (cardInner) {
+        cardInner.style.cursor = 'pointer';
+        // Re-add event listener if it was removed during completion
+        if (appState.cardInnerClickHandler && appState.isCompleted) {
+            cardInner.addEventListener('click', appState.cardInnerClickHandler);
+        }
+    }
+
     showContent(true);
 }
 
@@ -306,8 +329,9 @@ async function loadCards() {
         const cards = await appState.dbService.getCardsDue(appState.user.id);
         
         if (!cards || cards.length === 0) {
-            // Use a more positive message for no cards
-            showError('no cards due for review');
+            // Show completion card instead of error message
+            showContent(true);
+            showNoMoreCardsMessage();
             return;
         }
 
@@ -315,6 +339,7 @@ async function loadCards() {
         appState.currentCardIndex = 0;
         appState.sessionReviewedCount = 0;
         appState.sessionTotal = cards.length;
+        appState.isCompleted = false; // Reset completion state for new session
         
         // Display the first card
         displayCurrentCard();
@@ -418,7 +443,9 @@ function setupEventListeners() {
         flipButton.addEventListener('click', handleFlip);
     }
     if (cardInner) {
-        cardInner.addEventListener('click', handleFlip);
+        // Store reference to the handler so we can remove it later
+        appState.cardInnerClickHandler = handleFlip;
+        cardInner.addEventListener('click', appState.cardInnerClickHandler);
     }
     if (ratingButtons) {
         ratingButtons.querySelectorAll('.rating-button').forEach(btn => {
@@ -438,11 +465,15 @@ function setupEventListeners() {
 }
 
 function handleFlip() {
+    // Prevent flipping if session is completed
+    if (appState.isCompleted) return;
+    
     if (!appState.currentCard) return;
     const card = document.querySelector('.card');
     const flipButton = document.getElementById('flip-button');
     const ratingButtons = document.getElementById('rating-buttons');
-    if (!card || !flipButton || !ratingButtons) {
+    const controls = document.querySelector('.controls');
+    if (!card || !flipButton || !ratingButtons || !controls) {
         // Required DOM elements not found
         return;
     }
@@ -450,9 +481,11 @@ function handleFlip() {
     if (card.classList.contains('revealed')) {
         ratingButtons.classList.remove('hidden');
         flipButton.classList.add('hidden');
+        controls.classList.remove('flip-only');
     } else {
         ratingButtons.classList.add('hidden');
         flipButton.classList.remove('hidden');
+        controls.classList.add('flip-only');
     }
 }
 
@@ -529,6 +562,22 @@ function showNoMoreCardsMessage() {
     const flipButton = document.getElementById('flip-button');
     const ratingButtons = document.getElementById('rating-buttons');
     const progressDiv = document.querySelector('.progress');
+    const cardInner = document.querySelector('.card-inner');
+    const card = document.querySelector('.card');
+    
+    // Set completion state to disable flip functionality
+    appState.isCompleted = true;
+    
+    // Ensure card is showing the front face
+    if (card) {
+        card.classList.remove('revealed');
+    }
+    
+    // Remove click event listener from card-inner to prevent flipping
+    if (cardInner && appState.cardInnerClickHandler) {
+        cardInner.style.cursor = 'default';
+        cardInner.removeEventListener('click', appState.cardInnerClickHandler);
+    }
     
     if (frontContent) {
         frontContent.innerHTML = `
