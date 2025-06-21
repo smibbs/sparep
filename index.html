@@ -46,7 +46,10 @@
                 </div>
             </div>
             <div class="controls">
-                <button id="flip-button" class="nav-button">Flip</button>
+                <div class="primary-controls">
+                    <button id="flip-button" class="nav-button">Flip</button>
+                    <button id="flag-button" class="flag-button" title="Report this card">🚩</button>
+                </div>
                 <div id="rating-buttons" class="rating-buttons hidden">
                     <button id="rate-again" class="rating-button rating-again" data-rating="1">Again</button>
                     <button id="rate-hard" class="rating-button rating-hard" data-rating="2">Hard</button>
@@ -56,6 +59,45 @@
             </div>
         </div>
     </div>
+    
+    <!-- Flag Card Modal -->
+    <div id="flag-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Report this card</h3>
+                <button id="modal-close" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Why are you reporting this card?</p>
+                <div class="flag-reasons">
+                    <label class="reason-option">
+                        <input type="radio" name="flag-reason" value="incorrect">
+                        <span>Incorrect answer</span>
+                    </label>
+                    <label class="reason-option">
+                        <input type="radio" name="flag-reason" value="spelling">
+                        <span>Spelling or grammar error</span>
+                    </label>
+                    <label class="reason-option">
+                        <input type="radio" name="flag-reason" value="confusing">
+                        <span>Confusing or unclear</span>
+                    </label>
+                    <label class="reason-option">
+                        <input type="radio" name="flag-reason" value="other">
+                        <span>Other issue</span>
+                    </label>
+                </div>
+                <div id="other-reason-input" class="other-reason hidden">
+                    <textarea id="other-reason-text" placeholder="Please describe the issue..." maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-flag" class="nav-button">Cancel</button>
+                <button id="submit-flag" class="nav-button" disabled>Report Card</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Application Scripts -->
@@ -64,6 +106,7 @@
     <script src="js/auth.js" type="module"></script>
     <script src="js/database.js" type="module"></script>
     <script src="js/fsrs.js" type="module"></script>
+    <script src="js/admin.js" type="module"></script>
     <script src="js/script.js" type="module"></script>
 </body>
 </html> 
