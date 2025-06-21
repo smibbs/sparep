@@ -40,10 +40,10 @@ class DatabaseService {
             const user = (await supabase.auth.getUser()).data.user;
             // Getting next due card for user
 
-            // Get user's settings for new cards per day
+            // Get user's profile with tier information
             const { data: userProfile, error: profileError } = await supabase
                 .from('user_profiles')
-                .select('daily_new_cards_limit')
+                .select('daily_new_cards_limit, user_tier, reviews_today, last_review_date')
                 .eq('id', user.id)
                 .single();
 
@@ -51,25 +51,53 @@ class DatabaseService {
                 // No user profile found, using default limit of 20
             }
 
+            const userTier = userProfile?.user_tier || 'free';
             const newCardsLimit = userProfile?.daily_new_cards_limit || 20;
-            // New cards limit set
+            
+            // Check daily review limit for free users
+            if (userTier === 'free') {
+                const today = new Date().toDateString();
+                const lastReviewDate = userProfile?.last_review_date ? 
+                    new Date(userProfile.last_review_date).toDateString() : null;
+                
+                // Reset count if it's a new day
+                const reviewsToday = (lastReviewDate === today) ? 
+                    (userProfile.reviews_today || 0) : 0;
+                
+                if (reviewsToday >= 20) {
+                    // Daily review limit reached for free user
+                    return { limitReached: true, tier: 'free', reviewsToday, limit: 20 };
+                }
+            }
+            // User tier and limits checked
 
             // First try to get a card that's due for review
-            const { data: dueCards, error: dueError } = await supabase
+            // Build card filter based on user tier
+            let cardFilter = `
+                card_id,
+                stability,
+                difficulty,
+                next_review_date,
+                cards!inner (
+                    id,
+                    question,
+                    answer,
+                    flagged_for_review
+                )
+            `;
+            
+            let query = supabase
                 .from('user_card_progress')
-                .select(`
-                    card_id,
-                    stability,
-                    difficulty,
-                    next_review_date,
-                    cards (
-                        id,
-                        question,
-                        answer
-                    )
-                `)
+                .select(cardFilter)
                 .eq('user_id', user.id)
-                .lte('next_review_date', new Date().toISOString())
+                .lte('next_review_date', new Date().toISOString());
+                
+            // Filter out flagged cards for non-admin users
+            if (userTier !== 'admin') {
+                query = query.eq('cards.flagged_for_review', false);
+            }
+            
+            const { data: dueCards, error: dueError } = await query
                 .order('next_review_date', { ascending: true })
                 .limit(1);
 
@@ -115,7 +143,7 @@ class DatabaseService {
             // If we haven't reached the daily limit, get a new card
             if (!newCardsToday || newCardsToday.length < newCardsLimit) {
                 // Under daily limit, fetching new card
-                const newCards = await this.getNewCards(user.id, 1);
+                const newCards = await this.getNewCards(user.id, 1, userTier);
                 // New cards fetched
                 if (newCards && newCards.length > 0) {
                     const newCard = newCards[0];
@@ -248,6 +276,16 @@ class DatabaseService {
                 throw reviewError;
             }
 
+            // Increment daily review count using the database function
+            const { error: incrementError } = await supabase.rpc('increment_daily_reviews', {
+                user_id: user.id
+            });
+
+            if (incrementError) {
+                // Error incrementing daily review count - not critical, continue
+                console.warn('Failed to increment daily review count:', incrementError);
+            }
+
         } catch (error) {
             if (error.code === '42501' || /permission denied/i.test(error.message)) {
                 throw new Error('You do not have permission to access this data.');
@@ -272,39 +310,57 @@ class DatabaseService {
             const now = new Date();
             const nowISOString = now.toISOString();
 
+            // Get user tier to determine card filtering
+            const { data: userProfile, error: profileError } = await supabase
+                .from('user_profiles')
+                .select('user_tier')
+                .eq('id', userId)
+                .single();
+
+            const userTier = userProfile?.user_tier || 'free';
+
+            // Build select query with card filtering based on user tier
+            let cardSelect = `
+                *,
+                cards!inner (
+                    id,
+                    question,
+                    answer,
+                    subject_id,
+                    subsection,
+                    flagged_for_review
+                )
+            `;
+
             // 1. Get due cards
-            const { data: dueCards, error: dueError } = await supabase
+            let dueQuery = supabase
                 .from('user_card_progress')
-                .select(`
-                    *,
-                    cards:card_id (
-                        id,
-                        question,
-                        answer,
-                        subject_id,
-                        subsection
-                    )
-                `)
+                .select(cardSelect)
                 .eq('user_id', userId)
-                .lte('next_review_date', nowISOString)
+                .lte('next_review_date', nowISOString);
+
+            // Filter out flagged cards for non-admin users
+            if (userTier !== 'admin') {
+                dueQuery = dueQuery.eq('cards.flagged_for_review', false);
+            }
+
+            const { data: dueCards, error: dueError } = await dueQuery
                 .order('next_review_date', { ascending: true });
             if (dueError) throw dueError;
 
             // 2. Get ALL new cards (no limit)
-            const { data: newCards, error: newCardsError } = await supabase
+            let newQuery = supabase
                 .from('user_card_progress')
-                .select(`
-                    *,
-                    cards:card_id (
-                        id,
-                        question,
-                        answer,
-                        subject_id,
-                        subsection
-                    )
-                `)
+                .select(cardSelect)
                 .eq('user_id', userId)
-                .eq('state', 'new')
+                .eq('state', 'new');
+
+            // Filter out flagged cards for non-admin users
+            if (userTier !== 'admin') {
+                newQuery = newQuery.eq('cards.flagged_for_review', false);
+            }
+
+            const { data: newCards, error: newCardsError } = await newQuery
                 .order('created_at', { ascending: true });
             if (newCardsError) throw newCardsError;
 
@@ -321,9 +377,10 @@ class DatabaseService {
      * Get new cards that haven't been studied yet
      * @param {string} userId - The user's ID
      * @param {number} limit - Maximum number of new cards to return
+     * @param {string} userTier - The user's tier (free, paid, admin)
      * @returns {Promise<Array>} Array of new cards
      */
-    async getNewCards(userId, limit = 20) {
+    async getNewCards(userId, limit = 20, userTier = 'free') {
         try {
             // Getting new cards for user
             const supabase = await this.getSupabase();
@@ -349,6 +406,12 @@ class DatabaseService {
             if (seenCardIds.length > 0) {
                 newCardsQuery = newCardsQuery.not('id', 'in', `(${seenCardIds.join(',')})`);
             }
+            
+            // Filter out flagged cards for non-admin users
+            if (userTier !== 'admin') {
+                newCardsQuery = newCardsQuery.eq('flagged_for_review', false);
+            }
+            
             newCardsQuery = newCardsQuery.limit(limit);
             const { data: newCards, error: newError } = await newCardsQuery;
 
@@ -471,6 +534,165 @@ class DatabaseService {
         } catch (error) {
             // Error fetching user progress
             throw error;
+        }
+    }
+
+    /**
+     * Flags a card for admin review
+     * @param {string} card_id - The card's ID
+     * @param {string} reason - The reason for flagging ('incorrect', 'spelling', 'confusing', 'other')
+     * @param {string} comment - Optional comment about the flag
+     * @returns {Promise<boolean>} Success status
+     */
+    async flagCard(card_id, reason, comment = null) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            // Use the database function to flag the card
+            const { data, error } = await supabase.rpc('flag_card_for_review', {
+                p_card_id: card_id,
+                p_reason: reason,
+                p_comment: comment
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            return true;
+        } catch (error) {
+            if (error.message?.includes('already flagged')) {
+                throw new Error('You have already flagged this card');
+            } else if (error.message?.includes('Admin users should use')) {
+                throw new Error('Admin users should use the admin interface for card management');
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Checks if current user has already flagged a card
+     * @param {string} card_id - The card's ID
+     * @returns {Promise<boolean>} Whether the card is already flagged by current user
+     */
+    async hasUserFlaggedCard(card_id) {
+        try {
+            const supabase = await this.getSupabase();
+            const user = (await supabase.auth.getUser()).data.user;
+            
+            if (!user) {
+                return false;
+            }
+
+            const { data, error } = await supabase
+                .from('user_card_flags')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('card_id', card_id)
+                .single();
+
+            if (error && error.code !== 'PGRST116') {
+                throw error;
+            }
+
+            return !!data;
+        } catch (error) {
+            // If error is not "not found", rethrow
+            if (error.code !== 'PGRST116') {
+                throw error;
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Flags a card for review by a user
+     * @param {string} cardId - The card's ID
+     * @param {string} reason - The reason for flagging
+     * @returns {Promise<boolean>} Success status
+     */
+    async flagCardAsUser(cardId, reason) {
+        try {
+            const supabase = await this.getSupabase();
+            const user = (await supabase.auth.getUser()).data.user;
+            
+            if (!user || !user.id) {
+                throw new Error('User not authenticated');
+            }
+
+            if (!cardId || typeof cardId !== 'string') {
+                throw new Error('Invalid card ID');
+            }
+
+            // Check if user has already flagged this card
+            const { data: existingFlag, error: checkError } = await supabase
+                .from('cards')
+                .select('flagged_by, flagged_for_review')
+                .eq('id', cardId)
+                .single();
+
+            if (checkError) {
+                throw new Error('Failed to check card status');
+            }
+
+            // If card is already flagged by this user, don't flag again
+            if (existingFlag?.flagged_for_review && existingFlag?.flagged_by === user.id) {
+                throw new Error('You have already reported this card');
+            }
+
+            // If card is already flagged by someone else, don't allow re-flagging
+            if (existingFlag?.flagged_for_review) {
+                throw new Error('This card has already been reported');
+            }
+
+            // Flag the card
+            const { error: updateError } = await supabase
+                .from('cards')
+                .update({
+                    flagged_for_review: true,
+                    flagged_by: user.id,
+                    flagged_reason: reason,
+                    flagged_at: new Date().toISOString()
+                })
+                .eq('id', cardId);
+
+            if (updateError) {
+                throw updateError;
+            }
+
+            return true;
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    /**
+     * Checks if a card has been flagged by the current user
+     * @param {string} cardId - The card's ID
+     * @returns {Promise<boolean>} Whether the card is flagged by current user
+     */
+    async isCardFlaggedByUser(cardId) {
+        try {
+            const supabase = await this.getSupabase();
+            const user = (await supabase.auth.getUser()).data.user;
+            
+            if (!user || !user.id) {
+                return false;
+            }
+
+            const { data, error } = await supabase
+                .from('cards')
+                .select('flagged_by, flagged_for_review')
+                .eq('id', cardId)
+                .single();
+
+            if (error) {
+                return false;
+            }
+
+            return data?.flagged_for_review && data?.flagged_by === user.id;
+        } catch (error) {
+            return false;
         }
     }
 }

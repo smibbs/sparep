@@ -253,11 +253,26 @@ function displayCurrentCard() {
     const ratingButtonsDiv = document.getElementById('rating-buttons');
     const controls = document.querySelector('.controls');
     const cardInner = document.querySelector('.card-inner');
+    const flagButton = document.getElementById('flag-button');
     
     if (flipButton && ratingButtonsDiv && controls) {
         flipButton.classList.remove('hidden');
         ratingButtonsDiv.classList.add('hidden');
         controls.classList.add('flip-only');
+    }
+    
+    // Show flag button for non-admin users only
+    if (flagButton) {
+        appState.authService.isAdmin().then(isAdmin => {
+            if (isAdmin) {
+                flagButton.classList.add('hidden');
+            } else {
+                flagButton.classList.remove('hidden');
+            }
+        }).catch(() => {
+            // If error checking admin status, show flag button
+            flagButton.classList.remove('hidden');
+        });
     }
     
     // Ensure card-inner is clickable for normal cards (reset from completion state)
@@ -325,7 +340,31 @@ async function loadCards() {
             loadingText.textContent = 'Loading your flashcards...';
         }
 
-        // Get due cards for the user
+        // First check daily limit for free users
+        const userProfile = await appState.authService.getUserProfile(true); // Force refresh
+        const userTier = userProfile?.user_tier || 'free';
+        
+        if (userTier === 'free') {
+            const today = new Date().toDateString();
+            const lastReviewDate = userProfile?.last_review_date ? 
+                new Date(userProfile.last_review_date).toDateString() : null;
+            
+            const reviewsToday = (lastReviewDate === today) ? 
+                (userProfile.reviews_today || 0) : 0;
+            
+            if (reviewsToday >= 20) {
+                showContent(true);
+                showDailyLimitMessage({ 
+                    limitReached: true, 
+                    tier: 'free', 
+                    reviewsToday, 
+                    limit: 20 
+                });
+                return;
+            }
+        }
+
+        // Get due cards for the user (temporarily using old method)
         const cards = await appState.dbService.getCardsDue(appState.user.id);
         
         if (!cards || cards.length === 0) {
@@ -437,6 +476,7 @@ function setupEventListeners() {
     const logoutButton = document.getElementById('logout-button');
     const errorLogoutButton = document.getElementById('error-logout-button');
     const cardInner = document.querySelector('.card-inner');
+    const flagButton = document.getElementById('flag-button');
 
     // Add event listeners
     if (flipButton) {
@@ -452,6 +492,9 @@ function setupEventListeners() {
             btn.addEventListener('click', debounce(handleRating, 400));
         });
     }
+    if (flagButton) {
+        flagButton.addEventListener('click', handleFlagCard);
+    }
     // Add retry and logout handlers
     if (retryButton) {
         retryButton.addEventListener('click', loadCards);
@@ -462,6 +505,9 @@ function setupEventListeners() {
     if (errorLogoutButton) {
         errorLogoutButton.addEventListener('click', () => auth.signOut());
     }
+    
+    // Set up flag modal event listeners
+    setupFlagModalListeners();
 }
 
 function handleFlip() {
@@ -473,19 +519,40 @@ function handleFlip() {
     const flipButton = document.getElementById('flip-button');
     const ratingButtons = document.getElementById('rating-buttons');
     const controls = document.querySelector('.controls');
+    const flagButton = document.getElementById('flag-button');
+    
     if (!card || !flipButton || !ratingButtons || !controls) {
         // Required DOM elements not found
         return;
     }
+    
     card.classList.toggle('revealed');
     if (card.classList.contains('revealed')) {
+        // Show rating buttons, hide flip button
         ratingButtons.classList.remove('hidden');
         flipButton.classList.add('hidden');
         controls.classList.remove('flip-only');
+        // Keep flag button visible for non-admins
+        if (flagButton) {
+            appState.authService.isAdmin().then(isAdmin => {
+                if (!isAdmin) {
+                    flagButton.classList.remove('hidden');
+                }
+            });
+        }
     } else {
+        // Show flip button, hide rating buttons
         ratingButtons.classList.add('hidden');
         flipButton.classList.remove('hidden');
         controls.classList.add('flip-only');
+        // Keep flag button visible for non-admins
+        if (flagButton) {
+            appState.authService.isAdmin().then(isAdmin => {
+                if (!isAdmin) {
+                    flagButton.classList.remove('hidden');
+                }
+            });
+        }
     }
 }
 
@@ -520,12 +587,36 @@ async function handleRating(event) {
             responseTime
         });
 
-        // Increment session reviewed count and move to next card in session
+        // Increment session reviewed count
         appState.sessionReviewedCount++;
-        appState.currentCardIndex++;
-
+        
+        // Check daily limit after each review for free users
+        const userProfile = await appState.authService.getUserProfile(true); // Force refresh
+        const userTier = userProfile?.user_tier || 'free';
+        
+        if (userTier === 'free') {
+            const today = new Date().toDateString();
+            const lastReviewDate = userProfile?.last_review_date ? 
+                new Date(userProfile.last_review_date).toDateString() : null;
+            
+            const reviewsToday = (lastReviewDate === today) ? 
+                (userProfile.reviews_today || 0) : 0;
+            
+            if (reviewsToday >= 20) {
+                // Daily limit reached, stop the session
+                showDailyLimitMessage({ 
+                    limitReached: true, 
+                    tier: 'free', 
+                    reviewsToday, 
+                    limit: 20 
+                });
+                return;
+            }
+        }
+        
         // Move to next card or show completion
-        if (appState.sessionReviewedCount >= appState.sessionTotal) {
+        appState.currentCardIndex++;
+        if (appState.currentCardIndex >= appState.cards.length) {
             showNoMoreCardsMessage();
         } else {
             displayCurrentCard();
@@ -603,6 +694,310 @@ function showNoMoreCardsMessage() {
     
     if (progressDiv) {
         progressDiv.classList.add('hidden');
+    }
+}
+
+function showDailyLimitMessage(limitInfo) {
+    const frontContent = document.querySelector('.card-front p');
+    const backContent = document.querySelector('.card-back p');
+    const flipButton = document.getElementById('flip-button');
+    const ratingButtons = document.getElementById('rating-buttons');
+    const progressDiv = document.querySelector('.progress');
+    const cardInner = document.querySelector('.card-inner');
+    const card = document.querySelector('.card');
+    
+    // Set completion state to disable flip functionality
+    appState.isCompleted = true;
+    
+    // Ensure card is showing the front face
+    if (card) {
+        card.classList.remove('revealed');
+    }
+    
+    // Remove click event listener from card-inner to prevent flipping
+    if (cardInner && appState.cardInnerClickHandler) {
+        cardInner.style.cursor = 'default';
+        cardInner.removeEventListener('click', appState.cardInnerClickHandler);
+    }
+    
+    const { tier, reviewsToday, limit } = limitInfo;
+    
+    if (frontContent) {
+        frontContent.innerHTML = `
+            <div class="daily-limit-message">
+                <h2>Daily Limit Reached! ⏰</h2>
+                <p>You've completed <strong>${reviewsToday}</strong> out of <strong>${limit}</strong> daily reviews as a ${tier} user.</p>
+                <p>Come back tomorrow for more flashcard practice!</p>
+                <div class="upgrade-info">
+                    <p><strong>Want unlimited reviews?</strong></p>
+                    <p>Upgrade to a paid account for unlimited daily reviews and access to premium features.</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (backContent) {
+        backContent.textContent = '';
+    }
+    
+    if (flipButton) {
+        flipButton.classList.add('hidden');
+    }
+    
+    if (ratingButtons) {
+        ratingButtons.classList.add('hidden');
+    }
+    
+    if (progressDiv) {
+        progressDiv.classList.add('hidden');
+    }
+}
+
+/**
+ * Handle flag card button click
+ */
+function handleFlagCard() {
+    if (!appState.currentCard) return;
+    
+    const modal = document.getElementById('flag-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        resetFlagModal();
+    }
+}
+
+/**
+ * Set up flag modal event listeners
+ */
+function setupFlagModalListeners() {
+    const modal = document.getElementById('flag-modal');
+    const closeButton = document.getElementById('modal-close');
+    const cancelButton = document.getElementById('cancel-flag');
+    const submitButton = document.getElementById('submit-flag');
+    const reasonRadios = document.querySelectorAll('input[name="flag-reason"]');
+    const otherReasonInput = document.getElementById('other-reason-input');
+    const otherReasonText = document.getElementById('other-reason-text');
+
+    // Close modal handlers
+    if (closeButton) {
+        closeButton.addEventListener('click', closeFlagModal);
+    }
+    if (cancelButton) {
+        cancelButton.addEventListener('click', closeFlagModal);
+    }
+
+    // Close modal when clicking outside
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeFlagModal();
+            }
+        });
+    }
+
+    // Handle reason selection
+    reasonRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            // Show/hide other reason input
+            if (radio.value === 'other') {
+                otherReasonInput.classList.remove('hidden');
+                otherReasonText.focus();
+            } else {
+                otherReasonInput.classList.add('hidden');
+            }
+            
+            // Update visual selection
+            updateReasonSelection();
+            validateFlagForm();
+        });
+    });
+
+    // Handle other reason text input
+    if (otherReasonText) {
+        otherReasonText.addEventListener('input', validateFlagForm);
+    }
+
+    // Handle form submission
+    if (submitButton) {
+        submitButton.addEventListener('click', submitFlag);
+    }
+
+    // Handle escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+            closeFlagModal();
+        }
+    });
+}
+
+/**
+ * Close the flag modal
+ */
+function closeFlagModal() {
+    const modal = document.getElementById('flag-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    resetFlagModal();
+}
+
+/**
+ * Reset the flag modal to initial state
+ */
+function resetFlagModal() {
+    // Clear all radio buttons
+    const reasonRadios = document.querySelectorAll('input[name="flag-reason"]');
+    reasonRadios.forEach(radio => {
+        radio.checked = false;
+    });
+    
+    // Hide other reason input
+    const otherReasonInput = document.getElementById('other-reason-input');
+    const otherReasonText = document.getElementById('other-reason-text');
+    if (otherReasonInput) {
+        otherReasonInput.classList.add('hidden');
+    }
+    if (otherReasonText) {
+        otherReasonText.value = '';
+    }
+    
+    // Reset visual selection
+    updateReasonSelection();
+    validateFlagForm();
+}
+
+/**
+ * Update visual selection for reason options
+ */
+function updateReasonSelection() {
+    const reasonOptions = document.querySelectorAll('.reason-option');
+    reasonOptions.forEach(option => {
+        const radio = option.querySelector('input[type="radio"]');
+        if (radio && radio.checked) {
+            option.classList.add('selected');
+        } else {
+            option.classList.remove('selected');
+        }
+    });
+}
+
+/**
+ * Validate the flag form and enable/disable submit button
+ */
+function validateFlagForm() {
+    const submitButton = document.getElementById('submit-flag');
+    const reasonRadios = document.querySelectorAll('input[name="flag-reason"]');
+    const otherReasonText = document.getElementById('other-reason-text');
+    
+    let isValid = false;
+    
+    // Check if any reason is selected
+    const selectedReason = Array.from(reasonRadios).find(radio => radio.checked);
+    
+    if (selectedReason) {
+        if (selectedReason.value === 'other') {
+            // For "other", require text input
+            isValid = otherReasonText && otherReasonText.value.trim().length > 0;
+        } else {
+            // For predefined reasons, just need selection
+            isValid = true;
+        }
+    }
+    
+    if (submitButton) {
+        submitButton.disabled = !isValid;
+    }
+}
+
+/**
+ * Submit the flag report
+ */
+async function submitFlag() {
+    try {
+        const submitButton = document.getElementById('submit-flag');
+        const reasonRadios = document.querySelectorAll('input[name="flag-reason"]');
+        const otherReasonText = document.getElementById('other-reason-text');
+        
+        // Disable submit button during submission
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.textContent = 'Reporting...';
+        }
+        
+        // Get selected reason
+        const selectedReason = Array.from(reasonRadios).find(radio => radio.checked);
+        if (!selectedReason) {
+            throw new Error('Please select a reason for reporting this card');
+        }
+        
+        let reason = selectedReason.value;
+        let comment = null;
+        
+        if (reason === 'other') {
+            comment = otherReasonText.value.trim();
+            if (!comment) {
+                throw new Error('Please describe the issue');
+            }
+        }
+        
+        // Submit the flag
+        if (!appState.currentCard) {
+            throw new Error('No card selected');
+        }
+        
+        // Handle different card data structures
+        let cardId;
+        if (appState.currentCard.cards && appState.currentCard.cards.id) {
+            cardId = appState.currentCard.cards.id;
+        } else if (appState.currentCard.card_id) {
+            cardId = appState.currentCard.card_id;
+        } else if (appState.currentCard.id) {
+            cardId = appState.currentCard.id;
+        } else {
+            throw new Error('Card ID not found');
+        }
+        await appState.dbService.flagCard(cardId, reason, comment);
+        
+        // Close modal and show success message
+        closeFlagModal();
+        showFlagSuccessMessage();
+        
+        // Move to next card since this one is now flagged
+        moveToNextCard();
+        
+    } catch (error) {
+        // Show error message
+        alert(error.message || 'Failed to report card. Please try again.');
+        
+        // Reset submit button
+        const submitButton = document.getElementById('submit-flag');
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Report Card';
+        }
+    }
+}
+
+/**
+ * Show success message after flagging
+ */
+function showFlagSuccessMessage() {
+    // Could show a toast notification or temporary message
+    // For now, we'll use a simple alert
+    setTimeout(() => {
+        alert('Thank you for your report. This card has been flagged for review.');
+    }, 100);
+}
+
+/**
+ * Move to the next card after flagging
+ */
+function moveToNextCard() {
+    appState.currentCardIndex++;
+    if (appState.currentCardIndex >= appState.cards.length) {
+        showNoMoreCardsMessage();
+    } else {
+        displayCurrentCard();
     }
 }
 

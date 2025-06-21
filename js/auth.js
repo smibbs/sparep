@@ -5,6 +5,7 @@ class AuthService {
     constructor() {
         this.supabasePromise = null;
         this.currentUser = null;
+        this.userProfile = null;
         this.authStateListeners = new Set();
         this.initialize();
     }
@@ -71,6 +72,82 @@ class AuthService {
             // Error getting current user
             return null;
         }
+    }
+
+    // Get user profile with tier information
+    async getUserProfile(forceRefresh = false) {
+        if (this.userProfile && !forceRefresh) {
+            return this.userProfile;
+        }
+
+        try {
+            const supabase = await this.getSupabase();
+            const user = await this.getCurrentUser();
+            if (!user) throw new Error('No authenticated user');
+
+            const { data: profile, error } = await supabase
+                .from('user_profiles')
+                .select('id, email, display_name, user_tier, is_admin, reviews_today, last_review_date, daily_new_cards_limit, daily_review_limit')
+                .eq('id', user.id)
+                .single();
+
+            if (error) throw error;
+            
+            this.userProfile = profile;
+            return profile;
+        } catch (error) {
+            // Error getting user profile
+            return null;
+        }
+    }
+
+    // Get user tier
+    async getUserTier() {
+        const profile = await this.getUserProfile();
+        return profile?.user_tier || 'free';
+    }
+
+    // Check if user is admin
+    async isAdmin() {
+        const profile = await this.getUserProfile();
+        return profile?.user_tier === 'admin' || profile?.is_admin === true;
+    }
+
+    // Check if user has premium access (paid or admin)
+    async hasPremiumAccess() {
+        const tier = await this.getUserTier();
+        return tier === 'paid' || tier === 'admin';
+    }
+
+    // Get daily review limit for user
+    async getDailyReviewLimit() {
+        const profile = await this.getUserProfile();
+        if (!profile) return 20;
+        
+        switch (profile.user_tier) {
+            case 'free': return 20;
+            case 'paid':
+            case 'admin': return 9999; // Effectively unlimited
+            default: return 20;
+        }
+    }
+
+    // Check if user has daily reviews remaining
+    async hasReviewsRemaining() {
+        const profile = await this.getUserProfile();
+        if (!profile) return false;
+        
+        const tier = profile.user_tier;
+        if (tier === 'paid' || tier === 'admin') return true;
+        
+        // For free users, check daily limit
+        const today = new Date().toDateString();
+        const lastReviewDate = profile.last_review_date ? new Date(profile.last_review_date).toDateString() : null;
+        
+        // Reset count if it's a new day
+        const reviewsToday = (lastReviewDate === today) ? profile.reviews_today : 0;
+        
+        return reviewsToday < 20;
     }
 
     // Subscribe to auth state changes
@@ -380,6 +457,8 @@ class AuthService {
 
     handleAuthStateChange(event, session) {
         this.currentUser = session?.user || null;
+        // Clear cached user profile when auth state changes
+        this.userProfile = null;
         this.notifyAuthStateListeners(this.currentUser, event);
         
         // Handle session changes
