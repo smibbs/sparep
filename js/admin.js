@@ -988,7 +988,7 @@ class AdminService {
                     id, question, answer, subject_id, correct_reviews, incorrect_reviews, 
                     average_response_time_ms, user_flag_count, flagged_for_review,
                     subjects:subject_id(name),
-                    review_history(id)
+                    review_history(rating)
                 `);
 
             if (subjectId) {
@@ -1024,6 +1024,9 @@ class AdminService {
                 // Calculate actual review count from review_history
                 const actualReviewCount = card.review_history?.length || 0;
                 
+                // Count rating=1 entries for "again" percentage (matches analytics view logic)
+                const againCount = card.review_history?.filter(review => review.rating === 1).length || 0;
+                
                 return {
                     card_id: card.id,
                     question: card.question,
@@ -1036,9 +1039,9 @@ class AdminService {
                     average_response_time_ms: card.average_response_time_ms,
                     user_flag_count: card.user_flag_count,
                     flagged_for_review: card.flagged_for_review,
-                    // Calculate basic again percentage from existing data
+                    // Calculate again percentage from actual rating=1 count
                     again_percentage: actualReviewCount > 0 
-                        ? Math.round((card.incorrect_reviews / actualReviewCount) * 100) 
+                        ? Math.round((againCount / actualReviewCount) * 100) 
                         : 0,
                     problem_score: (card.user_flag_count || 0) * 20 + (card.flagged_for_review ? 50 : 0)
                 };
