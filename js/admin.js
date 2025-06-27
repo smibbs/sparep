@@ -1,9 +1,11 @@
 import { getSupabaseClient } from './supabase-client.js';
 
 class AdminService {
-    constructor() {
+    constructor(autoInitialize = true) {
         this.supabasePromise = getSupabaseClient();
-        this.initialize();
+        if (autoInitialize) {
+            this.initialize();
+        }
     }
 
     async initialize() {
@@ -15,12 +17,25 @@ class AdminService {
         }
     }
 
+    // New method for standalone admin page initialization
+    async initializeAsStandalone() {
+        try {
+            await this.supabasePromise;
+            this.setupEventListeners();
+            this.loadSubjects();
+            this.loadSummaryAnalytics();
+            this.loadFlaggedCards();
+        } catch (error) {
+            console.error('Failed to initialize standalone AdminService:', error);
+        }
+    }
+
     async getSupabase() {
         return await this.supabasePromise;
     }
 
     setupAdminInterface() {
-        // Only show admin interface if user is admin
+        // Only show admin interface if user is admin (for overlay mode in main app)
         this.checkAdminAccess().then(isAdmin => {
             if (isAdmin) {
                 this.showAdminPanel();
@@ -52,39 +67,127 @@ class AdminService {
     }
 
     showAdminPanel() {
+        // Only create overlay panel if we're not on the standalone admin page
+        if (window.location.pathname.includes('admin.html')) {
+            // We're on the standalone admin page, don't create overlay
+            return;
+        }
+        
         // Create admin panel if it doesn't exist
         if (!document.getElementById('admin-panel')) {
             const adminPanel = document.createElement('div');
             adminPanel.id = 'admin-panel';
             adminPanel.innerHTML = `
                 <div class="admin-header">
-                    <h2>Admin Panel</h2>
-                    <button id="toggle-admin-panel" class="btn btn-secondary">Hide</button>
+                    <h2>Admin Analytics Dashboard</h2>
+                    <div class="admin-header-controls">
+                        <button id="toggle-analytics" class="btn btn-primary">Analytics</button>
+                        <button id="toggle-management" class="btn btn-secondary">Management</button>
+                        <button id="toggle-admin-panel" class="btn btn-secondary">Hide</button>
+                    </div>
                 </div>
                 <div class="admin-content">
-                    <div class="admin-section">
-                        <h3>Flagged Cards</h3>
-                        <div id="flagged-cards-list"></div>
-                        <button id="refresh-flagged" class="btn btn-primary">Refresh</button>
-                    </div>
-                    <div class="admin-section">
-                        <h3>Card Management</h3>
-                        <div class="form-group">
-                            <input type="text" id="card-search" placeholder="Search cards..." class="form-input">
-                            <button id="search-cards" class="btn btn-primary">Search</button>
+                    <!-- Analytics Section -->
+                    <div id="analytics-section" class="admin-main-section">
+                        <div class="analytics-tabs">
+                            <button class="analytics-tab active" data-tab="summary">Summary</button>
+                            <button class="analytics-tab" data-tab="difficulty">Difficulty</button>
+                            <button class="analytics-tab" data-tab="export">Export</button>
                         </div>
-                        <div id="card-search-results"></div>
+                        
+                        <!-- Summary Tab -->
+                        <div id="summary-tab" class="analytics-tab-content active">
+                            <div class="analytics-summary">
+                                <div class="summary-stats">
+                                    <div class="stat-card">
+                                        <h4>Total Cards</h4>
+                                        <span id="total-cards-count">-</span>
+                                    </div>
+                                    <div class="stat-card">
+                                        <h4>Problem Cards</h4>
+                                        <span id="problem-cards-count">-</span>
+                                    </div>
+                                    <div class="stat-card">
+                                        <h4>Avg Response Time</h4>
+                                        <span id="avg-response-time">-</span>
+                                    </div>
+                                    <div class="stat-card">
+                                        <h4>Overall Again %</h4>
+                                        <span id="overall-again-percentage">-</span>
+                                    </div>
+                                    <div class="stat-card">
+                                        <h4>Avg Failed Attempts</h4>
+                                        <span id="avg-failed-attempts">-</span>
+                                    </div>
+                                </div>
+                                <div class="filters-section">
+                                    <select id="subject-filter" class="form-select">
+                                        <option value="">All Subjects</option>
+                                    </select>
+                                    <input type="number" id="min-reviews-filter" placeholder="Min Reviews" value="0" class="form-input" style="width: 120px;">
+                                    <button id="apply-filters" class="btn btn-primary">Apply Filters</button>
+                                </div>
+                                <div id="problem-cards-list" class="analytics-table-container"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Difficulty Tab -->
+                        <div id="difficulty-tab" class="analytics-tab-content">
+                            <div class="tab-header">
+                                <h3>Difficulty Consistency Analysis</h3>
+                                <div class="difficulty-filters">
+                                    <select id="difficulty-classification-filter" class="form-select">
+                                        <option value="">All Classifications</option>
+                                        <option value="optimal">Optimal</option>
+                                        <option value="consistently_hard">Consistently Hard</option>
+                                        <option value="highly_variable">Highly Variable</option>
+                                        <option value="moderately_variable">Moderately Variable</option>
+                                    </select>
+                                    <button id="refresh-difficulty" class="btn btn-primary">Refresh</button>
+                                </div>
+                            </div>
+                            <div id="difficulty-analytics" class="analytics-table-container"></div>
+                        </div>
+                        
+                        <!-- Export Tab -->
+                        <div id="export-tab" class="analytics-tab-content">
+                            <div class="export-section">
+                                <h3>Export Analytics Data</h3>
+                                <div class="export-options">
+                                    <label><input type="checkbox" id="export-summary" checked> Summary Analytics</label>
+                                    <label><input type="checkbox" id="export-difficulty" checked> Difficulty Analysis</label>
+                                </div>
+                                <button id="export-csv" class="btn btn-success">Export to CSV</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="admin-section">
-                        <h3>User Management</h3>
-                        <div class="form-group">
-                            <input type="email" id="user-email" placeholder="User email..." class="form-input">
-                            <select id="user-tier" class="form-select">
-                                <option value="free">Free</option>
-                                <option value="paid">Paid</option>
-                                <option value="admin">Admin</option>
-                            </select>
-                            <button id="update-user-tier" class="btn btn-primary">Update Tier</button>
+                    
+                    <!-- Management Section -->
+                    <div id="management-section" class="admin-main-section hidden">
+                        <div class="admin-section">
+                            <h3>Flagged Cards</h3>
+                            <div id="flagged-cards-list"></div>
+                            <button id="refresh-flagged" class="btn btn-primary">Refresh</button>
+                        </div>
+                        <div class="admin-section">
+                            <h3>Card Management</h3>
+                            <div class="form-group">
+                                <input type="text" id="card-search" placeholder="Search cards..." class="form-input">
+                                <button id="search-cards" class="btn btn-primary">Search</button>
+                            </div>
+                            <div id="card-search-results"></div>
+                        </div>
+                        <div class="admin-section">
+                            <h3>User Management</h3>
+                            <div class="form-group">
+                                <input type="email" id="user-email" placeholder="User email..." class="form-input">
+                                <select id="user-tier" class="form-select">
+                                    <option value="free">Free</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                                <button id="update-user-tier" class="btn btn-primary">Update Tier</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -93,8 +196,9 @@ class AdminService {
                 position: fixed;
                 top: 20px;
                 right: 20px;
-                width: 400px;
-                max-height: 80vh;
+                width: 800px;
+                max-width: 90vw;
+                max-height: 85vh;
                 overflow-y: auto;
                 background: white;
                 border: 2px solid #007bff;
@@ -123,6 +227,13 @@ class AdminService {
                         margin: 0;
                         color: #007bff;
                     }
+                    .admin-header-controls {
+                        display: flex;
+                        gap: 10px;
+                    }
+                    .admin-main-section {
+                        margin-bottom: 20px;
+                    }
                     .admin-section {
                         margin-bottom: 20px;
                         padding-bottom: 15px;
@@ -136,6 +247,166 @@ class AdminService {
                         color: #333;
                         font-size: 16px;
                     }
+                    
+                    /* Analytics Styles */
+                    .analytics-tabs {
+                        display: flex;
+                        margin-bottom: 20px;
+                        border-bottom: 2px solid #e9ecef;
+                    }
+                    .analytics-tab {
+                        padding: 10px 20px;
+                        border: none;
+                        background: none;
+                        cursor: pointer;
+                        font-size: 14px;
+                        color: #6c757d;
+                        border-bottom: 2px solid transparent;
+                        transition: all 0.2s;
+                    }
+                    .analytics-tab.active {
+                        color: #007bff;
+                        border-bottom-color: #007bff;
+                        font-weight: 600;
+                    }
+                    .analytics-tab:hover {
+                        color: #007bff;
+                        background-color: #f8f9fa;
+                    }
+                    .analytics-tab-content {
+                        display: none;
+                    }
+                    .analytics-tab-content.active {
+                        display: block;
+                    }
+                    
+                    /* Summary Stats */
+                    .summary-stats {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                        gap: 15px;
+                        margin-bottom: 20px;
+                    }
+                    .stat-card {
+                        background: #f8f9fa;
+                        padding: 15px;
+                        border-radius: 8px;
+                        text-align: center;
+                        border: 1px solid #e9ecef;
+                    }
+                    .stat-card h4 {
+                        margin: 0 0 5px 0;
+                        font-size: 12px;
+                        color: #6c757d;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    }
+                    .stat-card span {
+                        font-size: 24px;
+                        font-weight: bold;
+                        color: #007bff;
+                    }
+                    
+                    /* Filters */
+                    .filters-section {
+                        display: flex;
+                        gap: 10px;
+                        margin-bottom: 20px;
+                        align-items: center;
+                        flex-wrap: wrap;
+                    }
+                    .tab-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 20px;
+                    }
+                    .difficulty-filters {
+                        display: flex;
+                        gap: 10px;
+                        align-items: center;
+                    }
+                    
+                    /* Analytics Tables */
+                    .analytics-table-container {
+                        max-height: 400px;
+                        overflow-y: auto;
+                        border: 1px solid #e9ecef;
+                        border-radius: 8px;
+                    }
+                    .analytics-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 12px;
+                    }
+                    .analytics-table th {
+                        background: #f8f9fa;
+                        padding: 10px 8px;
+                        text-align: left;
+                        border-bottom: 1px solid #e9ecef;
+                        font-weight: 600;
+                        color: #495057;
+                        position: sticky;
+                        top: 0;
+                        z-index: 10;
+                    }
+                    .analytics-table td {
+                        padding: 8px;
+                        border-bottom: 1px solid #f8f9fa;
+                        vertical-align: top;
+                    }
+                    .analytics-table tr:hover {
+                        background-color: #f8f9fa;
+                    }
+                    .analytics-table .problem-score {
+                        font-weight: bold;
+                    }
+                    .analytics-table .problem-score.high {
+                        color: #dc3545;
+                    }
+                    .analytics-table .problem-score.medium {
+                        color: #ffc107;
+                    }
+                    .analytics-table .problem-score.low {
+                        color: #28a745;
+                    }
+                    .analytics-table .card-question {
+                        max-width: 200px;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+                    .analytics-table .classification-optimal {
+                        color: #28a745;
+                        font-weight: bold;
+                    }
+                    .analytics-table .classification-hard {
+                        color: #dc3545;
+                    }
+                    .analytics-table .classification-variable {
+                        color: #ffc107;
+                    }
+                    
+                    /* Export Section */
+                    .export-section {
+                        padding: 20px;
+                        background: #f8f9fa;
+                        border-radius: 8px;
+                    }
+                    .export-options {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                        margin: 15px 0;
+                    }
+                    .export-options label {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        cursor: pointer;
+                    }
+                    
+                    /* Form Elements */
                     .form-group {
                         display: flex;
                         gap: 10px;
@@ -157,35 +428,49 @@ class AdminService {
                         cursor: pointer;
                         font-size: 14px;
                         transition: background-color 0.2s;
+                        white-space: nowrap;
+                    }
+                    .btn:disabled {
+                        opacity: 0.6;
+                        cursor: not-allowed;
                     }
                     .btn-primary {
                         background-color: #007bff;
                         color: white;
                     }
-                    .btn-primary:hover {
+                    .btn-primary:hover:not(:disabled) {
                         background-color: #0056b3;
                     }
                     .btn-secondary {
                         background-color: #6c757d;
                         color: white;
                     }
-                    .btn-secondary:hover {
+                    .btn-secondary:hover:not(:disabled) {
                         background-color: #545b62;
                     }
                     .btn-danger {
                         background-color: #dc3545;
                         color: white;
                     }
-                    .btn-danger:hover {
+                    .btn-danger:hover:not(:disabled) {
                         background-color: #c82333;
                     }
                     .btn-success {
                         background-color: #28a745;
                         color: white;
                     }
-                    .btn-success:hover {
+                    .btn-success:hover:not(:disabled) {
                         background-color: #1e7e34;
                     }
+                    .btn-warning {
+                        background-color: #ffc107;
+                        color: #212529;
+                    }
+                    .btn-warning:hover:not(:disabled) {
+                        background-color: #e0a800;
+                    }
+                    
+                    /* Flagged Cards (existing styles) */
                     .flagged-card {
                         background: #fff3cd;
                         border: 1px solid #ffeaa7;
@@ -217,9 +502,34 @@ class AdminService {
                         margin-top: 10px;
                         display: flex;
                         gap: 5px;
+                        flex-wrap: wrap;
                     }
+                    
+                    /* Utility Classes */
                     .hidden {
                         display: none !important;
+                    }
+                    .text-center {
+                        text-align: center;
+                    }
+                    .text-muted {
+                        color: #6c757d;
+                    }
+                    .alert {
+                        padding: 12px 16px;
+                        margin-bottom: 16px;
+                        border: 1px solid transparent;
+                        border-radius: 4px;
+                    }
+                    .alert-info {
+                        color: #0c5460;
+                        background-color: #d1ecf1;
+                        border-color: #bee5eb;
+                    }
+                    .alert-danger {
+                        color: #721c24;
+                        background-color: #f8d7da;
+                        border-color: #f5c6cb;
                     }
                 `;
                 document.head.appendChild(styles);
@@ -228,6 +538,7 @@ class AdminService {
     }
 
     setupEventListeners() {
+        // Panel toggle (only for overlay mode)
         document.getElementById('toggle-admin-panel')?.addEventListener('click', () => {
             const content = document.querySelector('#admin-panel .admin-content');
             const button = document.getElementById('toggle-admin-panel');
@@ -240,6 +551,36 @@ class AdminService {
             }
         });
 
+        // Section toggles
+        document.getElementById('toggle-analytics')?.addEventListener('click', () => {
+            this.showSection('analytics');
+        });
+
+        document.getElementById('toggle-management')?.addEventListener('click', () => {
+            this.showSection('management');
+        });
+
+        // Analytics tabs
+        document.querySelectorAll('.analytics-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.switchAnalyticsTab(tab.dataset.tab);
+            });
+        });
+
+        // Analytics actions
+        document.getElementById('apply-filters')?.addEventListener('click', () => {
+            this.loadSummaryAnalytics();
+        });
+
+        document.getElementById('refresh-difficulty')?.addEventListener('click', () => {
+            this.loadDifficultyAnalytics();
+        });
+
+        document.getElementById('export-csv')?.addEventListener('click', () => {
+            this.exportAnalyticsData();
+        });
+
+        // Management actions (existing)
         document.getElementById('refresh-flagged')?.addEventListener('click', () => {
             this.loadFlaggedCards();
         });
@@ -251,6 +592,10 @@ class AdminService {
         document.getElementById('update-user-tier')?.addEventListener('click', () => {
             this.updateUserTier();
         });
+
+        // Initialize analytics
+        this.loadSubjects();
+        this.loadSummaryAnalytics();
     }
 
     async loadFlaggedCards() {
@@ -549,12 +894,480 @@ class AdminService {
             alert('Failed to update user tier. Please check the email and try again.');
         }
     }
+
+    // New Analytics Methods
+
+    showSection(sectionName) {
+        const analyticsSection = document.getElementById('analytics-section');
+        const managementSection = document.getElementById('management-section');
+        const analyticsBtn = document.getElementById('toggle-analytics');
+        const managementBtn = document.getElementById('toggle-management');
+
+        if (sectionName === 'analytics') {
+            analyticsSection?.classList.remove('hidden');
+            managementSection?.classList.add('hidden');
+            analyticsBtn?.classList.remove('btn-secondary');
+            analyticsBtn?.classList.add('btn-primary');
+            managementBtn?.classList.remove('btn-primary');
+            managementBtn?.classList.add('btn-secondary');
+        } else {
+            analyticsSection?.classList.add('hidden');
+            managementSection?.classList.remove('hidden');
+            managementBtn?.classList.remove('btn-secondary');
+            managementBtn?.classList.add('btn-primary');
+            analyticsBtn?.classList.remove('btn-primary');
+            analyticsBtn?.classList.add('btn-secondary');
+        }
+    }
+
+    switchAnalyticsTab(tabName) {
+        // Hide all tab contents
+        document.querySelectorAll('.analytics-tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+
+        // Remove active class from all tabs
+        document.querySelectorAll('.analytics-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+
+        // Show selected tab content
+        const targetContent = document.getElementById(`${tabName}-tab`);
+        const targetTab = document.querySelector(`[data-tab="${tabName}"]`);
+        
+        if (targetContent) targetContent.classList.add('active');
+        if (targetTab) targetTab.classList.add('active');
+
+        // Load data for the tab if needed
+        switch (tabName) {
+            case 'summary':
+                this.loadSummaryAnalytics();
+                break;
+            case 'difficulty':
+                this.loadDifficultyAnalytics();
+                break;
+        }
+    }
+
+    async loadSubjects() {
+        try {
+            const supabase = await this.getSupabase();
+            const { data: subjects, error } = await supabase
+                .from('subjects')
+                .select('id, name')
+                .order('name');
+
+            if (error) throw error;
+
+            const subjectFilter = document.getElementById('subject-filter');
+            if (subjectFilter && subjects) {
+                subjectFilter.innerHTML = '<option value="">All Subjects</option>';
+                subjects.forEach(subject => {
+                    const option = document.createElement('option');
+                    option.value = subject.id;
+                    option.textContent = subject.name;
+                    subjectFilter.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading subjects:', error);
+        }
+    }
+
+    async loadSummaryAnalytics() {
+        try {
+            const supabase = await this.getSupabase();
+            const subjectId = document.getElementById('subject-filter')?.value || null;
+            const minReviews = parseInt(document.getElementById('min-reviews-filter')?.value) || 0;
+
+            console.log('Loading summary analytics...', { subjectId, minReviews });
+
+            // Try basic cards data first since it's more reliable
+            console.log('Fetching basic cards data...');
+            let basicQuery = supabase
+                .from('cards')
+                .select(`
+                    id, question, answer, subject_id, total_reviews, correct_reviews, incorrect_reviews, 
+                    average_response_time_ms, user_flag_count, flagged_for_review,
+                    subjects:subject_id(name)
+                `);
+
+            if (subjectId) {
+                basicQuery = basicQuery.eq('subject_id', subjectId);
+            }
+
+            let queryWithFilters = basicQuery;
+            
+            // Only apply the review filter if minReviews > 0
+            if (minReviews > 0) {
+                queryWithFilters = queryWithFilters.gte('total_reviews', minReviews);
+            }
+            
+            const { data: basicCards, error: basicError } = await queryWithFilters
+                .order('total_reviews', { ascending: false })
+                .limit(50);
+
+            console.log('Basic cards result:', { data: basicCards, error: basicError });
+
+            if (basicError) {
+                console.error('Basic cards query failed:', basicError);
+                throw basicError;
+            }
+
+            if (!basicCards || basicCards.length === 0) {
+                console.log('No cards found with current filters');
+                document.getElementById('problem-cards-list').innerHTML = '<p class="text-muted text-center">No cards found matching the current filters.</p>';
+                
+                // Still show stats even if no cards
+                document.getElementById('total-cards-count').textContent = '0';
+                document.getElementById('problem-cards-count').textContent = '0';
+                document.getElementById('avg-response-time').textContent = '0ms';
+                document.getElementById('overall-again-percentage').textContent = '0%';
+                document.getElementById('avg-failed-attempts').textContent = '0';
+                return;
+            }
+
+            // Transform basic data to match expected format
+            const transformedData = basicCards.map(card => ({
+                card_id: card.id,
+                question: card.question,
+                answer: card.answer,
+                subject_id: card.subject_id,
+                subject_name: card.subjects?.name || 'Unknown',
+                total_reviews: card.total_reviews,
+                correct_reviews: card.correct_reviews,
+                incorrect_reviews: card.incorrect_reviews,
+                average_response_time_ms: card.average_response_time_ms,
+                user_flag_count: card.user_flag_count,
+                flagged_for_review: card.flagged_for_review,
+                // Calculate basic again percentage from existing data
+                again_percentage: card.total_reviews > 0 
+                    ? Math.round((card.incorrect_reviews / card.total_reviews) * 100) 
+                    : 0,
+                problem_score: (card.user_flag_count || 0) * 20 + (card.flagged_for_review ? 50 : 0)
+            }));
+
+            console.log('Transformed data:', transformedData);
+            
+            // Load failed attempts metric (system average)
+            const { data: failedAttemptsData, error: failedAttemptsError } = await supabase
+                .rpc('get_failed_attempts_before_good_rating');
+            
+            console.log('Failed attempts result:', { data: failedAttemptsData, error: failedAttemptsError });
+            
+            // Load per-card failed attempts data
+            const { data: perCardFailedAttemptsData, error: perCardFailedAttemptsError } = await supabase
+                .rpc('get_failed_attempts_per_card', {
+                    p_subject_id: subjectId,
+                    p_min_reviews: minReviews,
+                    p_limit: 50
+                });
+            
+            console.log('Per-card failed attempts result:', { data: perCardFailedAttemptsData, error: perCardFailedAttemptsError });
+            
+            // Merge per-card failed attempts data with transformed data
+            if (perCardFailedAttemptsData && !perCardFailedAttemptsError) {
+                const failedAttemptsMap = new Map();
+                perCardFailedAttemptsData.forEach(card => {
+                    failedAttemptsMap.set(card.card_id, card.failed_attempts_before_good);
+                });
+                
+                // Add failed attempts data to each card
+                transformedData.forEach(card => {
+                    card.failed_attempts_before_good = failedAttemptsMap.get(card.card_id) || 0;
+                });
+            } else {
+                // If per-card data failed to load, set all cards to 0
+                transformedData.forEach(card => {
+                    card.failed_attempts_before_good = 0;
+                });
+            }
+            
+            // Add system average failed attempts to display data
+            const avgFailedAttempts = failedAttemptsData && failedAttemptsData.length > 0 
+                ? failedAttemptsData[0].avg_failed_attempts_before_good 
+                : 0;
+            
+            this.displaySummaryData(transformedData, true, avgFailedAttempts);
+
+        } catch (error) {
+            console.error('Error loading summary analytics:', error);
+            const container = document.getElementById('problem-cards-list');
+            if (container) {
+                container.innerHTML = `<div class="alert alert-danger">Error loading analytics data: ${error.message}</div>`;
+            }
+            
+            // Show error in stats too
+            document.getElementById('total-cards-count').textContent = 'Error';
+            document.getElementById('problem-cards-count').textContent = 'Error';
+            document.getElementById('avg-response-time').textContent = 'Error';
+            document.getElementById('overall-again-percentage').textContent = 'Error';
+            document.getElementById('avg-failed-attempts').textContent = 'Error';
+        }
+    }
+
+    displaySummaryData(analytics, isBasicData, avgFailedAttempts = 0) {
+        // Update summary stats
+        const totalCards = analytics?.length || 0;
+        const problemCards = analytics?.filter(card => (card.problem_score || 0) > 30).length || 0;
+        const avgResponseTime = analytics?.length > 0 
+            ? Math.round(analytics.reduce((sum, card) => sum + (card.average_response_time_ms || 0), 0) / analytics.length)
+            : 0;
+        const overallAgainPercentage = analytics?.length > 0
+            ? Math.round(analytics.reduce((sum, card) => sum + (card.again_percentage || 0), 0) / analytics.length)
+            : 0;
+
+        // Calculate relative difficulty score for each card
+        if (analytics?.length > 0 && overallAgainPercentage > 0) {
+            analytics.forEach(card => {
+                const cardAgainPercentage = card.again_percentage || 0;
+                // Calculate relative score: ((card_rate - deck_average) / deck_average) * 100
+                card.relative_difficulty_score = Math.round(
+                    ((cardAgainPercentage - overallAgainPercentage) / overallAgainPercentage) * 100
+                );
+            });
+        }
+
+        document.getElementById('total-cards-count').textContent = totalCards;
+        document.getElementById('problem-cards-count').textContent = problemCards;
+        document.getElementById('avg-response-time').textContent = `${avgResponseTime}ms`;
+        document.getElementById('overall-again-percentage').textContent = `${overallAgainPercentage}%`;
+        document.getElementById('avg-failed-attempts').textContent = avgFailedAttempts || '0';
+
+        // Show appropriate columns based on data availability
+        const columns = [
+            { key: 'question', label: 'Question', className: 'card-question' },
+            { key: 'subject_name', label: 'Subject' },
+            { key: 'total_reviews', label: 'Reviews' },
+            { key: 'again_percentage', label: 'Again %', formatter: (val) => val ? `${val}%` : '-' },
+            { 
+                key: 'relative_difficulty_score', 
+                label: 'Relative Difficulty', 
+                formatter: (val) => {
+                    if (val === undefined || val === null) return '-';
+                    const sign = val >= 0 ? '+' : '';
+                    const color = val > 50 ? 'red' : val > 20 ? 'orange' : val < -20 ? 'green' : 'black';
+                    return `<span style="color: ${color}; font-weight: ${Math.abs(val) > 50 ? 'bold' : 'normal'}">${sign}${val}%</span>`;
+                }
+            },
+            { key: 'failed_attempts_before_good', label: 'Failed Attempts', formatter: (val) => val || '0' }
+        ];
+
+        if (!isBasicData) {
+            columns.push(
+                { key: 'consistency_score', label: 'Consistency', formatter: (val) => val ? Math.round(val) : '-' }
+            );
+        }
+
+        columns.push(
+            { key: 'problem_score', label: 'Problem Score', className: 'problem-score', formatter: this.formatProblemScore }
+        );
+
+        // Create problem cards table
+        this.renderAnalyticsTable('problem-cards-list', analytics, columns);
+
+        if (isBasicData) {
+            const container = document.getElementById('problem-cards-list');
+            const note = document.createElement('div');
+            note.className = 'alert alert-info';
+            note.innerHTML = '<strong>Note:</strong> Advanced analytics will appear after users begin reviewing cards with the updated tracking enabled.';
+            container.insertBefore(note, container.firstChild);
+        }
+    }
+
+
+
+    async loadDifficultyAnalytics() {
+        try {
+            const supabase = await this.getSupabase();
+            const subjectId = document.getElementById('subject-filter')?.value || null;
+            const minReviews = parseInt(document.getElementById('min-reviews-filter')?.value) || 5;
+            const classification = document.getElementById('difficulty-classification-filter')?.value || null;
+
+            console.log('Loading difficulty analytics...', { subjectId, minReviews, classification });
+
+            const { data: difficultyData, error } = await supabase
+                .rpc('get_difficulty_consistency_analytics', {
+                    p_subject_id: subjectId,
+                    p_min_reviews: minReviews,
+                    p_classification: classification,
+                    p_limit: 50
+                });
+
+            console.log('Difficulty analytics result:', { data: difficultyData, error });
+
+            if (error) throw error;
+
+            this.renderAnalyticsTable('difficulty-analytics', difficultyData, [
+                { key: 'question', label: 'Question', className: 'card-question' },
+                { key: 'subject_name', label: 'Subject' },
+                { key: 'total_reviews', label: 'Reviews' },
+                { key: 'difficulty_classification', label: 'Classification', formatter: this.formatClassification },
+                { key: 'avg_rating', label: 'Avg Rating', formatter: (val) => val ? val.toFixed(2) : '-' },
+                { key: 'consistency_score', label: 'Consistency', formatter: (val) => val ? Math.round(val) : '-' },
+                { key: 'rating_variance', label: 'Variance', formatter: (val) => val ? val.toFixed(2) : '-' }
+            ]);
+
+        } catch (error) {
+            console.error('Error loading difficulty analytics:', error);
+            document.getElementById('difficulty-analytics').innerHTML = `<p class="text-muted">Error loading difficulty data: ${error.message}</p>`;
+        }
+    }
+
+    renderAnalyticsTable(containerId, data, columns) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center">No data available with current filters.</p>';
+            return;
+        }
+
+        const table = document.createElement('table');
+        table.className = 'analytics-table';
+
+        // Create header
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        columns.forEach(col => {
+            const th = document.createElement('th');
+            th.textContent = col.label;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        // Create body
+        const tbody = document.createElement('tbody');
+        data.forEach(row => {
+            const tr = document.createElement('tr');
+            columns.forEach(col => {
+                const td = document.createElement('td');
+                let value = row[col.key];
+                
+                if (col.formatter) {
+                    if (typeof col.formatter === 'function') {
+                        const formatted = col.formatter(value);
+                        if (typeof formatted === 'object' && formatted.html) {
+                            td.innerHTML = formatted.html;
+                            if (formatted.className) td.className = formatted.className;
+                        } else {
+                            td.textContent = formatted;
+                        }
+                    } else {
+                        td.textContent = col.formatter;
+                    }
+                } else {
+                    td.textContent = value !== null && value !== undefined ? value : '-';
+                }
+                
+                if (col.className) {
+                    td.classList.add(col.className);
+                }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+
+        container.innerHTML = '';
+        container.appendChild(table);
+    }
+
+    formatProblemScore(score) {
+        if (!score) return '-';
+        const roundedScore = Math.round(score);
+        let className = 'problem-score ';
+        if (roundedScore >= 50) className += 'high';
+        else if (roundedScore >= 25) className += 'medium';
+        else className += 'low';
+        
+        return {
+            html: roundedScore.toString(),
+            className: className
+        };
+    }
+
+    formatClassification(classification) {
+        if (!classification) return '-';
+        let className = '';
+        switch (classification) {
+            case 'optimal':
+                className = 'classification-optimal';
+                break;
+            case 'consistently_hard':
+                className = 'classification-hard';
+                break;
+            case 'highly_variable':
+            case 'moderately_variable':
+                className = 'classification-variable';
+                break;
+        }
+        
+        return {
+            html: classification.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            className: className
+        };
+    }
+
+    async exportAnalyticsData() {
+        try {
+            const exportSummary = document.getElementById('export-summary')?.checked;
+            const exportDifficulty = document.getElementById('export-difficulty')?.checked;
+
+            if (!exportSummary && !exportDifficulty) {
+                alert('Please select at least one data type to export.');
+                return;
+            }
+
+            const supabase = await this.getSupabase();
+            const csvData = [];
+            
+            if (exportSummary) {
+                const { data } = await supabase.from('card_analytics_summary').select('*').limit(1000);
+                if (data) {
+                    csvData.push(['=== SUMMARY ANALYTICS ===']);
+                    csvData.push(Object.keys(data[0]));
+                    data.forEach(row => csvData.push(Object.values(row)));
+                    csvData.push([]);
+                }
+            }
+
+            if (exportDifficulty) {
+                const { data } = await supabase.from('card_difficulty_consistency').select('*').limit(1000);
+                if (data) {
+                    csvData.push(['=== DIFFICULTY CONSISTENCY ANALYTICS ===']);
+                    csvData.push(Object.keys(data[0]));
+                    data.forEach(row => csvData.push(Object.values(row)));
+                }
+            }
+
+            // Create and download CSV
+            const csvContent = csvData.map(row => row.join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `spaced-rep-analytics-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+        } catch (error) {
+            console.error('Error exporting analytics data:', error);
+            alert('Failed to export data. Please try again.');
+        }
+    }
 }
 
-// Initialize admin service
-const adminService = new AdminService();
-
-// Make it globally available for onclick handlers
-window.adminService = adminService;
+// Only initialize admin service in overlay mode (main app)
+if (!window.location.pathname.includes('admin.html')) {
+    // Initialize admin service for overlay mode
+    const adminService = new AdminService();
+    
+    // Make it globally available for onclick handlers
+    window.adminService = adminService;
+}
 
 export default AdminService;
