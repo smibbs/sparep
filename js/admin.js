@@ -985,9 +985,10 @@ class AdminService {
             let basicQuery = supabase
                 .from('cards')
                 .select(`
-                    id, question, answer, subject_id, total_reviews, correct_reviews, incorrect_reviews, 
+                    id, question, answer, subject_id, correct_reviews, incorrect_reviews, 
                     average_response_time_ms, user_flag_count, flagged_for_review,
-                    subjects:subject_id(name)
+                    subjects:subject_id(name),
+                    review_history(id)
                 `);
 
             if (subjectId) {
@@ -1019,24 +1020,29 @@ class AdminService {
             }
 
             // Transform basic data to match expected format
-            const transformedData = basicCards.map(card => ({
-                card_id: card.id,
-                question: card.question,
-                answer: card.answer,
-                subject_id: card.subject_id,
-                subject_name: card.subjects?.name || 'Unknown',
-                total_reviews: card.total_reviews,
-                correct_reviews: card.correct_reviews,
-                incorrect_reviews: card.incorrect_reviews,
-                average_response_time_ms: card.average_response_time_ms,
-                user_flag_count: card.user_flag_count,
-                flagged_for_review: card.flagged_for_review,
-                // Calculate basic again percentage from existing data
-                again_percentage: card.total_reviews > 0 
-                    ? Math.round((card.incorrect_reviews / card.total_reviews) * 100) 
-                    : 0,
-                problem_score: (card.user_flag_count || 0) * 20 + (card.flagged_for_review ? 50 : 0)
-            }));
+            const transformedData = basicCards.map(card => {
+                // Calculate actual review count from review_history
+                const actualReviewCount = card.review_history?.length || 0;
+                
+                return {
+                    card_id: card.id,
+                    question: card.question,
+                    answer: card.answer,
+                    subject_id: card.subject_id,
+                    subject_name: card.subjects?.name || 'Unknown',
+                    total_reviews: actualReviewCount,
+                    correct_reviews: card.correct_reviews,
+                    incorrect_reviews: card.incorrect_reviews,
+                    average_response_time_ms: card.average_response_time_ms,
+                    user_flag_count: card.user_flag_count,
+                    flagged_for_review: card.flagged_for_review,
+                    // Calculate basic again percentage from existing data
+                    again_percentage: actualReviewCount > 0 
+                        ? Math.round((card.incorrect_reviews / actualReviewCount) * 100) 
+                        : 0,
+                    problem_score: (card.user_flag_count || 0) * 20 + (card.flagged_for_review ? 50 : 0)
+                };
+            });
 
             console.log('Transformed data:', transformedData);
             
