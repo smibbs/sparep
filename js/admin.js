@@ -1153,7 +1153,9 @@ class AdminService {
                     if (val === undefined || val === null) return '-';
                     const sign = val >= 0 ? '+' : '';
                     const color = val > 50 ? 'red' : val > 20 ? 'orange' : val < -20 ? 'green' : 'black';
-                    return `<span style="color: ${color}; font-weight: ${Math.abs(val) > 50 ? 'bold' : 'normal'}">${sign}${val}%</span>`;
+                    return {
+                        html: `<span style="color: ${color}; font-weight: ${Math.abs(val) > 50 ? 'bold' : 'normal'}">${sign}${val}%</span>`
+                    };
                 }
             },
             { key: 'failed_attempts_before_good', label: 'Failed Attempts', formatter: (val) => val || '0' }
