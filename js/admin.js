@@ -124,7 +124,6 @@ class AdminService {
                                     <select id="subject-filter" class="form-select">
                                         <option value="">All Subjects</option>
                                     </select>
-                                    <input type="number" id="min-reviews-filter" placeholder="Min Reviews" value="0" class="form-input" style="width: 120px;">
                                     <button id="apply-filters" class="btn btn-primary">Apply Filters</button>
                                 </div>
                                 <div id="problem-cards-list" class="analytics-table-container"></div>
@@ -978,9 +977,8 @@ class AdminService {
         try {
             const supabase = await this.getSupabase();
             const subjectId = document.getElementById('subject-filter')?.value || null;
-            const minReviews = parseInt(document.getElementById('min-reviews-filter')?.value) || 0;
 
-            console.log('Loading summary analytics...', { subjectId, minReviews });
+            console.log('Loading summary analytics...', { subjectId });
 
             // Try basic cards data first since it's more reliable
             console.log('Fetching basic cards data...');
@@ -995,15 +993,8 @@ class AdminService {
             if (subjectId) {
                 basicQuery = basicQuery.eq('subject_id', subjectId);
             }
-
-            let queryWithFilters = basicQuery;
             
-            // Only apply the review filter if minReviews > 0
-            if (minReviews > 0) {
-                queryWithFilters = queryWithFilters.gte('total_reviews', minReviews);
-            }
-            
-            const { data: basicCards, error: basicError } = await queryWithFilters
+            const { data: basicCards, error: basicError } = await basicQuery
                 .order('total_reviews', { ascending: false })
                 .limit(50);
 
@@ -1059,7 +1050,7 @@ class AdminService {
             const { data: perCardFailedAttemptsData, error: perCardFailedAttemptsError } = await supabase
                 .rpc('get_failed_attempts_per_card', {
                     p_subject_id: subjectId,
-                    p_min_reviews: minReviews,
+                    p_min_reviews: 5, // Default minimum reviews for meaningful analysis
                     p_limit: 50
                 });
             
@@ -1181,7 +1172,7 @@ class AdminService {
         try {
             const supabase = await this.getSupabase();
             const subjectId = document.getElementById('subject-filter')?.value || null;
-            const minReviews = parseInt(document.getElementById('min-reviews-filter')?.value) || 5;
+            const minReviews = 5; // Default minimum reviews for meaningful analysis
             const classification = document.getElementById('difficulty-classification-filter')?.value || null;
 
             console.log('Loading difficulty analytics...', { subjectId, minReviews, classification });
