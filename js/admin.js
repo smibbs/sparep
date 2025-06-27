@@ -1118,13 +1118,19 @@ class AdminService {
             : 0;
 
         // Calculate relative difficulty score for each card
-        if (analytics?.length > 0 && overallAgainPercentage > 0) {
+        if (analytics?.length > 0) {
             analytics.forEach(card => {
                 const cardAgainPercentage = card.again_percentage || 0;
-                // Calculate relative score: ((card_rate - deck_average) / deck_average) * 100
-                card.relative_difficulty_score = Math.round(
-                    ((cardAgainPercentage - overallAgainPercentage) / overallAgainPercentage) * 100
-                );
+                
+                if (overallAgainPercentage === 0) {
+                    // When deck average is 0, cards with any "again" ratings are relatively difficult
+                    card.relative_difficulty_score = cardAgainPercentage > 0 ? 100 : 0;
+                } else {
+                    // Calculate relative score: ((card_rate - deck_average) / deck_average) * 100
+                    card.relative_difficulty_score = Math.round(
+                        ((cardAgainPercentage - overallAgainPercentage) / overallAgainPercentage) * 100
+                    );
+                }
             });
         }
 
