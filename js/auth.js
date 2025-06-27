@@ -259,7 +259,35 @@ class AuthService {
         this.registerForm.addEventListener('submit', (e) => this.handleRegistration(e));
         
         // Password reset
-        this.forgotPasswordLink?.addEventListener('click', (e) => this.handleForgotPassword(e));
+        this.forgotPasswordLink?.addEventListener('click', async (e) => {
+            e.preventDefault();
+            
+            const email = this.loginEmail?.value?.trim();
+            if (!email) {
+                this.showMessage(this.loginMessage, 'Please enter your email address');
+                return;
+            }
+
+            try {
+                this.showLoading(true);
+                
+                // Get supabase client directly
+                const supabase = await this.getSupabase();
+                const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: AuthService.getAbsoluteUrl('reset-password.html')
+                });
+
+                if (error) throw error;
+
+                this.showMessage(this.loginMessage, 'Password reset instructions sent to your email', 'success');
+                
+            } catch (error) {
+                console.error('Password reset error:', error);
+                this.showMessage(this.loginMessage, error.message || 'Failed to send reset email');
+            } finally {
+                this.showLoading(false);
+            }
+        });
 
         // Auth state changes
         this.onAuthStateChange((session, event) => {
@@ -424,36 +452,6 @@ class AuthService {
         }
     }
 
-    async handleForgotPassword(e) {
-        e.preventDefault();
-        
-        const email = this.loginEmail.value.trim();
-        if (!email) {
-            this.showMessage(this.loginMessage, 'Please enter your email address');
-            return;
-        }
-
-        try {
-            this.showLoading(true);
-            
-            // Get the redirect URL
-            const redirectUrl = AuthService.getAbsoluteUrl('reset-password.html');
-            // Redirect URL for password reset
-            
-            const { error } = await this.getSupabase().auth.resetPasswordForEmail(email, {
-                redirectTo: AuthService.getAbsoluteUrl('reset-password.html')
-            });
-
-            if (error) throw error;
-
-            this.showMessage(this.loginMessage, 'Password reset instructions sent to your email', 'success');
-            
-        } catch (error) {
-            this.showMessage(this.loginMessage, error.message);
-        } finally {
-            this.showLoading(false);
-        }
-    }
 
     handleAuthStateChange(event, session) {
         this.currentUser = session?.user || null;
