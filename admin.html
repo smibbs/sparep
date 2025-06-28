@@ -49,6 +49,7 @@
                 <div class="analytics-tabs">
                     <button class="analytics-tab active" data-tab="summary">Summary</button>
                     <button class="analytics-tab" data-tab="difficulty">Difficulty</button>
+                    <button class="analytics-tab" data-tab="flagged">Flagged Cards</button>
                     <button class="analytics-tab" data-tab="export">Export</button>
                 </div>
                 
@@ -103,6 +104,46 @@
                         </div>
                     </div>
                     <div id="difficulty-analytics" class="analytics-table-container"></div>
+                </div>
+                
+                <!-- Flagged Cards Tab -->
+                <div id="flagged-tab" class="analytics-tab-content">
+                    <div class="analytics-summary">
+                        <div class="summary-stats">
+                            <div class="stat-card">
+                                <h4>Total Flagged</h4>
+                                <span id="total-flagged-count">-</span>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Unresolved</h4>
+                                <span id="unresolved-flagged-count">-</span>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Most Common Reason</h4>
+                                <span id="most-common-reason">-</span>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Resolution Rate</h4>
+                                <span id="resolution-rate">-</span>
+                            </div>
+                        </div>
+                        <div class="filters-section">
+                            <select id="flag-reason-filter" class="form-select">
+                                <option value="">All Reasons</option>
+                                <option value="incorrect">Incorrect</option>
+                                <option value="spelling">Spelling</option>
+                                <option value="confusing">Confusing</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <select id="flag-status-filter" class="form-select">
+                                <option value="">All Status</option>
+                                <option value="unresolved">Unresolved</option>
+                                <option value="resolved">Resolved</option>
+                            </select>
+                            <button id="apply-flagged-filters" class="btn btn-primary">Apply Filters</button>
+                        </div>
+                        <div id="flagged-cards-analytics" class="analytics-table-container"></div>
+                    </div>
                 </div>
                 
                 <!-- Export Tab -->
