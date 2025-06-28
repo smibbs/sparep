@@ -2,6 +2,31 @@ import database from './database.js';
 import { getSupabaseClient } from './supabase-client.js';
 
 /**
+ * Check if user is admin and show admin navigation link
+ * @param {string} userId
+ */
+async function checkAndShowAdminNav(userId) {
+    try {
+        const supabase = await getSupabaseClient();
+        const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('user_tier, is_admin')
+            .eq('id', userId)
+            .single();
+
+        if (!error && profile && (profile.user_tier === 'admin' || profile.is_admin === true)) {
+            const adminNavLink = document.getElementById('admin-nav-link');
+            if (adminNavLink) {
+                adminNavLink.classList.remove('hidden');
+            }
+        }
+    } catch (error) {
+        console.log('Could not check admin status:', error);
+        // Silently fail - admin link stays hidden
+    }
+}
+
+/**
  * Get user statistics for the dashboard
  * @param {string} userId
  * @returns {Promise<{totalStudied: number, accuracy: number, cardsDue: number, streak: number}>}
@@ -264,6 +289,9 @@ async function updateDashboard() {
         document.getElementById('accuracy-rate').textContent = userStats.accuracy + '%';
         document.getElementById('cards-due').textContent = userStats.cardsDue;
         document.getElementById('study-streak').textContent = userStats.streak;
+        // Check if user is admin and show admin link
+        await checkAndShowAdminNav(user.id);
+        
         // Update subject progress
         const list = document.getElementById('subject-progress-list');
         list.innerHTML = '';

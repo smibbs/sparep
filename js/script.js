@@ -2,9 +2,34 @@
 import { RATING, calculateNextReview, updateStability, updateDifficulty } from './fsrs.js';
 import database from './database.js';
 import auth from './auth.js';
+import SessionManager from './sessionManager.js';
 
 // Use global Supabase client
 const supabase = window.supabaseClient;
+
+/**
+ * Check if user is admin and show admin navigation link
+ * @param {string} userId
+ */
+async function checkAndShowAdminNav(userId) {
+    try {
+        const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('user_tier, is_admin')
+            .eq('id', userId)
+            .single();
+
+        if (!error && profile && (profile.user_tier === 'admin' || profile.is_admin === true)) {
+            const adminNavLink = document.getElementById('admin-nav-link');
+            if (adminNavLink) {
+                adminNavLink.classList.remove('hidden');
+            }
+        }
+    } catch (error) {
+        console.log('Could not check admin status:', error);
+        // Silently fail - admin link stays hidden
+    }
+}
 
 /**
  * Gets the base URL for the application
@@ -32,19 +57,18 @@ function redirectToLogin() {
 
 // Initialize app state
 const appState = {
-    currentCardIndex: 0,
-    cards: [],
+    currentCard: null,
+    cardStartTime: null,
+    sessionReviewedCount: 0, // Track cards reviewed in this session
     totalCards: 0,
     isLoading: true,
     user: null,
     dbService: database,  // Use the default database instance
     authService: auth,    // Use the default auth instance
-    currentCard: null,
-    cardStartTime: null,
-    sessionReviewedCount: 0, // Track cards reviewed in this session
-    sessionTotal: 0,         // Total cards in this session
+    sessionManager: new SessionManager(), // Session management
     isCompleted: false,      // Track if session is completed
-    cardInnerClickHandler: null // Store reference to card-inner click handler
+    cardInnerClickHandler: null, // Store reference to card-inner click handler
+    forceNewSession: false // Flag to force new session creation
 };
 
 /**
@@ -183,14 +207,31 @@ function hideLoading() {
 /**
  * Updates the progress indicator with current card position
  */
-function updateProgress() {
-    const currentCardElement = document.getElementById('current-card');
-    const totalCardsElement = document.getElementById('total-cards');
+async function updateProgress() {
+    const progressBar = document.getElementById('progress-bar');
+    const progressFill = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
     
-    if (currentCardElement && totalCardsElement) {
-        // Show session progress: Card X of Y
-        currentCardElement.textContent = appState.sessionReviewedCount + 1;
-        totalCardsElement.textContent = appState.sessionTotal;
+    if (progressBar && progressFill && progressText) {
+        try {
+            // Get session progress
+            const sessionProgress = appState.sessionManager.getProgress();
+            
+            // Show progress bar for all users based on session completion
+            const percentage = sessionProgress.percentage;
+            
+            progressFill.style.width = percentage + '%';
+            progressBar.classList.remove('hidden');
+            progressText.classList.add('hidden');
+        } catch (error) {
+            // Fallback to simple display if error getting session progress
+            const sessionProgress = appState.sessionManager.getProgress();
+            const percentage = sessionProgress.percentage || 0;
+            
+            progressFill.style.width = percentage + '%';
+            progressBar.classList.remove('hidden');
+            progressText.classList.add('hidden');
+        }
     }
 }
 
@@ -198,19 +239,13 @@ function updateProgress() {
  * Display the current card
  */
 function displayCurrentCard() {
-    if (!appState.cards || appState.cards.length === 0) {
-        showError('No cards available for review.');
-        return;
-    }
-    // If session is complete, show completion message
-    if (appState.sessionReviewedCount >= appState.sessionTotal) {
-        showNoMoreCardsMessage();
+    if (!appState.currentCard) {
+        showError('No card available for review.');
         return;
     }
 
-    const currentCard = appState.cards[appState.currentCardIndex];
+    const currentCard = appState.currentCard;
     // Displaying card
-    appState.currentCard = currentCard; // Store current card in state
     appState.cardStartTime = Date.now(); // Track when the card was shown
     
     // Robust check for card data
@@ -221,8 +256,9 @@ function displayCurrentCard() {
 
     const cardFront = document.querySelector('.card-front');
     const cardBack = document.querySelector('.card-back');
+    const card = document.querySelector('.card');
     
-    if (!cardFront || !cardBack) {
+    if (!cardFront || !cardBack || !card) {
         // Card elements not found
         return;
     }
@@ -236,13 +272,14 @@ function displayCurrentCard() {
     }
 
     // Reset card to front face and show rating buttons
-    const card = document.querySelector('.card');
     if (card) {
         card.classList.remove('revealed');
     }
 
     // Update progress display
-    updateProgress();
+    updateProgress().catch(error => {
+        console.warn('Failed to update progress:', error);
+    });
 
     // Enable rating buttons
     const ratingButtons = document.querySelectorAll('.rating-button');
@@ -288,6 +325,130 @@ function displayCurrentCard() {
 }
 
 /**
+ * Handle session completion - submit batch and show appropriate UI
+ */
+async function handleSessionComplete() {
+    try {
+        // Start loading state for batch submission
+        await transitionToState('loading');
+        
+        const loadingText = document.querySelector('.loading-text');
+        if (loadingText) {
+            loadingText.textContent = 'Saving your progress...';
+        }
+
+        // Submit batch to database
+        const sessionData = appState.sessionManager.getSessionData();
+        await appState.dbService.submitBatchReviews(sessionData);
+        
+        // Clear the session
+        appState.sessionManager.clearSession();
+        
+        // Show completion UI
+        showContent(true);
+        await showSessionCompleteMessage();
+        
+    } catch (error) {
+        console.error('Failed to submit session:', error);
+        showError('Failed to save your progress. Please try again.');
+    }
+}
+
+/**
+ * Show session completion message with tier-specific options
+ */
+async function showSessionCompleteMessage() {
+    const frontContent = document.querySelector('.card-front p');
+    const backContent = document.querySelector('.card-back p');
+    const flipButton = document.getElementById('flip-button');
+    const ratingButtons = document.getElementById('rating-buttons');
+    const progressContainer = document.querySelector('.progress-container');
+    const cardInner = document.querySelector('.card-inner');
+    const card = document.querySelector('.card');
+    
+    // Set completion state
+    appState.isCompleted = true;
+    
+    // Ensure card is showing the front face
+    if (card) {
+        card.classList.remove('revealed');
+    }
+    
+    // Remove click event listener from card-inner
+    if (cardInner && appState.cardInnerClickHandler) {
+        cardInner.style.cursor = 'default';
+        cardInner.removeEventListener('click', appState.cardInnerClickHandler);
+    }
+    
+    // Get user tier to show appropriate message
+    try {
+        const userProfile = await appState.authService.getUserProfile(true);
+        const userTier = userProfile?.user_tier || 'free';
+        
+        if (frontContent) {
+            if (userTier === 'free') {
+                // Free users - show limit reached
+                frontContent.innerHTML = `
+                    <div class="session-complete-message">
+                        <h2>Session Complete! 🎉</h2>
+                        <p>You've completed your 20-card session.</p>
+                        <p>Your daily review limit has been reached.</p>
+                        <p>Come back tomorrow for more cards!</p>
+                    </div>
+                `;
+            } else {
+                // Paid users - offer new session
+                frontContent.innerHTML = `
+                    <div class="session-complete-message">
+                        <h2>Session Complete! 🎉</h2>
+                        <p>You've completed 20 cards in this session.</p>
+                        <div class="session-actions">
+                            <button id="new-session-button" class="nav-button">Start New Session</button>
+                        </div>
+                    </div>
+                `;
+                
+                // Add event listener for new session button
+                const newSessionButton = document.getElementById('new-session-button');
+                if (newSessionButton) {
+                    newSessionButton.addEventListener('click', async () => {
+                        // Force a new session (don't load from storage)
+                        appState.forceNewSession = true;
+                        await loadSession();
+                    });
+                }
+            }
+        }
+    } catch (error) {
+        // Fallback message
+        if (frontContent) {
+            frontContent.innerHTML = `
+                <div class="session-complete-message">
+                    <h2>Session Complete! 🎉</h2>
+                    <p>You've completed your study session.</p>
+                </div>
+            `;
+        }
+    }
+    
+    if (backContent) {
+        backContent.textContent = '';
+    }
+    
+    if (flipButton) {
+        flipButton.classList.add('hidden');
+    }
+    
+    if (ratingButtons) {
+        ratingButtons.classList.add('hidden');
+    }
+    
+    if (progressContainer) {
+        progressContainer.classList.add('hidden');
+    }
+}
+
+/**
  * Get formatted progress information for a card
  * @param {Object} card - The card object with progress data
  * @returns {string} HTML string with progress information
@@ -315,9 +476,9 @@ function getProgressInfo(card) {
 }
 
 /**
- * Load cards from the database
+ * Initialize or load a session
  */
-async function loadCards() {
+async function loadSession() {
     try {
         if (!appState.user) {
             throw new Error('No user found');
@@ -326,22 +487,38 @@ async function loadCards() {
         // Start loading state
         await transitionToState('loading');
         
-        // Update loading message to be more specific
+        // Update loading message
         const loadingText = document.querySelector('.loading-text');
         if (loadingText) {
             loadingText.textContent = 'Preparing your study session...';
         }
 
+        // Try to load existing session from storage first (only if not explicitly starting new)
+        if (!appState.forceNewSession && appState.sessionManager.loadSession()) {
+            // Session loaded from storage, get current card
+            appState.currentCard = appState.sessionManager.getCurrentCard();
+            
+            if (appState.currentCard) {
+                displayCurrentCard();
+                await transitionToState('content');
+                return;
+            }
+            
+            // If no current card but session exists, check if complete
+            if (appState.sessionManager.isSessionComplete()) {
+                await handleSessionComplete();
+                return;
+            }
+        }
+        
+        // Clear force new session flag
+        appState.forceNewSession = false;
+
         // Initialize progress for new user if needed
         await appState.dbService.initializeUserProgress(appState.user.id);
         
-        // Update loading message
-        if (loadingText) {
-            loadingText.textContent = 'Loading your flashcards...';
-        }
-
-        // First check daily limit for free users
-        const userProfile = await appState.authService.getUserProfile(true); // Force refresh
+        // Check daily limit for free users before starting new session
+        const userProfile = await appState.authService.getUserProfile(true);
         const userTier = userProfile?.user_tier || 'free';
         
         if (userTier === 'free') {
@@ -364,23 +541,34 @@ async function loadCards() {
             }
         }
 
-        // Get due cards for the user (temporarily using old method)
-        const cards = await appState.dbService.getCardsDue(appState.user.id);
+        // Initialize new session with 20 cards
+        if (loadingText) {
+            loadingText.textContent = 'Loading your flashcards...';
+        }
         
-        if (!cards || cards.length === 0) {
-            // Show completion card instead of error message
+        try {
+            await appState.sessionManager.initializeSession(appState.user.id, appState.dbService);
+        } catch (error) {
+            if (error.message.includes('No cards available')) {
+                showContent(true);
+                showNoMoreCardsMessage();
+                return;
+            }
+            throw error; // Re-throw other errors
+        }
+        
+        // Get the first card
+        appState.currentCard = appState.sessionManager.getCurrentCard();
+        
+        if (!appState.currentCard) {
             showContent(true);
             showNoMoreCardsMessage();
             return;
         }
 
-        appState.cards = cards;
-        appState.currentCardIndex = 0;
-        appState.sessionReviewedCount = 0;
-        appState.sessionTotal = cards.length;
-        appState.isCompleted = false; // Reset completion state for new session
+        appState.isCompleted = false;
         
-        // Display the first card
+        // Display the card
         displayCurrentCard();
         
         // Transition to content
@@ -391,22 +579,6 @@ async function loadCards() {
     }
 }
 
-/**
- * Renders the current card's content
- */
-function renderCard() {
-    const currentQuestion = appState.cards[appState.currentCardIndex];
-    if (!currentQuestion) return;
-
-    const frontElement = document.querySelector('.card-front');
-    const backElement = document.querySelector('.card-back');
-
-    if (frontElement && backElement) {
-        frontElement.textContent = currentQuestion.question;
-        backElement.textContent = currentQuestion.answer;
-        updateProgress();
-    }
-}
 
 // DOM Elements
 const flipButton = document.getElementById('flip-button');
@@ -440,6 +612,9 @@ async function initializeApp() {
         // Store user in app state
         appState.user = user;
 
+        // Check if user is admin and show admin link
+        await checkAndShowAdminNav(user.id);
+
         // Set up auth state change listener
         auth.onAuthStateChange((user) => {
             appState.user = user;
@@ -451,8 +626,8 @@ async function initializeApp() {
         // Set up event listeners first
         setupEventListeners();
         
-        // Load cards (this will handle its own state transitions)
-        await loadCards();
+        // Load session (this will handle its own state transitions)
+        await loadSession();
         
     } catch (error) {
         showError(error.message || 'Failed to start your study session');
@@ -497,7 +672,7 @@ function setupEventListeners() {
     }
     // Add retry and logout handlers
     if (retryButton) {
-        retryButton.addEventListener('click', loadCards);
+        retryButton.addEventListener('click', loadSession);
     }
     if (logoutButton) {
         logoutButton.addEventListener('click', () => auth.signOut());
@@ -580,46 +755,26 @@ async function handleRating(event) {
             Date.now() - appState.cardStartTime : // Keep in milliseconds
             null;
 
-        // Only pass minimal data; FSRS logic is now in database.js
-        await appState.dbService.recordReview({
-            card_id: cardId,
-            rating,
-            responseTime
-        });
+        // Record the rating in the session manager (local cache)
+        appState.sessionManager.recordRating(rating, responseTime);
 
         // Increment session reviewed count
         appState.sessionReviewedCount++;
         
-        // Check daily limit after each review for free users
-        const userProfile = await appState.authService.getUserProfile(true); // Force refresh
-        const userTier = userProfile?.user_tier || 'free';
-        
-        if (userTier === 'free') {
-            const today = new Date().toDateString();
-            const lastReviewDate = userProfile?.last_review_date ? 
-                new Date(userProfile.last_review_date).toDateString() : null;
-            
-            const reviewsToday = (lastReviewDate === today) ? 
-                (userProfile.reviews_today || 0) : 0;
-            
-            if (reviewsToday >= 20) {
-                // Daily limit reached, stop the session
-                showDailyLimitMessage({ 
-                    limitReached: true, 
-                    tier: 'free', 
-                    reviewsToday, 
-                    limit: 20 
-                });
-                return;
-            }
+        // Check if session is complete
+        if (appState.sessionManager.isSessionComplete()) {
+            await handleSessionComplete();
+            return;
         }
         
-        // Move to next card or show completion
-        appState.currentCardIndex++;
-        if (appState.currentCardIndex >= appState.cards.length) {
-            showNoMoreCardsMessage();
-        } else {
+        // Get the next card from the session
+        appState.currentCard = appState.sessionManager.getCurrentCard();
+        
+        if (appState.currentCard) {
             displayCurrentCard();
+        } else {
+            // This shouldn't happen if session isn't complete
+            showError('No more cards available in session');
         }
 
         // Re-enable rating buttons
@@ -651,6 +806,7 @@ function showNoMoreCardsMessage() {
     const frontContent = document.querySelector('.card-front p');
     const backContent = document.querySelector('.card-back p');
     const flipButton = document.getElementById('flip-button');
+    const flagButton = document.getElementById('flag-button');
     const ratingButtons = document.getElementById('rating-buttons');
     const progressDiv = document.querySelector('.progress');
     const cardInner = document.querySelector('.card-inner');
@@ -673,8 +829,8 @@ function showNoMoreCardsMessage() {
     if (frontContent) {
         frontContent.innerHTML = `
             <div class="no-cards-message">
-                <h2>Great job! 🎉</h2>
-                <p>You've completed all your reviews for now.</p>
+                <h2>No Cards Available</h2>
+                <p>No cards are available for review right now.</p>
                 <p>Come back later for more cards.</p>
             </div>
         `;
@@ -686,6 +842,10 @@ function showNoMoreCardsMessage() {
     
     if (flipButton) {
         flipButton.classList.add('hidden');
+    }
+    
+    if (flagButton) {
+        flagButton.classList.add('hidden');
     }
     
     if (ratingButtons) {

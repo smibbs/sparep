@@ -71,7 +71,7 @@ class DatabaseService {
             }
             // User tier and limits checked
 
-            // First try to get a card that's due for review
+            // Get the next card for review (closest next_review_date first)
             // Build card filter based on user tier
             let cardFilter = `
                 card_id,
@@ -89,8 +89,7 @@ class DatabaseService {
             let query = supabase
                 .from('user_card_progress')
                 .select(cardFilter)
-                .eq('user_id', user.id)
-                .lte('next_review_date', new Date().toISOString());
+                .eq('user_id', user.id);
                 
             // Filter out flagged cards for non-admin users
             if (userTier !== 'admin') {
@@ -108,16 +107,16 @@ class DatabaseService {
 
             // Due cards found
 
-            // If we found a due card, return it
+            // If we found a card, return it
             if (dueCards && dueCards.length > 0) {
-                const dueCard = dueCards[0];
-                // Returning due card
+                const card = dueCards[0];
+                // Returning card with closest next_review_date
                 return {
-                    id: dueCard.card_id,
-                    question: dueCard.cards.question,
-                    answer: dueCard.cards.answer,
-                    stability: dueCard.stability,
-                    difficulty: dueCard.difficulty
+                    id: card.card_id,
+                    question: card.cards.question,
+                    answer: card.cards.answer,
+                    stability: card.stability,
+                    difficulty: card.difficulty
                 };
             }
 
@@ -207,7 +206,17 @@ class DatabaseService {
             const currentDifficulty = currentProgress?.difficulty || 5.0;
             const newStability = updateStability(currentStability, rating);
             const newDifficulty = updateDifficulty(currentDifficulty, rating);
-            const { nextReviewDate } = calculateNextReview(newStability, newDifficulty, rating);
+            
+            // Special handling for "again" rating - schedule for 10 minutes later
+            let nextReviewDate;
+            if (rating === 1) {
+                // Schedule "again" cards for exactly 10 minutes from now
+                nextReviewDate = new Date(Date.now() + 10 * 60 * 1000);
+            } else {
+                // Normal FSRS scheduling for rating 2-4
+                const reviewResult = calculateNextReview(newStability, newDifficulty, rating);
+                nextReviewDate = reviewResult.nextReviewDate;
+            }
 
             // State transition logic
             const currentState = currentProgress?.state || 'new';
@@ -276,14 +285,16 @@ class DatabaseService {
                 throw reviewError;
             }
 
-            // Increment daily review count using the database function
-            const { error: incrementError } = await supabase.rpc('increment_daily_reviews', {
-                user_id: user.id
-            });
+            // Only increment daily review count for completed reviews (rating >= 2)
+            if (rating >= 2) {
+                const { error: incrementError } = await supabase.rpc('increment_daily_reviews', {
+                    user_id: user.id
+                });
 
-            if (incrementError) {
-                // Error incrementing daily review count - not critical, continue
-                console.warn('Failed to increment daily review count:', incrementError);
+                if (incrementError) {
+                    // Error incrementing daily review count - not critical, continue
+                    console.warn('Failed to increment daily review count:', incrementError);
+                }
             }
 
         } catch (error) {
@@ -295,6 +306,75 @@ class DatabaseService {
                 throw new Error('You are not logged in. Please sign in again.');
             }
             // Error in recordReview
+            throw error;
+        }
+    }
+
+    /**
+     * Gets the next single card due for review for a specific user
+     * @param {string} userId - The user's ID
+     * @returns {Promise<Object|null>} Next due card or null if none available
+     */
+    async getNextDueCard(userId) {
+        try {
+            const supabase = await this.getSupabase();
+            const now = new Date();
+            const nowISOString = now.toISOString();
+
+            // Get user tier to determine card filtering
+            const { data: userProfile, error: profileError } = await supabase
+                .from('user_profiles')
+                .select('user_tier')
+                .eq('id', userId)
+                .single();
+
+            const userTier = userProfile?.user_tier || 'free';
+
+            // Build select query with card filtering based on user tier
+            let cardSelect = `
+                *,
+                cards!inner (
+                    id,
+                    question,
+                    answer,
+                    subject_id,
+                    subsection,
+                    flagged_for_review
+                )
+            `;
+
+            // Get the next card (ordered by next_review_date, closest first)
+            let dueQuery = supabase
+                .from('user_card_progress')
+                .select(cardSelect)
+                .eq('user_id', userId);
+
+            // Filter out flagged cards for non-admin users
+            if (userTier !== 'admin') {
+                dueQuery = dueQuery.eq('cards.flagged_for_review', false);
+            }
+
+            const { data: dueCards, error: dueError } = await dueQuery
+                .order('next_review_date', { ascending: true })
+                .limit(1);
+
+            if (dueError) throw dueError;
+
+            if (dueCards && dueCards.length > 0) {
+                return dueCards[0];
+            }
+
+            // If no due cards, try to get a new card
+            const newCards = await this.getNewCards(userId, 1, userTier);
+            return newCards && newCards.length > 0 ? {
+                card_id: newCards[0].id,
+                cards: newCards[0],
+                stability: 1.0,
+                difficulty: 5.0,
+                state: 'new',
+                total_reviews: 0
+            } : null;
+        } catch (error) {
             throw error;
         }
     }
@@ -332,12 +412,11 @@ class DatabaseService {
                 )
             `;
 
-            // 1. Get due cards
+            // 1. Get all cards ordered by next_review_date (closest first)
             let dueQuery = supabase
                 .from('user_card_progress')
                 .select(cardSelect)
-                .eq('user_id', userId)
-                .lte('next_review_date', nowISOString);
+                .eq('user_id', userId);
 
             // Filter out flagged cards for non-admin users
             if (userTier !== 'admin') {
@@ -693,6 +772,159 @@ class DatabaseService {
             return data?.flagged_for_review && data?.flagged_by === user.id;
         } catch (error) {
             return false;
+        }
+    }
+
+    /**
+     * Submit a batch of session ratings to the database
+     * @param {Object} sessionData - Complete session data with ratings
+     * @returns {Promise<boolean>} Success status
+     */
+    async submitBatchReviews(sessionData) {
+        try {
+            const supabase = await this.getSupabase();
+            const user = (await supabase.auth.getUser()).data.user;
+            
+            if (!user || !user.id) {
+                throw new Error('User not authenticated');
+            }
+
+            if (!sessionData || !sessionData.ratings) {
+                throw new Error('Invalid session data');
+            }
+
+            // Prepare all review records and progress updates
+            const reviewRecords = [];
+            const progressUpdates = [];
+            let completedCardCount = 0;
+            const now = new Date().toISOString();
+
+            // Process each card's ratings
+            for (const [cardId, ratings] of Object.entries(sessionData.ratings)) {
+                if (!ratings || ratings.length === 0) continue;
+
+                // Get the final rating (last rating >= 2, or last rating if all are 1)
+                const completingRating = ratings.reverse().find(r => r.rating >= 2) || ratings[0];
+                const allRatings = ratings.reverse(); // Restore original order
+                
+                // Find the current progress for this card
+                const cardInSession = sessionData.cards.find(c => c.card_id === cardId);
+                if (!cardInSession) continue;
+
+                // Use existing progress or defaults for new cards
+                const currentStability = cardInSession.stability || 1.0;
+                const currentDifficulty = cardInSession.difficulty || 5.0;
+                const currentState = cardInSession.state || 'new';
+
+                // Calculate FSRS values for the final rating
+                const newStability = updateStability(currentStability, completingRating.rating);
+                const newDifficulty = updateDifficulty(currentDifficulty, completingRating.rating);
+                
+                let nextReviewDate;
+                if (completingRating.rating === 1) {
+                    // If final rating is still "again", schedule for 10 minutes
+                    nextReviewDate = new Date(Date.now() + 10 * 60 * 1000);
+                } else {
+                    // Normal FSRS scheduling
+                    const reviewResult = calculateNextReview(newStability, newDifficulty, completingRating.rating);
+                    nextReviewDate = reviewResult.nextReviewDate;
+                }
+
+                // Determine next state
+                let nextState = currentState;
+                if (currentState === 'new') {
+                    nextState = completingRating.rating >= 3 ? 'review' : 'learning';
+                } else if (currentState === 'learning') {
+                    nextState = completingRating.rating >= 3 ? 'review' : 'learning';
+                } else if (currentState === 'review') {
+                    nextState = completingRating.rating === 1 ? 'learning' : 'review';
+                }
+
+                // Count total reviews (all ratings) and correct reviews (ratings >= 3)
+                const totalReviews = allRatings.length;
+                const correctReviews = allRatings.filter(r => r.rating >= 3).length;
+                const incorrectReviews = allRatings.filter(r => r.rating < 3).length;
+                const lapses = allRatings.filter(r => r.rating === 1).length;
+
+                // Update progress record
+                progressUpdates.push({
+                    user_id: user.id,
+                    card_id: cardId,
+                    stability: newStability,
+                    difficulty: newDifficulty,
+                    due_date: nextReviewDate.toISOString(),
+                    last_review_date: now,
+                    next_review_date: nextReviewDate.toISOString(),
+                    reps: (cardInSession.reps || 0) + totalReviews,
+                    total_reviews: (cardInSession.total_reviews || 0) + totalReviews,
+                    correct_reviews: (cardInSession.correct_reviews || 0) + correctReviews,
+                    incorrect_reviews: (cardInSession.incorrect_reviews || 0) + incorrectReviews,
+                    average_time_ms: completingRating.responseTime,
+                    state: nextState,
+                    last_rating: completingRating.rating,
+                    lapses: (cardInSession.lapses || 0) + lapses,
+                    elapsed_days: 0,
+                    scheduled_days: Math.ceil((new Date(nextReviewDate) - new Date(now)) / (1000 * 60 * 60 * 24)),
+                    updated_at: now
+                });
+
+                // Add review history records for each rating
+                for (const rating of allRatings) {
+                    reviewRecords.push({
+                        user_id: user.id,
+                        card_id: cardId,
+                        rating: rating.rating,
+                        response_time_ms: rating.responseTime,
+                        stability_before: currentStability,
+                        difficulty_before: currentDifficulty,
+                        elapsed_days: 0,
+                        scheduled_days: 0,
+                        stability_after: newStability,
+                        difficulty_after: newDifficulty,
+                        state_before: currentState,
+                        state_after: nextState,
+                        created_at: rating.timestamp
+                    });
+                }
+
+                // Count completed cards (those with final rating >= 2)
+                if (completingRating.rating >= 2) {
+                    completedCardCount++;
+                }
+            }
+
+            // Execute batch updates in a transaction
+            const { error: progressError } = await supabase
+                .from('user_card_progress')
+                .upsert(progressUpdates, { onConflict: 'user_id,card_id' });
+
+            if (progressError) throw progressError;
+
+            // Insert review history records
+            if (reviewRecords.length > 0) {
+                const { error: reviewError } = await supabase
+                    .from('review_history')
+                    .insert(reviewRecords);
+
+                if (reviewError) throw reviewError;
+            }
+
+            // Update daily review count (only for completed cards)
+            if (completedCardCount > 0) {
+                for (let i = 0; i < completedCardCount; i++) {
+                    const { error: incrementError } = await supabase.rpc('increment_daily_reviews', {
+                        user_id: user.id
+                    });
+                    if (incrementError) {
+                        console.warn('Failed to increment daily review count:', incrementError);
+                    }
+                }
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error submitting batch reviews:', error);
+            throw error;
         }
     }
 }
