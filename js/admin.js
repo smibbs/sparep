@@ -581,6 +581,10 @@ class AdminService {
             this.loadDifficultyAnalytics();
         });
 
+        document.getElementById('apply-flagged-filters')?.addEventListener('click', () => {
+            this.loadFlaggedCardsAnalytics();
+        });
+
         document.getElementById('export-csv')?.addEventListener('click', () => {
             this.exportAnalyticsData();
         });
@@ -951,6 +955,9 @@ class AdminService {
             case 'difficulty':
                 this.loadDifficultyAnalytics();
                 break;
+            case 'flagged':
+                this.loadFlaggedCardsAnalytics();
+                break;
         }
     }
 
@@ -1238,6 +1245,152 @@ class AdminService {
         }
     }
 
+    async loadFlaggedCardsAnalytics() {
+        try {
+            const supabase = await this.getSupabase();
+            const reasonFilter = document.getElementById('flag-reason-filter')?.value || null;
+            const statusFilter = document.getElementById('flag-status-filter')?.value || null;
+
+            console.log('Loading flagged cards analytics...', { reasonFilter, statusFilter });
+
+            // Build the query for flagged cards analytics
+            let query = supabase
+                .from('user_card_flags')
+                .select(`
+                    id, reason, comment, created_at, resolved_at, resolution_action,
+                    card_id, user_id,
+                    cards!inner(id, question, answer, subject_id, subjects!inner(name))
+                `);
+
+            // Apply filters
+            if (reasonFilter) {
+                query = query.eq('reason', reasonFilter);
+            }
+            
+            if (statusFilter === 'resolved') {
+                query = query.not('resolved_at', 'is', null);
+            } else if (statusFilter === 'unresolved') {
+                query = query.is('resolved_at', null);
+            }
+
+            const { data: flaggedData, error } = await query
+                .order('created_at', { ascending: false })
+                .limit(100);
+
+            console.log('Flagged cards result:', { data: flaggedData, error });
+
+            if (error) throw error;
+
+            // Process data for analytics
+            const processedData = this.processFlaggedCardsData(flaggedData || []);
+            
+            // Update summary statistics
+            this.updateFlaggedCardsSummary(flaggedData || []);
+
+            // Reset sort state for new data
+            this.currentSortColumn = null;
+            this.sortDirection = null;
+            this.originalData = null;
+
+            // Render the analytics table
+            this.renderAnalyticsTable('flagged-cards-analytics', processedData, [
+                { key: 'question', label: 'Question', className: 'card-question' },
+                { key: 'subject_name', label: 'Subject' },
+                { key: 'flag_count', label: 'Total Flags' },
+                { key: 'reasons', label: 'Flag Reasons' },
+                { key: 'latest_flag_date', label: 'Latest Flag', formatter: (val) => val ? new Date(val).toLocaleDateString() : '-' },
+                { key: 'resolved_count', label: 'Resolved' },
+                { key: 'unresolved_count', label: 'Unresolved' },
+                { key: 'status', label: 'Status', formatter: this.formatFlagStatus }
+            ]);
+
+        } catch (error) {
+            console.error('Error loading flagged cards analytics:', error);
+            document.getElementById('flagged-cards-analytics').innerHTML = `<p class="text-muted">Error loading flagged cards data: ${error.message}</p>`;
+        }
+    }
+
+    processFlaggedCardsData(flaggedData) {
+        // Group flags by card
+        const cardMap = new Map();
+        
+        flaggedData.forEach(flag => {
+            const cardId = flag.card_id;
+            
+            if (!cardMap.has(cardId)) {
+                cardMap.set(cardId, {
+                    card_id: cardId,
+                    question: flag.cards.question,
+                    answer: flag.cards.answer,
+                    subject_name: flag.cards.subjects.name,
+                    flags: [],
+                    flag_count: 0,
+                    resolved_count: 0,
+                    unresolved_count: 0,
+                    reasons: new Set(),
+                    latest_flag_date: null
+                });
+            }
+            
+            const card = cardMap.get(cardId);
+            card.flags.push(flag);
+            card.flag_count++;
+            
+            if (flag.resolved_at) {
+                card.resolved_count++;
+            } else {
+                card.unresolved_count++;
+            }
+            
+            card.reasons.add(flag.reason);
+            
+            if (!card.latest_flag_date || new Date(flag.created_at) > new Date(card.latest_flag_date)) {
+                card.latest_flag_date = flag.created_at;
+            }
+        });
+        
+        // Convert to array and format
+        return Array.from(cardMap.values()).map(card => ({
+            ...card,
+            reasons: Array.from(card.reasons).join(', '),
+            status: card.unresolved_count > 0 ? 'Has Unresolved' : 'All Resolved'
+        })).sort((a, b) => b.flag_count - a.flag_count); // Sort by flag count desc
+    }
+
+    updateFlaggedCardsSummary(flaggedData) {
+        const totalFlags = flaggedData.length;
+        const unresolvedFlags = flaggedData.filter(flag => !flag.resolved_at).length;
+        const resolvedFlags = totalFlags - unresolvedFlags;
+        const resolutionRate = totalFlags > 0 ? Math.round((resolvedFlags / totalFlags) * 100) : 0;
+        
+        // Count reasons
+        const reasonCounts = {};
+        flaggedData.forEach(flag => {
+            reasonCounts[flag.reason] = (reasonCounts[flag.reason] || 0) + 1;
+        });
+        
+        const mostCommonReason = Object.keys(reasonCounts).length > 0 
+            ? Object.keys(reasonCounts).reduce((a, b) => reasonCounts[a] > reasonCounts[b] ? a : b)
+            : 'None';
+        
+        // Update DOM elements
+        document.getElementById('total-flagged-count').textContent = totalFlags;
+        document.getElementById('unresolved-flagged-count').textContent = unresolvedFlags;
+        document.getElementById('most-common-reason').textContent = mostCommonReason;
+        document.getElementById('resolution-rate').textContent = `${resolutionRate}%`;
+    }
+
+    formatFlagStatus(status) {
+        const statusColors = {
+            'Has Unresolved': 'color: #dc3545; font-weight: bold;',
+            'All Resolved': 'color: #28a745;'
+        };
+        
+        return {
+            html: `<span style="${statusColors[status] || ''}">${status}</span>`
+        };
+    }
+
     // Sorting functionality
     getSortValue(row, column) {
         let value = row[column.key];
@@ -1246,6 +1399,9 @@ class AdminService {
         switch (column.key) {
             case 'total_reviews':
             case 'failed_attempts_before_good':
+            case 'flag_count':
+            case 'resolved_count':
+            case 'unresolved_count':
                 return typeof value === 'number' ? value : 0;
                 
             case 'again_percentage':
@@ -1257,8 +1413,13 @@ class AdminService {
             case 'problem_score':
                 return typeof value === 'number' ? value : (value === '-' ? -1 : 0);
                 
+            case 'latest_flag_date':
+                return value ? new Date(value).getTime() : 0;
+                
             case 'question':
             case 'subject_name':
+            case 'reasons':
+            case 'status':
                 return (value || '').toString().toLowerCase();
                 
             default:
