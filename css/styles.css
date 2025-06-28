@@ -46,9 +46,34 @@ body {
 }
 
 /* Progress indicator */
-.progress {
-    text-align: center;
+.progress-container {
     margin-bottom: 24px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.progress-bar {
+    width: 100%;
+    max-width: 300px;
+    height: 6px;
+    background-color: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: #007AFF;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.progress-text {
+    text-align: center;
     font-size: 1rem;
     color: #5a6c7d;
     font-weight: 500;
@@ -254,9 +279,18 @@ body {
         border-radius: 14px;
     }
 
-    .progress {
-        font-size: 0.8125rem;
+    .progress-container {
         margin-bottom: 20px;
+        height: 18px;
+    }
+    
+    .progress-bar {
+        max-width: 280px;
+        height: 5px;
+    }
+    
+    .progress-text {
+        font-size: 0.8125rem;
     }
 }
 
@@ -540,24 +574,38 @@ body {
 
 /* Daily limit and completion messages */
 .daily-limit-message,
-.no-cards-message {
+.no-cards-message,
+.session-complete-message {
     text-align: center;
     padding: 40px 20px;
     color: #2c3e50;
 }
 
 .daily-limit-message h2,
-.no-cards-message h2 {
+.no-cards-message h2,
+.session-complete-message h2 {
     margin: 0 0 20px 0;
     font-size: 28px;
     font-weight: 600;
 }
 
 .daily-limit-message p,
-.no-cards-message p {
+.no-cards-message p,
+.session-complete-message p {
     margin: 0 0 15px 0;
     font-size: 16px;
     line-height: 1.5;
+}
+
+.session-actions {
+    margin-top: 30px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.session-actions button {
+    min-width: 180px;
 }
 
 .daily-limit-message .upgrade-info {
@@ -579,18 +627,31 @@ body {
 
 @media (max-width: 480px) {
     .daily-limit-message h2,
-    .no-cards-message h2 {
+    .no-cards-message h2,
+    .session-complete-message h2 {
         font-size: 24px;
     }
     
     .daily-limit-message p,
-    .no-cards-message p {
+    .no-cards-message p,
+    .session-complete-message p {
         font-size: 14px;
     }
     
     .daily-limit-message .upgrade-info {
         padding: 15px;
         margin-top: 20px;
+    }
+    
+    .session-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .session-actions button {
+        width: 100%;
+        max-width: 280px;
+        min-width: auto;
     }
 }
 

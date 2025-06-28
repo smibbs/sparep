@@ -11,6 +11,7 @@
         <div class="header-nav">
             <nav class="navigation">
                 <a href="dashboard.html" class="nav-button">Dashboard</a>
+                <a href="admin.html" id="admin-nav-link" class="nav-button hidden">Admin</a>
                 <button id="logout-button" class="nav-button">Sign Out</button>
             </nav>
         </div>
@@ -34,7 +35,12 @@
             </div>
         </div>
         <div id="content" class="content hidden">
-            <div class="progress">Card <span id="current-card">1</span> of <span id="total-cards">3</span></div>
+            <div class="progress-container">
+                <div class="progress-bar hidden" id="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-text hidden" id="progress-text">Card 1</div>
+            </div>
             <div class="card">
                 <div class="card-inner">
                     <div class="card-front">
@@ -106,7 +112,7 @@
     <script src="js/auth.js" type="module"></script>
     <script src="js/database.js" type="module"></script>
     <script src="js/fsrs.js" type="module"></script>
-    <script src="js/admin.js" type="module"></script>
+    <script src="js/sessionManager.js" type="module"></script>
     <script src="js/script.js" type="module"></script>
 </body>
 </html> 
