@@ -3,6 +3,12 @@ import { getSupabaseClient } from './supabase-client.js';
 class AdminService {
     constructor(autoInitialize = true) {
         this.supabasePromise = getSupabaseClient();
+        
+        // Sort state tracking
+        this.currentSortColumn = null;
+        this.sortDirection = null; // 'asc', 'desc', or null
+        this.originalData = null; // Store original unsorted data
+        
         if (autoInitialize) {
             this.initialize();
         }
@@ -1171,6 +1177,11 @@ class AdminService {
             { key: 'problem_score', label: 'Problem Score', className: 'problem-score', formatter: this.formatProblemScore }
         );
 
+        // Reset sort state for new data
+        this.currentSortColumn = null;
+        this.sortDirection = null;
+        this.originalData = null;
+        
         // Create problem cards table
         this.renderAnalyticsTable('problem-cards-list', analytics, columns);
 
@@ -1206,6 +1217,11 @@ class AdminService {
 
             if (error) throw error;
 
+            // Reset sort state for new data
+            this.currentSortColumn = null;
+            this.sortDirection = null;
+            this.originalData = null;
+
             this.renderAnalyticsTable('difficulty-analytics', difficultyData, [
                 { key: 'question', label: 'Question', className: 'card-question' },
                 { key: 'subject_name', label: 'Subject' },
@@ -1222,6 +1238,83 @@ class AdminService {
         }
     }
 
+    // Sorting functionality
+    getSortValue(row, column) {
+        let value = row[column.key];
+        
+        // Handle different data types
+        switch (column.key) {
+            case 'total_reviews':
+            case 'failed_attempts_before_good':
+                return typeof value === 'number' ? value : 0;
+                
+            case 'again_percentage':
+                return typeof value === 'number' ? value : 0;
+                
+            case 'relative_difficulty_score':
+                return typeof value === 'number' ? value : 0;
+                
+            case 'problem_score':
+                return typeof value === 'number' ? value : (value === '-' ? -1 : 0);
+                
+            case 'question':
+            case 'subject_name':
+                return (value || '').toString().toLowerCase();
+                
+            default:
+                return value || '';
+        }
+    }
+
+    sortTableData(data, column, direction) {
+        if (!data || !column) return data;
+        
+        return [...data].sort((a, b) => {
+            const valueA = this.getSortValue(a, column);
+            const valueB = this.getSortValue(b, column);
+            
+            let comparison = 0;
+            
+            if (typeof valueA === 'number' && typeof valueB === 'number') {
+                comparison = valueA - valueB;
+            } else {
+                comparison = valueA < valueB ? -1 : valueA > valueB ? 1 : 0;
+            }
+            
+            return direction === 'desc' ? -comparison : comparison;
+        });
+    }
+
+    handleColumnSort(containerId, data, columns, columnIndex) {
+        const column = columns[columnIndex];
+        
+        // Determine next sort direction
+        let newDirection;
+        if (this.currentSortColumn === column.key) {
+            // Cycling through: asc -> desc -> original -> asc
+            if (this.sortDirection === 'asc') {
+                newDirection = 'desc';
+            } else if (this.sortDirection === 'desc') {
+                newDirection = null; // Return to original
+            } else {
+                newDirection = 'asc';
+            }
+        } else {
+            newDirection = 'asc';
+        }
+        
+        this.currentSortColumn = newDirection ? column.key : null;
+        this.sortDirection = newDirection;
+        
+        // Sort the data
+        const sortedData = newDirection ? 
+            this.sortTableData(data, column, newDirection) : 
+            this.originalData || data;
+        
+        // Re-render the table
+        this.renderAnalyticsTable(containerId, sortedData, columns);
+    }
+
     renderAnalyticsTable(containerId, data, columns) {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -1231,15 +1324,45 @@ class AdminService {
             return;
         }
 
+        // Store original data for reset functionality
+        if (!this.originalData) {
+            this.originalData = [...data];
+        }
+
         const table = document.createElement('table');
         table.className = 'analytics-table';
 
         // Create header
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
-        columns.forEach(col => {
+        columns.forEach((col, index) => {
             const th = document.createElement('th');
-            th.textContent = col.label;
+            th.className = 'sortable';
+            
+            // Add column label
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = col.label;
+            th.appendChild(labelSpan);
+            
+            // Add sort arrow
+            const arrow = document.createElement('span');
+            arrow.className = 'sort-arrow';
+            
+            if (this.currentSortColumn === col.key) {
+                th.classList.add('sorted');
+                arrow.classList.add('active');
+                arrow.textContent = this.sortDirection === 'asc' ? '▲' : '▼';
+            } else {
+                arrow.textContent = '⚬'; // neutral indicator
+            }
+            
+            th.appendChild(arrow);
+            
+            // Add click handler
+            th.addEventListener('click', () => {
+                this.handleColumnSort(containerId, data, columns, index);
+            });
+            
             headerRow.appendChild(th);
         });
         thead.appendChild(headerRow);
