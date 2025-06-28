@@ -30,4 +30,29 @@ config.local.js
 .vscode/
 *.swp
 *.swo
-*~ 
+*~
+
+# Supabase temporary files
+supabase/.temp/
+supabase/temp/
+*.temp
+
+# Database and migration backup files
+migration/*.OLD
+*.bak
+*.backup
+
+# System files
+Thumbs.db
+Desktop.ini
+
+# Development and testing files
+coverage/
+.nyc_output/
+test-results/
+*.test.local.js
+
+# Lock files (optional - some prefer to commit these)
+# Uncomment if you don't want to track lock files:
+# package-lock.json
+# yarn.lock 
