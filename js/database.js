@@ -408,7 +408,10 @@ class DatabaseService {
                     answer,
                     subject_id,
                     subsection,
-                    flagged_for_review
+                    flagged_for_review,
+                    subjects!subject_id (
+                        name
+                    )
                 )
             `;
 
@@ -481,7 +484,12 @@ class DatabaseService {
             // Then get new cards
             let newCardsQuery = supabase
                 .from('cards')
-                .select('*');
+                .select(`
+                    *,
+                    subjects!subject_id (
+                        name
+                    )
+                `);
             if (seenCardIds.length > 0) {
                 newCardsQuery = newCardsQuery.not('id', 'in', `(${seenCardIds.join(',')})`);
             }

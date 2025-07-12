@@ -5,74 +5,111 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Flashcard App</title>
     <link rel="stylesheet" href="css/auth.css">
+    <link rel="stylesheet" href="css/onboarding.css">
     <!-- Include Supabase client library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config/supabase-config.js"></script>
     <script src="js/supabase-client.js" type="module"></script>
     <script src="js/auth.js" type="module"></script>
+    <script src="js/onboarding.js" type="module"></script>
 </head>
 <body>
-    <div class="auth-container">
-        <div class="auth-box">
-            <div class="auth-header">
-                <h1>Flashcard App</h1>
-                <div class="auth-tabs">
-                    <button class="tab-btn active" data-tab="login">Login</button>
-                    <button class="tab-btn" data-tab="register">Register</button>
-                </div>
-            </div>
+    <!-- Invisible scroll driver -->
+    <div class="scroll-driver"></div>
+    
+    <!-- Fixed split layout container -->
+    <div class="page-container">
+        <!-- Left side: Fixed login box -->
+        <div class="login-side">
+            <div class="auth-container">
+                <div class="auth-box">
+                    <div class="auth-header">
+                        <h1>Flashcard App</h1>
+                        <div class="auth-tabs">
+                            <button class="tab-btn active" data-tab="login">Login</button>
+                            <button class="tab-btn" data-tab="register">Register</button>
+                        </div>
+                    </div>
 
-            <!-- Login Form -->
-            <form id="loginForm" class="auth-form active">
-                <div class="form-group">
-                    <label for="loginEmail">Email</label>
-                    <input type="email" id="loginEmail" required>
-                </div>
-                <div class="form-group">
-                    <label for="loginPassword">Password</label>
-                    <input type="password" id="loginPassword" required>
-                </div>
-                <div class="form-group">
-                    <button type="submit" class="auth-button">Login</button>
-                </div>
-                <div class="form-message" id="loginMessage"></div>
-            </form>
+                    <!-- Login Form -->
+                    <form id="loginForm" class="auth-form active">
+                        <div class="form-group">
+                            <label for="loginEmail">Email</label>
+                            <input type="email" id="loginEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Password</label>
+                            <input type="password" id="loginPassword" required>
+                        </div>
+                        <div class="form-group">
+                            <button type="submit" class="auth-button">Login</button>
+                        </div>
+                        <div class="form-message" id="loginMessage"></div>
+                    </form>
 
-            <!-- Register Form -->
-            <form id="registerForm" class="auth-form">
-                <div class="form-group">
-                    <label for="registerEmail">Email</label>
-                    <input type="email" id="registerEmail" required>
-                </div>
-                <div class="form-group">
-                    <label for="registerPassword">Password</label>
-                    <input type="password" id="registerPassword" required 
-                           pattern="^(?=.*[A-Za-z])(?=.*\d).{8,}$"
-                           title="Password must be at least 8 characters long and contain at least one letter and one number">
-                </div>
-                <div class="form-group">
-                    <label for="confirmPassword">Confirm Password</label>
-                    <input type="password" id="confirmPassword" required>
-                </div>
-                <div class="form-group">
-                    <label for="displayName">Display Name</label>
-                    <input type="text" id="displayName" required>
-                </div>
-                <div class="form-group">
-                    <button type="submit" class="auth-button">Register</button>
-                </div>
-                <div class="form-message" id="registerMessage"></div>
-            </form>
+                    <!-- Register Form -->
+                    <form id="registerForm" class="auth-form">
+                        <div class="form-group">
+                            <label for="registerEmail">Email</label>
+                            <input type="email" id="registerEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="registerPassword">Password</label>
+                            <input type="password" id="registerPassword" required 
+                                   pattern="^(?=.*[A-Za-z])(?=.*\d).{8,}$"
+                                   title="Password must be at least 8 characters long and contain at least one letter and one number">
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirm Password</label>
+                            <input type="password" id="confirmPassword" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="displayName">Display Name</label>
+                            <input type="text" id="displayName" required>
+                        </div>
+                        <div class="form-group">
+                            <button type="submit" class="auth-button">Register</button>
+                        </div>
+                        <div class="form-message" id="registerMessage"></div>
+                    </form>
 
-            <!-- Loading Spinner -->
-            <div class="loading-spinner" id="loadingSpinner" style="display: none;">
-                <div class="spinner"></div>
+                    <!-- Loading Spinner -->
+                    <div class="loading-spinner" id="loadingSpinner" style="display: none;">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <!-- Password Reset Link -->
+                <div class="auth-footer">
+                    <a href="#" id="forgotPassword">Forgot Password?</a>
+                </div>
             </div>
         </div>
 
-        <!-- Password Reset Link -->
-        <div class="auth-footer">
-            <a href="#" id="forgotPassword">Forgot Password?</a>
+        <!-- Right side: Fixed animation area -->
+        <div class="animation-side">
+            <!-- Scroll Progress Indicator -->
+            <div class="scroll-progress">
+                <div class="scroll-progress-bar"></div>
+            </div>
+            
+            <!-- Scroll indicator -->
+            <div class="scroll-indicator">
+                <span class="scroll-text">Scroll to learn more</span>
+                <div class="scroll-arrow"></div>
+            </div>
+            
+            <!-- Simple text animation container -->
+            <div class="animation-content">
+                <div class="message-container">
+                    <p class="reveal-text" id="message-1">Endless multiple-choice drills only train you to guess answers, not grasp <span class="sketch-underline">core concepts</span>!</p>
+                    <p class="reveal-text" id="message-2"><span class="sketch-underline">Spaced repetition</span> slashes study time by embedding fundamentals into your <span class="sketch-underline">long-term memory</span> with quick, focused bursts.</p>
+                    <p class="reveal-text" id="message-3">Just <span class="sketch-underline">five minutes a day</span> keeps the forgetting curve away, so you build <span class="sketch-underline">real understanding</span>—not shallow recall.</p>
+                    <p class="reveal-text" id="message-4"><span class="sketch-underline">Busy professionals</span> swap marathon crams for <span class="sketch-underline">pocket-sized reviews</span> that <span class="sketch-underline">power up</span> any question you face.</p>
+                    <p class="reveal-text" id="message-5">Master the "why" behind every fact and watch your <span class="sketch-underline">expertise soar</span>—spaced repetition makes every minute count!</p>
+                    <p class="reveal-text" id="message-6"><span class="sketch-underline">Sign up now</span> and learn with flashcards!</p>
+                </div>
+            </div>
         </div>
     </div>
 </body>

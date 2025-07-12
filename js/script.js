@@ -236,9 +236,37 @@ async function updateProgress() {
 }
 
 /**
+ * Get subject name by ID with caching
+ */
+const subjectCache = new Map();
+async function getSubjectName(subjectId) {
+    if (subjectCache.has(subjectId)) {
+        return subjectCache.get(subjectId);
+    }
+    
+    try {
+        const supabase = await appState.dbService.getSupabase();
+        const { data: subject, error } = await supabase
+            .from('subjects')
+            .select('name')
+            .eq('id', subjectId)
+            .single();
+            
+        if (error) throw error;
+        
+        const subjectName = subject?.name || 'Unknown Subject';
+        subjectCache.set(subjectId, subjectName);
+        return subjectName;
+    } catch (error) {
+        console.warn('Failed to fetch subject:', error);
+        return 'Unknown Subject';
+    }
+}
+
+/**
  * Display the current card
  */
-function displayCurrentCard() {
+async function displayCurrentCard() {
     if (!appState.currentCard) {
         showError('No card available for review.');
         return;
@@ -264,8 +292,17 @@ function displayCurrentCard() {
     }
 
     // Update card content and progress info
-    cardFront.innerHTML = `<p>${currentCard.cards.question}</p>`;
-    cardBack.innerHTML = `<p>${currentCard.cards.answer}</p>`;
+    // Fetch subject name separately if not already cached
+    let subjectName = 'Unknown Subject';
+    if (currentCard.cards?.subject_id) {
+        try {
+            subjectName = await getSubjectName(currentCard.cards.subject_id);
+        } catch (error) {
+            console.warn('Failed to fetch subject name:', error);
+        }
+    }
+    cardFront.innerHTML = `<div class="subject-label">${subjectName}</div><p>${currentCard.cards.question}</p>`;
+    cardBack.innerHTML = `<div class="subject-label">${subjectName}</div><p>${currentCard.cards.answer}</p>`;
     const progressInfo = getProgressInfo(currentCard);
     if (progressInfo) {
         cardFront.innerHTML += progressInfo;
@@ -499,7 +536,7 @@ async function loadSession() {
             appState.currentCard = appState.sessionManager.getCurrentCard();
             
             if (appState.currentCard) {
-                displayCurrentCard();
+                await displayCurrentCard();
                 await transitionToState('content');
                 return;
             }
@@ -569,7 +606,7 @@ async function loadSession() {
         appState.isCompleted = false;
         
         // Display the card
-        displayCurrentCard();
+        await displayCurrentCard();
         
         // Transition to content
         await transitionToState('content');
@@ -771,7 +808,7 @@ async function handleRating(event) {
         appState.currentCard = appState.sessionManager.getCurrentCard();
         
         if (appState.currentCard) {
-            displayCurrentCard();
+            await displayCurrentCard();
         } else {
             // This shouldn't happen if session isn't complete
             showError('No more cards available in session');
@@ -1123,7 +1160,7 @@ async function submitFlag() {
         showFlagSuccessMessage();
         
         // Move to next card since this one is now flagged
-        moveToNextCard();
+        await moveToNextCard();
         
     } catch (error) {
         // Show error message
@@ -1152,12 +1189,12 @@ function showFlagSuccessMessage() {
 /**
  * Move to the next card after flagging
  */
-function moveToNextCard() {
+async function moveToNextCard() {
     appState.currentCardIndex++;
     if (appState.currentCardIndex >= appState.cards.length) {
         showNoMoreCardsMessage();
     } else {
-        displayCurrentCard();
+        await displayCurrentCard();
     }
 }
 
