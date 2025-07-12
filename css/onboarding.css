@@ -1,0 +1,311 @@
+/* Apple-Style Fixed Layout Onboarding */
+:root {
+    --onboarding-primary: #4a90e2;
+    --onboarding-success: #2ecc71;
+    --onboarding-warning: #e74c3c;
+    --onboarding-text: #2c3e50;
+    --onboarding-text-light: #7f8c8d;
+    --onboarding-background: #f5f6fa;
+}
+
+/* Adjust body styles for fixed layout */
+body {
+    background-color: var(--onboarding-background);
+    overflow-x: hidden;
+}
+
+/* Invisible scroll driver for scroll calculations */
+.scroll-driver {
+    height: 500vh;
+    width: 1px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Fixed split layout container */
+.page-container {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+}
+
+/* Left side: Fixed login box */
+.login-side {
+    width: 50%;
+    height: 100vh;
+    background: var(--onboarding-background);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 10;
+    padding-right: 1rem;
+    box-sizing: border-box;
+}
+
+.login-side .auth-container {
+    width: 100%;
+    max-width: 350px;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.login-side .auth-box {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Right side: Fixed animation area */
+.animation-side {
+    width: 50%;
+    height: 100vh;
+    background: var(--onboarding-background);
+    position: fixed;
+    right: 0;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 3rem 1rem 3rem 1rem;
+    box-sizing: border-box;
+}
+
+/* Animation content container */
+.animation-content {
+    width: 100%;
+    max-width: 500px;
+    text-align: center;
+    position: relative;
+}
+
+/* Scroll indicator */
+.scroll-indicator {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    color: var(--onboarding-text-light);
+    font-size: 0.9rem;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.scroll-indicator.hidden {
+    opacity: 0;
+}
+
+.scroll-text {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.scroll-arrow {
+    width: 2px;
+    height: 20px;
+    background: var(--onboarding-text-light);
+    margin: 0 auto;
+    position: relative;
+    animation: bounce 2s infinite;
+}
+
+.scroll-arrow::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: -3px;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 6px solid var(--onboarding-text-light);
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-5px);
+    }
+    60% {
+        transform: translateY(-3px);
+    }
+}
+
+/* Message container */
+.message-container {
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.reveal-text {
+    font-size: 1.8rem;
+    color: var(--onboarding-text);
+    line-height: 1.4;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.8s ease;
+    font-weight: 500;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-50%) translateY(30px);
+    width: 100%;
+    text-align: center;
+    padding: 0 2rem;
+    box-sizing: border-box;
+}
+
+.reveal-text.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-50%);
+}
+
+/* Sketch underline effect */
+.sketch-underline {
+    position: relative;
+    display: inline;
+}
+
+.sketch-underline::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: -2px;
+    width: calc(100% + 4px);
+    height: 12px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 12'%3E%3Cpath d='M1,8 Q15,2 30,6 Q45,10 60,4 Q75,8 90,6 Q95,4 99,8' stroke='%234a90e2' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
+    background-size: 80px 12px;
+    opacity: 0.8;
+    pointer-events: none;
+}
+
+
+
+/* Scroll Progress Bar */
+.scroll-progress {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 50%;
+    height: 4px;
+    background: rgba(74, 144, 226, 0.2);
+    z-index: 1000;
+}
+
+.scroll-progress-bar {
+    height: 100%;
+    background: var(--onboarding-primary);
+    width: 0%;
+    transition: width 0.1s ease;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .login-side {
+        width: 50%;
+    }
+    
+    .animation-side {
+        width: 50%;
+        padding: 2rem;
+    }
+    
+    .reveal-text {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .page-container {
+        flex-direction: column;
+    }
+    
+    .login-side {
+        width: 100%;
+        height: 50vh;
+        position: relative;
+    }
+    
+    .animation-side {
+        width: 100%;
+        height: 50vh;
+        position: relative;
+        top: 50vh;
+    }
+    
+    .animation-content {
+        max-width: 90%;
+    }
+    
+    .reveal-text {
+        font-size: 1.4rem;
+        padding: 0 1rem;
+    }
+    
+    .sketch-underline::after {
+        height: 10px;
+        background-size: 60px 10px;
+        bottom: -3px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10'%3E%3Cpath d='M1,6 Q15,2 30,5 Q45,8 60,3 Q75,6 90,5 Q95,3 99,6' stroke='%234a90e2' stroke-width='2.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
+    }
+    
+    .scroll-progress {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-side .auth-container {
+        padding: 10px;
+    }
+    
+    .animation-side {
+        padding: 1rem;
+    }
+    
+    .reveal-text {
+        font-size: 1.2rem;
+        padding: 0 0.5rem;
+    }
+    
+    .sketch-underline::after {
+        height: 8px;
+        background-size: 50px 8px;
+        bottom: -2px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 8'%3E%3Cpath d='M1,5 Q15,2 30,4 Q45,6 60,3 Q75,5 90,4 Q95,2 99,5' stroke='%234a90e2' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
+    }
+    
+    .scroll-indicator {
+        bottom: 1rem;
+        font-size: 0.8rem;
+    }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .reveal-text,
+    .scroll-arrow {
+        transition: opacity 0.3s ease !important;
+        animation: none !important;
+    }
+}
