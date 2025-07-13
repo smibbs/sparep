@@ -162,6 +162,24 @@
             <!-- Management Section -->
             <div id="management-section" class="admin-main-section hidden">
                 <div class="admin-section">
+                    <h3>Subject Management</h3>
+                    <div class="subject-management-controls">
+                        <div class="form-group">
+                            <input type="text" id="subject-search" placeholder="Search subjects..." class="form-input">
+                            <button id="search-subjects" class="btn btn-primary">Search</button>
+                            <button id="refresh-subjects" class="btn btn-secondary">Refresh</button>
+                        </div>
+                        <div class="bulk-actions">
+                            <button id="enable-selected" class="btn btn-success" disabled>Enable Selected</button>
+                            <button id="disable-selected" class="btn btn-warning" disabled>Disable Selected</button>
+                        </div>
+                    </div>
+                    <div id="subjects-table-container" class="table-container">
+                        <div class="loading-spinner" id="subjects-loading">Loading subjects...</div>
+                        <div id="subjects-table"></div>
+                    </div>
+                </div>
+                <div class="admin-section">
                     <h3>Flagged Cards</h3>
                     <div id="flagged-cards-list"></div>
                     <button id="refresh-flagged" class="btn btn-primary">Refresh</button>
