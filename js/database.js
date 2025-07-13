@@ -409,8 +409,9 @@ class DatabaseService {
                     subject_id,
                     subsection,
                     flagged_for_review,
-                    subjects!subject_id (
-                        name
+                    subjects!inner (
+                        name,
+                        is_active
                     )
                 )
             `;
@@ -421,14 +422,26 @@ class DatabaseService {
                 .select(cardSelect)
                 .eq('user_id', userId);
 
-            // Filter out flagged cards for non-admin users
+            // Filter out flagged cards and inactive subjects for non-admin users
             if (userTier !== 'admin') {
-                dueQuery = dueQuery.eq('cards.flagged_for_review', false);
+                dueQuery = dueQuery
+                    .eq('cards.flagged_for_review', false)
+                    .eq('cards.subjects.is_active', true);
             }
 
             const { data: dueCards, error: dueError } = await dueQuery
                 .order('next_review_date', { ascending: true });
             if (dueError) throw dueError;
+
+            // Debug: Log due cards to check if filtering is working
+            console.log('Due cards loaded:', dueCards?.length, 'for user tier:', userTier);
+            if (dueCards && dueCards.length > 0) {
+                console.log('Sample due card subjects:', dueCards.slice(0, 3).map(card => ({
+                    cardId: card.cards?.id,
+                    subject: card.cards?.subjects?.name,
+                    subjectActive: card.cards?.subjects?.is_active
+                })));
+            }
 
             // 2. Get ALL new cards (no limit)
             let newQuery = supabase
@@ -437,14 +450,26 @@ class DatabaseService {
                 .eq('user_id', userId)
                 .eq('state', 'new');
 
-            // Filter out flagged cards for non-admin users
+            // Filter out flagged cards and inactive subjects for non-admin users
             if (userTier !== 'admin') {
-                newQuery = newQuery.eq('cards.flagged_for_review', false);
+                newQuery = newQuery
+                    .eq('cards.flagged_for_review', false)
+                    .eq('cards.subjects.is_active', true);
             }
 
             const { data: newCards, error: newCardsError } = await newQuery
                 .order('created_at', { ascending: true });
             if (newCardsError) throw newCardsError;
+
+            // Debug: Log new cards to check if filtering is working
+            console.log('New cards (from progress) loaded:', newCards?.length, 'for user tier:', userTier);
+            if (newCards && newCards.length > 0) {
+                console.log('Sample new card subjects:', newCards.slice(0, 3).map(card => ({
+                    cardId: card.cards?.id,
+                    subject: card.cards?.subjects?.name,
+                    subjectActive: card.cards?.subjects?.is_active
+                })));
+            }
 
             // 3. Combine due cards and all new cards
             const allCards = [...(dueCards || []), ...(newCards || [])];
@@ -486,17 +511,20 @@ class DatabaseService {
                 .from('cards')
                 .select(`
                     *,
-                    subjects!subject_id (
-                        name
+                    subjects!inner (
+                        name,
+                        is_active
                     )
                 `);
             if (seenCardIds.length > 0) {
                 newCardsQuery = newCardsQuery.not('id', 'in', `(${seenCardIds.join(',')})`);
             }
             
-            // Filter out flagged cards for non-admin users
+            // Filter out flagged cards and inactive subjects for non-admin users
             if (userTier !== 'admin') {
-                newCardsQuery = newCardsQuery.eq('flagged_for_review', false);
+                newCardsQuery = newCardsQuery
+                    .eq('flagged_for_review', false)
+                    .eq('subjects.is_active', true);
             }
             
             newCardsQuery = newCardsQuery.limit(limit);
@@ -505,6 +533,16 @@ class DatabaseService {
             if (newError) {
                 // Error fetching new cards
                 throw newError;
+            }
+
+            // Debug: Log new cards to check if filtering is working
+            console.log('New cards (direct) loaded:', newCards?.length, 'for user tier:', userTier);
+            if (newCards && newCards.length > 0) {
+                console.log('Sample direct new card subjects:', newCards.slice(0, 3).map(card => ({
+                    cardId: card.id,
+                    subject: card.subjects?.name,
+                    subjectActive: card.subjects?.is_active
+                })));
             }
 
             // Found new cards

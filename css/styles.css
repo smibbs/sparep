@@ -184,35 +184,30 @@ body {
     gap: 12px;
 }
 
-/* Flag button styling */
-.flag-button {
-    padding: 12px 16px;
-    font-size: 16px;
-    border: none;
-    border-radius: 8px;
-    background-color: #f8f9fa;
+/* Report Card link styling */
+.report-card-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 30px;
+    padding-right: 8px;
+    position: relative;
+    z-index: 1;
+}
+
+.report-card-link {
     color: #6c757d;
+    text-decoration: underline;
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.2s ease;
-    min-width: 48px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    text-decoration: none;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    padding: 4px 8px;
+    border-radius: 4px;
 }
 
-.flag-button:hover {
-    background-color: #e9ecef;
+.report-card-link:hover {
     color: #dc3545;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.flag-button:active {
-    transform: translateY(1px);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    background-color: rgba(220, 53, 69, 0.1);
+    text-decoration: underline;
 }
 
 /* Full width flip button when only flip button is visible */

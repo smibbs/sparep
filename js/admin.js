@@ -29,6 +29,7 @@ class AdminService {
             await this.supabasePromise;
             this.setupEventListeners();
             this.loadSubjects();
+            this.loadSubjectsForManagement();
             this.loadSummaryAnalytics();
             this.loadFlaggedCards();
         } catch (error) {
@@ -602,6 +603,24 @@ class AdminService {
             this.updateUserTier();
         });
 
+        // Subject management actions
+        document.getElementById('refresh-subjects')?.addEventListener('click', () => {
+            this.loadSubjectsForManagement();
+        });
+
+        document.getElementById('search-subjects')?.addEventListener('click', () => {
+            this.searchSubjects();
+        });
+
+        document.getElementById('enable-selected')?.addEventListener('click', () => {
+            this.bulkToggleSubjects(true);
+        });
+
+        document.getElementById('disable-selected')?.addEventListener('click', () => {
+            this.bulkToggleSubjects(false);
+        });
+
+
         // Initialize analytics
         this.loadSubjects();
         this.loadSummaryAnalytics();
@@ -983,6 +1002,444 @@ class AdminService {
             }
         } catch (error) {
             console.error('Error loading subjects:', error);
+        }
+    }
+
+    // Subject Management Functions
+    async loadSubjectsForManagement() {
+        try {
+            const supabase = await this.getSupabase();
+            
+            // Get subjects with card count statistics
+            const { data: subjects, error } = await supabase
+                .from('subjects')
+                .select(`
+                    id,
+                    name,
+                    description,
+                    is_active,
+                    created_at,
+                    creator_id,
+                    is_public
+                `)
+                .order('name');
+
+            if (error) throw error;
+
+            // Get card counts for each subject
+            const { data: cardCounts, error: countError } = await supabase
+                .from('cards')
+                .select('subject_id')
+                .not('subject_id', 'is', null);
+
+            if (countError) throw countError;
+
+            // Count cards per subject
+            const cardCountMap = {};
+            cardCounts?.forEach(card => {
+                cardCountMap[card.subject_id] = (cardCountMap[card.subject_id] || 0) + 1;
+            });
+
+            // Add card counts to subjects
+            const subjectsWithCounts = subjects?.map(subject => ({
+                ...subject,
+                card_count: cardCountMap[subject.id] || 0
+            }));
+
+            this.displaySubjectsTable(subjectsWithCounts || []);
+        } catch (error) {
+            console.error('Error loading subjects for management:', error);
+            this.showError('Failed to load subjects');
+        } finally {
+            document.getElementById('subjects-loading').style.display = 'none';
+        }
+    }
+
+    displaySubjectsTable(subjects) {
+        const container = document.getElementById('subjects-table');
+        if (!container) return;
+
+        if (subjects.length === 0) {
+            container.innerHTML = '<p class="no-data">No subjects found</p>';
+            return;
+        }
+
+        const table = document.createElement('table');
+        table.className = 'admin-table subjects-table';
+        
+        // Create header
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr>
+                <th><input type="checkbox" id="select-all-subjects"></th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Cards</th>
+                <th>Public</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        `;
+        table.appendChild(thead);
+
+        // Create body
+        const tbody = document.createElement('tbody');
+        subjects.forEach(subject => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><input type="checkbox" class="subject-checkbox" data-subject-id="${subject.id}"></td>
+                <td>
+                    <div class="subject-info">
+                        <strong>${this.escapeHtml(subject.name)}</strong>
+                        ${subject.description ? `<br><small class="text-muted">${this.escapeHtml(subject.description)}</small>` : ''}
+                    </div>
+                </td>
+                <td>
+                    <span class="status-badge ${subject.is_active ? 'status-active' : 'status-inactive'}">
+                        ${subject.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                </td>
+                <td>${subject.card_count}</td>
+                <td>${subject.is_public ? 'Yes' : 'No'}</td>
+                <td>${new Date(subject.created_at).toLocaleDateString()}</td>
+                <td>
+                    <button class="btn btn-sm toggle-subject-btn ${subject.is_active ? 'btn-warning' : 'btn-success'}" 
+                            data-subject-id="${subject.id}" 
+                            data-new-status="${!subject.is_active}">
+                        ${subject.is_active ? 'Disable' : 'Enable'}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+
+        container.innerHTML = '';
+        container.appendChild(table);
+
+        // Set up select all functionality
+        this.setupSubjectSelection();
+        
+        // Set up toggle button event listeners
+        this.setupToggleButtons();
+    }
+
+    setupSubjectSelection() {
+        const selectAll = document.getElementById('select-all-subjects');
+        const checkboxes = document.querySelectorAll('.subject-checkbox');
+        const enableBtn = document.getElementById('enable-selected');
+        const disableBtn = document.getElementById('disable-selected');
+
+        if (selectAll) {
+            selectAll.addEventListener('change', () => {
+                checkboxes.forEach(cb => cb.checked = selectAll.checked);
+                this.updateBulkActionButtons();
+            });
+        }
+
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
+                const noneChecked = Array.from(checkboxes).every(checkbox => !checkbox.checked);
+                
+                if (selectAll) {
+                    selectAll.indeterminate = !allChecked && !noneChecked;
+                    selectAll.checked = allChecked;
+                }
+                
+                this.updateBulkActionButtons();
+            });
+        });
+    }
+
+    updateBulkActionButtons() {
+        const checkedBoxes = document.querySelectorAll('.subject-checkbox:checked');
+        const enableBtn = document.getElementById('enable-selected');
+        const disableBtn = document.getElementById('disable-selected');
+        
+        const hasSelection = checkedBoxes.length > 0;
+        
+        if (enableBtn) enableBtn.disabled = !hasSelection;
+        if (disableBtn) disableBtn.disabled = !hasSelection;
+    }
+
+    setupToggleButtons() {
+        const toggleButtons = document.querySelectorAll('.toggle-subject-btn');
+        toggleButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const subjectId = button.dataset.subjectId;
+                const newStatus = button.dataset.newStatus === 'true';
+                this.toggleSubjectStatus(subjectId, newStatus);
+            });
+        });
+    }
+
+    async toggleSubjectStatus(subjectId, newStatus) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            // First check if user is admin
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError) {
+                console.error('Auth error:', userError);
+                throw new Error('Authentication failed');
+            }
+
+            if (!user) {
+                throw new Error('User not authenticated');
+            }
+
+            // Verify admin access
+            const isAdmin = await this.checkAdminAccess();
+            if (!isAdmin) {
+                throw new Error('Admin access required');
+            }
+
+            console.log('Attempting to update subject:', { subjectId, newStatus, userId: user.id });
+            
+            // First, let's verify the subject exists
+            const { data: existingSubject, error: selectError } = await supabase
+                .from('subjects')
+                .select('id, name, is_active')
+                .eq('id', subjectId)
+                .single();
+
+            if (selectError) {
+                console.error('Error finding subject:', selectError);
+                throw new Error(`Subject not found: ${selectError.message}`);
+            }
+
+            console.log('Found subject:', existingSubject);
+
+            // Use the admin function to update subject status
+            const { data, error } = await supabase
+                .rpc('admin_toggle_subject_status', {
+                    subject_id: subjectId,
+                    new_status: newStatus
+                });
+
+            if (error) {
+                console.error('Supabase RPC error:', error);
+                throw new Error(`Database error: ${error.message}`);
+            }
+
+            console.log('Update result:', data);
+
+            if (!data) {
+                throw new Error('No data returned from update operation');
+            }
+
+            this.showSuccess(`Subject "${existingSubject.name}" ${newStatus ? 'enabled' : 'disabled'} successfully`);
+            this.loadSubjectsForManagement(); // Refresh the table
+            
+            // Clear any cached sessions to ensure changes take effect immediately
+            this.clearUserSessions();
+        } catch (error) {
+            console.error('Error toggling subject status:', error);
+            this.showError(`Failed to update subject status: ${error.message}`);
+        }
+    }
+
+    async bulkToggleSubjects(newStatus) {
+        const checkedBoxes = document.querySelectorAll('.subject-checkbox:checked');
+        const subjectIds = Array.from(checkedBoxes).map(cb => cb.dataset.subjectId);
+        
+        if (subjectIds.length === 0) return;
+
+        const action = newStatus ? 'enable' : 'disable';
+        const confirmed = confirm(`Are you sure you want to ${action} ${subjectIds.length} subject(s)?`);
+        
+        if (!confirmed) return;
+
+        try {
+            const supabase = await this.getSupabase();
+            
+            const { data, error } = await supabase
+                .rpc('admin_bulk_toggle_subjects', {
+                    subject_ids: subjectIds,
+                    new_status: newStatus
+                });
+
+            if (error) {
+                console.error('Bulk update error:', error);
+                throw error;
+            }
+
+            console.log('Bulk update result:', data);
+            
+            const updatedCount = data?.updated_count || 0;
+            this.showSuccess(`${updatedCount} subject(s) ${action}d successfully`);
+            this.loadSubjectsForManagement(); // Refresh the table
+            
+            // Clear any cached sessions to ensure changes take effect immediately
+            this.clearUserSessions();
+        } catch (error) {
+            console.error('Error bulk updating subjects:', error);
+            this.showError(`Failed to update subjects: ${error.message}`);
+        }
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    showSuccess(message) {
+        // Simple success notification - could be enhanced with a proper notification system
+        const notification = document.createElement('div');
+        notification.className = 'notification success';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 4px;
+            z-index: 10000;
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
+
+    showError(message) {
+        // Simple error notification - could be enhanced with a proper notification system
+        const notification = document.createElement('div');
+        notification.className = 'notification error';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #dc3545;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 4px;
+            z-index: 10000;
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000);
+    }
+
+    // Clear user sessions to ensure subject changes take effect immediately
+    clearUserSessions() {
+        try {
+            // Clear the current user's session if they have one
+            sessionStorage.removeItem('flashcard_session');
+            
+            // Also clear any other session-related data
+            const sessionKeys = ['flashcard_session', 'session_data', 'current_session'];
+            sessionKeys.forEach(key => {
+                sessionStorage.removeItem(key);
+                localStorage.removeItem(key); // Also clear localStorage just in case
+            });
+            
+            console.log('User sessions cleared due to subject status change');
+            
+            // Show a notification that users should refresh their study sessions
+            this.showInfo('Subject changes applied. Users should refresh their study sessions to see changes.');
+        } catch (error) {
+            console.error('Error clearing user sessions:', error);
+        }
+    }
+
+    showInfo(message) {
+        // Simple info notification
+        const notification = document.createElement('div');
+        notification.className = 'notification info';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #17a2b8;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 4px;
+            z-index: 10000;
+            max-width: 300px;
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 4000);
+    }
+
+
+    // Helper method to apply migration (for testing purposes)
+    async applyMigration(migrationSql) {
+        try {
+            const supabase = await this.getSupabase();
+            const { data, error } = await supabase.rpc('exec_sql', { sql: migrationSql });
+            
+            if (error) {
+                console.error('Migration error:', error);
+                return false;
+            }
+            
+            console.log('Migration applied successfully:', data);
+            return true;
+        } catch (error) {
+            console.error('Failed to apply migration:', error);
+            return false;
+        }
+    }
+
+    async searchSubjects() {
+        const searchTerm = document.getElementById('subject-search')?.value?.trim();
+        if (!searchTerm) {
+            this.loadSubjectsForManagement();
+            return;
+        }
+
+        try {
+            const supabase = await this.getSupabase();
+            
+            // Search subjects by name or description
+            const { data: subjects, error } = await supabase
+                .from('subjects')
+                .select(`
+                    id,
+                    name,
+                    description,
+                    is_active,
+                    created_at,
+                    creator_id,
+                    is_public
+                `)
+                .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)
+                .order('name');
+
+            if (error) throw error;
+
+            // Get card counts for filtered subjects
+            const subjectIds = subjects?.map(s => s.id) || [];
+            let cardCountMap = {};
+            
+            if (subjectIds.length > 0) {
+                const { data: cardCounts, error: countError } = await supabase
+                    .from('cards')
+                    .select('subject_id')
+                    .in('subject_id', subjectIds);
+
+                if (countError) throw countError;
+
+                cardCounts?.forEach(card => {
+                    cardCountMap[card.subject_id] = (cardCountMap[card.subject_id] || 0) + 1;
+                });
+            }
+
+            // Add card counts to subjects
+            const subjectsWithCounts = subjects?.map(subject => ({
+                ...subject,
+                card_count: cardCountMap[subject.id] || 0
+            }));
+
+            this.displaySubjectsTable(subjectsWithCounts || []);
+        } catch (error) {
+            console.error('Error searching subjects:', error);
+            this.showError('Failed to search subjects');
         }
     }
 
