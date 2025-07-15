@@ -90,5 +90,14 @@ export async function getSupabaseClient() {
     }
 }
 
-// Initialize immediately but don't export the promise
-initializationPromise = initializeSupabase(); 
+// Initialize immediately and set global reference
+initializationPromise = initializeSupabase().then(client => {
+    // Set global reference for other modules
+    if (typeof window !== 'undefined') {
+        window.supabaseClient = client;
+    }
+    return client;
+});
+
+// Export the getter function as default
+export default getSupabaseClient; 

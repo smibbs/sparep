@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flashcard App</title>
     <link rel="stylesheet" href="css/styles.css?v=5">
+    <link rel="stylesheet" href="css/streak-styles.css?v=1">
 </head>
 <body>
     <div id="app-container">
@@ -44,9 +45,11 @@
             <div class="card">
                 <div class="card-inner">
                     <div class="card-front">
+                        <div class="last-seen-indicator" id="last-seen-front">Never</div>
                         <p>Front of card (Question)</p>
                     </div>
                     <div class="card-back">
+                        <div class="last-seen-indicator" id="last-seen-back">Never</div>
                         <p>Back of card (Answer)</p>
                     </div>
                 </div>

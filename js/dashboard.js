@@ -10,11 +10,11 @@ async function checkAndShowAdminNav(userId) {
         const supabase = await getSupabaseClient();
         const { data: profile, error } = await supabase
             .from('user_profiles')
-            .select('user_tier, is_admin')
+            .select('user_tier')
             .eq('id', userId)
             .single();
 
-        if (!error && profile && (profile.user_tier === 'admin' || profile.is_admin === true)) {
+        if (!error && profile && profile.user_tier === 'admin') {
             const adminNavLink = document.getElementById('admin-nav-link');
             if (adminNavLink) {
                 adminNavLink.classList.remove('hidden');

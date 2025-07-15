@@ -60,13 +60,13 @@ class AdminService {
 
             const { data: profile, error: profileError } = await supabase
                 .from('user_profiles')
-                .select('user_tier, is_admin')
+                .select('user_tier')
                 .eq('id', user.id)
                 .single();
 
             if (profileError) return false;
 
-            return profile?.user_tier === 'admin' || profile?.is_admin === true;
+            return profile?.user_tier === 'admin';
         } catch (error) {
             console.error('Error checking admin access:', error);
             return false;

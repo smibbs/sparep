@@ -7,24 +7,24 @@ CREATE TABLE public.fsrs_parameters (
     -- Primary key (one row per user)
     user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     
-    -- FSRS algorithm weights
-    w0 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w1 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w2 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w3 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w4 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w5 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w6 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w7 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w8 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w9 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w10 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w11 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w12 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w13 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w14 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w15 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-    w16 DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    -- FSRS algorithm weights (research-based optimal defaults)
+    w0 DOUBLE PRECISION NOT NULL DEFAULT 0.4197,  -- Initial stability for new cards
+    w1 DOUBLE PRECISION NOT NULL DEFAULT 1.1829,  -- Stability increase factor for Good rating
+    w2 DOUBLE PRECISION NOT NULL DEFAULT 3.1262,  -- Stability increase factor for Easy rating
+    w3 DOUBLE PRECISION NOT NULL DEFAULT 15.4722, -- Stability decrease factor for Hard rating
+    w4 DOUBLE PRECISION NOT NULL DEFAULT 7.2102,  -- Stability decrease factor for Again rating
+    w5 DOUBLE PRECISION NOT NULL DEFAULT 0.5316,  -- Impact of card difficulty on stability
+    w6 DOUBLE PRECISION NOT NULL DEFAULT 1.0651,  -- Impact of previous stability
+    w7 DOUBLE PRECISION NOT NULL DEFAULT 0.0234,  -- Impact of elapsed time since last review
+    w8 DOUBLE PRECISION NOT NULL DEFAULT 1.616,   -- Bonus factor for Easy ratings
+    w9 DOUBLE PRECISION NOT NULL DEFAULT 0.0721,  -- Penalty factor for Hard ratings
+    w10 DOUBLE PRECISION NOT NULL DEFAULT 0.1284, -- Penalty factor for Again ratings
+    w11 DOUBLE PRECISION NOT NULL DEFAULT 1.0824, -- Rate at which difficulty decays
+    w12 DOUBLE PRECISION NOT NULL DEFAULT 0.0,    -- Minimum allowed stability value
+    w13 DOUBLE PRECISION NOT NULL DEFAULT 100.0,  -- Maximum allowed stability value
+    w14 DOUBLE PRECISION NOT NULL DEFAULT 1.0,    -- Minimum allowed difficulty value
+    w15 DOUBLE PRECISION NOT NULL DEFAULT 10.0,   -- Maximum allowed difficulty value
+    w16 DOUBLE PRECISION NOT NULL DEFAULT 2.9013, -- Factor for speed-focused learning
     
     -- Learning phase settings
     learning_steps_minutes INT[] NOT NULL DEFAULT ARRAY[1, 10],

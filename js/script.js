@@ -15,11 +15,11 @@ async function checkAndShowAdminNav(userId) {
     try {
         const { data: profile, error } = await supabase
             .from('user_profiles')
-            .select('user_tier, is_admin')
+            .select('user_tier')
             .eq('id', userId)
             .single();
 
-        if (!error && profile && (profile.user_tier === 'admin' || profile.is_admin === true)) {
+        if (!error && profile && profile.user_tier === 'admin') {
             const adminNavLink = document.getElementById('admin-nav-link');
             if (adminNavLink) {
                 adminNavLink.classList.remove('hidden');
@@ -301,8 +301,9 @@ async function displayCurrentCard() {
             console.warn('Failed to fetch subject name:', error);
         }
     }
-    cardFront.innerHTML = `<div class="subject-label">${subjectName}</div><p>${currentCard.cards.question}</p>`;
-    cardBack.innerHTML = `<div class="subject-label">${subjectName}</div><p>${currentCard.cards.answer}</p>`;
+    const lastSeenText = formatTimeAgo(currentCard.last_review_date);
+    cardFront.innerHTML = `<div class="last-seen-indicator" id="last-seen-front">${lastSeenText}</div><div class="subject-label">${subjectName}</div><p>${currentCard.cards.question}</p>`;
+    cardBack.innerHTML = `<div class="last-seen-indicator" id="last-seen-back">${lastSeenText}</div><div class="subject-label">${subjectName}</div><p>${currentCard.cards.answer}</p>`;
     const progressInfo = getProgressInfo(currentCard);
     if (progressInfo) {
         cardFront.innerHTML += progressInfo;
@@ -589,6 +590,11 @@ async function loadSession() {
         
         try {
             await appState.sessionManager.initializeSession(appState.user.id, appState.dbService);
+            
+            // Reset milestone tracking for new session
+            if (typeof window.streakUI !== 'undefined') {
+                window.streakUI.resetSession();
+            }
         } catch (error) {
             if (error.message.includes('No cards available')) {
                 showContent(true);
@@ -655,6 +661,26 @@ async function initializeApp() {
 
         // Check if user is admin and show admin link
         await checkAndShowAdminNav(user.id);
+
+        // Initialize FSRS parameters for the user
+        try {
+            await database.getUserFSRSParameters(user.id);
+            console.log('FSRS parameters initialized for user');
+        } catch (error) {
+            console.error('Error initializing FSRS parameters:', error);
+            // Continue even if FSRS parameter initialization fails
+        }
+
+        // Initialize streak UI for milestone notifications only
+        try {
+            const { default: streakUI } = await import('./streakUI.js');
+            await streakUI.initialize();
+            window.streakUI = streakUI; // Make globally available
+            console.log('Streak UI initialized');
+        } catch (error) {
+            console.error('Error initializing streak UI:', error);
+            // Continue even if streak UI initialization fails
+        }
 
         // Set up auth state change listener
         auth.onAuthStateChange((user) => {
@@ -799,6 +825,15 @@ async function handleRating(event) {
         // Increment session reviewed count
         appState.sessionReviewedCount++;
         
+        // Track milestone for cards reviewed (only for ratings 2, 3, 4)
+        if (rating >= 2 && typeof window.streakUI !== 'undefined') {
+            try {
+                window.streakUI.trackCardReview();
+            } catch (error) {
+                console.error('Error tracking card review milestone:', error);
+            }
+        }
+        
         // Check if session is complete
         if (appState.sessionManager.isSessionComplete()) {
             await handleSessionComplete();
@@ -828,6 +863,46 @@ async function handleRating(event) {
     }
 }
 
+/**
+ * Format time difference into human-readable "time ago" string
+ * @param {string|Date|null} lastReviewDate - Last review date
+ * @returns {string} Formatted time string
+ */
+function formatTimeAgo(lastReviewDate) {
+    if (!lastReviewDate) {
+        return 'Never';
+    }
+
+    const now = new Date();
+    const lastReview = new Date(lastReviewDate);
+    const diffMs = now - lastReview;
+    
+    // Handle invalid dates
+    if (isNaN(diffMs) || diffMs < 0) {
+        return 'Never';
+    }
+
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffWeeks = Math.floor(diffDays / 7);
+    const diffMonths = Math.floor(diffDays / 30);
+
+    if (diffMinutes < 5) {
+        return 'Just now';
+    } else if (diffMinutes < 60) {
+        return `${diffMinutes}m ago`;
+    } else if (diffHours < 24) {
+        return diffHours === 1 ? '1h ago' : `${diffHours}h ago`;
+    } else if (diffDays < 7) {
+        return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+    } else if (diffDays < 30) {
+        return diffWeeks === 1 ? '1 week ago' : `${diffWeeks} weeks ago`;
+    } else {
+        return diffMonths === 1 ? '1 month ago' : `${diffMonths} months ago`;
+    }
+}
+
 function updateCardDisplay(card) {
     const frontContent = document.querySelector('.card-front p');
     const backContent = document.querySelector('.card-back p');
@@ -843,6 +918,8 @@ function updateCardDisplay(card) {
 function showNoMoreCardsMessage() {
     const frontContent = document.querySelector('.card-front p');
     const backContent = document.querySelector('.card-back p');
+    const lastSeenFront = document.getElementById('last-seen-front');
+    const lastSeenBack = document.getElementById('last-seen-back');
     const flipButton = document.getElementById('flip-button');
     const reportCardLink = document.getElementById('report-card-link');
     const ratingButtons = document.getElementById('rating-buttons');
@@ -852,6 +929,10 @@ function showNoMoreCardsMessage() {
     
     // Set completion state to disable flip functionality
     appState.isCompleted = true;
+    
+    // Hide last seen indicators during completion
+    if (lastSeenFront) lastSeenFront.style.display = 'none';
+    if (lastSeenBack) lastSeenBack.style.display = 'none';
     
     // Ensure card is showing the front face
     if (card) {

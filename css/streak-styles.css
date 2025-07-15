@@ -1,0 +1,164 @@
+/* =============================================================================
+   STREAK UI STYLES - CARD MILESTONE NOTIFICATIONS
+   ============================================================================= */
+
+/* Bottom Milestone Notification */
+.milestone-notification-bottom {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    color: white;
+    padding: 16px 24px;
+    border-radius: 50px;
+    box-shadow: 0 8px 24px rgba(76, 175, 80, 0.3);
+    z-index: 1000;
+    min-width: 320px;
+    transition: all 0.5s ease;
+    opacity: 0;
+}
+
+.milestone-notification-bottom.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.milestone-notification-bottom.hide {
+    transform: translateX(-50%) translateY(100px);
+    opacity: 0;
+}
+
+.milestone-notification-bottom .milestone-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.milestone-icon {
+    font-size: 28px;
+    animation: celebrate 0.6s ease-out;
+}
+
+@keyframes celebrate {
+    0% { transform: scale(0) rotate(0deg); }
+    50% { transform: scale(1.2) rotate(180deg); }
+    100% { transform: scale(1) rotate(360deg); }
+}
+
+.milestone-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.milestone-title {
+    font-size: 16px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.milestone-message {
+    font-size: 14px;
+    opacity: 0.9;
+    line-height: 1.2;
+}
+
+.milestone-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 16px;
+    font-weight: bold;
+    min-width: 40px;
+    text-align: center;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Toast Notifications */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 10001;
+    transform: translateX(400px);
+    transition: transform 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.toast.show {
+    transform: translateX(0);
+}
+
+.toast.hide {
+    transform: translateX(400px);
+}
+
+.toast-success {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+}
+
+.toast-error {
+    background: linear-gradient(135deg, #f44336, #d32f2f);
+}
+
+.toast-info {
+    background: linear-gradient(135deg, #2196F3, #1976D2);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .milestone-notification-bottom {
+        left: 20px;
+        right: 20px;
+        width: calc(100% - 40px);
+        min-width: unset;
+        transform: translateY(100px);
+    }
+    
+    .milestone-notification-bottom.show {
+        transform: translateY(0);
+    }
+    
+    .milestone-notification-bottom.hide {
+        transform: translateY(100px);
+    }
+    
+    .milestone-notification-bottom .milestone-content {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+    }
+    
+    .milestone-text {
+        order: 1;
+    }
+    
+    .milestone-icon {
+        order: 2;
+    }
+    
+    .milestone-badge {
+        order: 3;
+    }
+    
+    .toast {
+        right: 10px;
+        left: 10px;
+        transform: translateY(-100px);
+    }
+    
+    .toast.show {
+        transform: translateY(0);
+    }
+    
+    .toast.hide {
+        transform: translateY(-100px);
+    }
+}
