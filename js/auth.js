@@ -87,7 +87,7 @@ class AuthService {
 
             const { data: profile, error } = await supabase
                 .from('user_profiles')
-                .select('id, email, display_name, user_tier, is_admin, reviews_today, last_review_date, daily_new_cards_limit, daily_review_limit')
+                .select('id, email, display_name, user_tier, reviews_today, last_review_date, daily_new_cards_limit, daily_review_limit')
                 .eq('id', user.id)
                 .single();
 
@@ -110,7 +110,7 @@ class AuthService {
     // Check if user is admin
     async isAdmin() {
         const profile = await this.getUserProfile();
-        return profile?.user_tier === 'admin' || profile?.is_admin === true;
+        return profile?.user_tier === 'admin';
     }
 
     // Check if user has premium access (paid or admin)

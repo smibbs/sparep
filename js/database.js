@@ -1,5 +1,7 @@
 import { getSupabaseClient } from './supabase-client.js';
-import { updateStability, updateDifficulty, calculateNextReview } from './fsrs.js';
+import { updateStability, updateDifficulty, calculateNextReview, calculateInitialStability, calculateInitialDifficulty } from './fsrs.js';
+import fsrsParametersService from './fsrsParameters.js';
+import fsrsOptimizationService from './fsrsOptimization.js';
 
 class DatabaseService {
     constructor() {
@@ -201,11 +203,30 @@ class DatabaseService {
                 throw new Error(progressError.message || 'Failed to fetch card progress. Please try again.');
             }
 
-            // FSRS calculations
+            // Load user FSRS parameters
+            const fsrsParams = await this.getUserFSRSParameters(user.id);
+            
+            // Calculate elapsed days since last review
+            const lastReviewDate = currentProgress?.last_review_date;
+            const elapsedDays = lastReviewDate ? 
+                (new Date() - new Date(lastReviewDate)) / (1000 * 60 * 60 * 24) : 0;
+            
+            // FSRS calculations with parameters
             const currentStability = currentProgress?.stability || 1.0;
             const currentDifficulty = currentProgress?.difficulty || 5.0;
-            const newStability = updateStability(currentStability, rating);
-            const newDifficulty = updateDifficulty(currentDifficulty, rating);
+            const currentState = currentProgress?.state || 'new';
+            
+            let newStability, newDifficulty;
+            
+            if (currentState === 'new') {
+                // First review - use initial calculations
+                newStability = calculateInitialStability(rating, fsrsParams);
+                newDifficulty = calculateInitialDifficulty(rating, fsrsParams);
+            } else {
+                // Subsequent reviews - use update functions
+                newStability = updateStability(currentStability, currentDifficulty, rating, elapsedDays, fsrsParams);
+                newDifficulty = updateDifficulty(currentDifficulty, rating, fsrsParams);
+            }
             
             // Special handling for "again" rating - schedule for 10 minutes later
             let nextReviewDate;
@@ -214,12 +235,11 @@ class DatabaseService {
                 nextReviewDate = new Date(Date.now() + 10 * 60 * 1000);
             } else {
                 // Normal FSRS scheduling for rating 2-4
-                const reviewResult = calculateNextReview(newStability, newDifficulty, rating);
+                const reviewResult = calculateNextReview(newStability, newDifficulty, rating, fsrsParams, currentState);
                 nextReviewDate = reviewResult.nextReviewDate;
             }
 
             // State transition logic
-            const currentState = currentProgress?.state || 'new';
             let nextState = currentState;
             if (currentState === 'new') {
                 nextState = rating >= 3 ? 'review' : 'learning';
@@ -411,22 +431,25 @@ class DatabaseService {
                     flagged_for_review,
                     subjects!inner (
                         name,
-                        is_active
+                        is_active,
+                        is_public
                     )
                 )
             `;
 
-            // 1. Get all cards ordered by next_review_date (closest first)
+            // 1. Get cards that are actually due for review (next_review_date <= NOW) or are new
             let dueQuery = supabase
                 .from('user_card_progress')
                 .select(cardSelect)
-                .eq('user_id', userId);
+                .eq('user_id', userId)
+                .or(`next_review_date.lte.${nowISOString},state.eq.new`);
 
             // Filter out flagged cards and inactive subjects for non-admin users
             if (userTier !== 'admin') {
                 dueQuery = dueQuery
                     .eq('cards.flagged_for_review', false)
-                    .eq('cards.subjects.is_active', true);
+                    .eq('cards.subjects.is_active', true)
+                    .eq('cards.subjects.is_public', true);
             }
 
             const { data: dueCards, error: dueError } = await dueQuery
@@ -435,11 +458,19 @@ class DatabaseService {
 
             // Debug: Log due cards to check if filtering is working
             console.log('Due cards loaded:', dueCards?.length, 'for user tier:', userTier);
+            console.log('Due cards filtered by date <= NOW or state = new');
+            
+            // Check for Portuguese cards specifically
+            const portugueseCards = dueCards?.filter(card => card.cards?.subjects?.name === 'Portuguese') || [];
+            console.log('Portuguese cards found in due cards:', portugueseCards.length);
+            
             if (dueCards && dueCards.length > 0) {
                 console.log('Sample due card subjects:', dueCards.slice(0, 3).map(card => ({
                     cardId: card.cards?.id,
                     subject: card.cards?.subjects?.name,
-                    subjectActive: card.cards?.subjects?.is_active
+                    state: card.state,
+                    nextReviewDate: card.next_review_date,
+                    isDue: new Date(card.next_review_date) <= now
                 })));
             }
 
@@ -454,7 +485,8 @@ class DatabaseService {
             if (userTier !== 'admin') {
                 newQuery = newQuery
                     .eq('cards.flagged_for_review', false)
-                    .eq('cards.subjects.is_active', true);
+                    .eq('cards.subjects.is_active', true)
+                    .eq('cards.subjects.is_public', true);
             }
 
             const { data: newCards, error: newCardsError } = await newQuery
@@ -471,8 +503,53 @@ class DatabaseService {
                 })));
             }
 
-            // 3. Combine due cards and all new cards
-            const allCards = [...(dueCards || []), ...(newCards || [])];
+            // 3. Separate due cards by state and combine strategically
+            const reviewCards = (dueCards || []).filter(card => card.state === 'review');
+            const learningCards = (dueCards || []).filter(card => card.state === 'learning');
+            const newStateCards = (dueCards || []).filter(card => card.state === 'new');
+            const additionalNewCards = (newCards || []);
+            
+            // Combine all new cards (both from progress and additional)
+            const allNewCards = [...newStateCards, ...additionalNewCards];
+            
+            // Create a balanced mix: prioritize truly due cards, then fill with new cards
+            const allCards = [];
+            
+            // Now that we have proper due date filtering, we can trust that review/learning cards are actually due
+            // Add all due cards first (they are legitimately due for review)
+            allCards.push(...reviewCards);
+            allCards.push(...learningCards);
+            
+            // Fill remaining slots with new cards to ensure 20-card sessions
+            const remainingSlots = Math.max(0, 20 - allCards.length);
+            if (remainingSlots > 0) {
+                allCards.push(...allNewCards.slice(0, remainingSlots));
+            }
+            
+            // If we still don't have enough cards, use any remaining cards
+            const finalRemainingSlots = Math.max(0, 20 - allCards.length);
+            if (finalRemainingSlots > 0) {
+                const additionalCards = allNewCards.slice(remainingSlots);
+                allCards.push(...additionalCards.slice(0, finalRemainingSlots));
+            }
+            
+            // Debug: Log session composition
+            console.log('Session composition:');
+            console.log('Available cards:', {
+                review: reviewCards.length,
+                learning: learningCards.length, 
+                new: allNewCards.length,
+                total: allCards.length
+            });
+            console.log('Cards selected for session:', allCards.length);
+            
+            // Show first few cards with due date info
+            allCards.slice(0, 5).forEach((card, index) => {
+                const nextReview = new Date(card.next_review_date);
+                const isDue = nextReview <= now;
+                console.log(`${index + 1}. Subject: ${card.cards?.subjects?.name}, State: ${card.state}, Due: ${isDue ? 'Yes' : 'No'} (${nextReview.toDateString()})`);
+            });
+            
             return allCards;
         } catch (error) {
             // Error fetching due and new cards
@@ -513,7 +590,8 @@ class DatabaseService {
                     *,
                     subjects!inner (
                         name,
-                        is_active
+                        is_active,
+                        is_public
                     )
                 `);
             if (seenCardIds.length > 0) {
@@ -524,7 +602,8 @@ class DatabaseService {
             if (userTier !== 'admin') {
                 newCardsQuery = newCardsQuery
                     .eq('flagged_for_review', false)
-                    .eq('subjects.is_active', true);
+                    .eq('subjects.is_active', true)
+                    .eq('subjects.is_public', true);
             }
             
             newCardsQuery = newCardsQuery.limit(limit);
@@ -839,6 +918,9 @@ class DatabaseService {
                 throw new Error('Invalid session data');
             }
 
+            // Load user FSRS parameters once for the batch
+            const fsrsParams = await this.getUserFSRSParameters(user.id);
+            
             // Prepare all review records and progress updates
             const reviewRecords = [];
             const progressUpdates = [];
@@ -861,18 +943,32 @@ class DatabaseService {
                 const currentStability = cardInSession.stability || 1.0;
                 const currentDifficulty = cardInSession.difficulty || 5.0;
                 const currentState = cardInSession.state || 'new';
+                
+                // Calculate elapsed days since last review
+                const lastReviewDate = cardInSession.last_review_date;
+                const elapsedDays = lastReviewDate ? 
+                    (new Date() - new Date(lastReviewDate)) / (1000 * 60 * 60 * 24) : 0;
 
-                // Calculate FSRS values for the final rating
-                const newStability = updateStability(currentStability, completingRating.rating);
-                const newDifficulty = updateDifficulty(currentDifficulty, completingRating.rating);
+                // Calculate FSRS values for the final rating with parameters
+                let newStability, newDifficulty;
+                
+                if (currentState === 'new') {
+                    // First review - use initial calculations
+                    newStability = calculateInitialStability(completingRating.rating, fsrsParams);
+                    newDifficulty = calculateInitialDifficulty(completingRating.rating, fsrsParams);
+                } else {
+                    // Subsequent reviews - use update functions
+                    newStability = updateStability(currentStability, currentDifficulty, completingRating.rating, elapsedDays, fsrsParams);
+                    newDifficulty = updateDifficulty(currentDifficulty, completingRating.rating, fsrsParams);
+                }
                 
                 let nextReviewDate;
                 if (completingRating.rating === 1) {
                     // If final rating is still "again", schedule for 10 minutes
                     nextReviewDate = new Date(Date.now() + 10 * 60 * 1000);
                 } else {
-                    // Normal FSRS scheduling
-                    const reviewResult = calculateNextReview(newStability, newDifficulty, completingRating.rating);
+                    // Normal FSRS scheduling with parameters
+                    const reviewResult = calculateNextReview(newStability, newDifficulty, completingRating.rating, fsrsParams, currentState);
                     nextReviewDate = reviewResult.nextReviewDate;
                 }
 
@@ -965,12 +1061,220 @@ class DatabaseService {
                         console.warn('Failed to increment daily review count:', incrementError);
                     }
                 }
+
+                // Update user streak after successful session completion
+                try {
+                    const { default: streakService } = await import('./streakService.js');
+                    const streakResult = await streakService.updateUserStreak(user.id);
+                    
+                    if (streakResult.success && streakResult.isNewMilestone) {
+                        console.log(`🎉 New streak milestone achieved: ${streakResult.milestoneDays} days!`);
+                        // Store milestone achievement for UI notification
+                        if (typeof window !== 'undefined') {
+                            window.newStreakMilestone = {
+                                days: streakResult.milestoneDays,
+                                currentStreak: streakResult.currentStreak
+                            };
+                        }
+                    }
+                } catch (streakError) {
+                    console.warn('Failed to update streak:', streakError);
+                    // Don't fail the session if streak update fails
+                }
+
+                // Check if FSRS parameter optimization is needed after session completion
+                try {
+                    const optimizationStatus = await fsrsOptimizationService.checkOptimizationNeeded(user.id);
+                    
+                    if (optimizationStatus.shouldOptimize) {
+                        console.log(`🧠 FSRS parameter optimization recommended: ${optimizationStatus.reason}`);
+                        
+                        // Trigger optimization in background (don't wait for completion)
+                        fsrsOptimizationService.optimizeUserParameters(user.id, { conservative: true })
+                            .then(result => {
+                                if (result.success) {
+                                    console.log(`✅ FSRS parameters optimized! Analyzed ${result.reviewsAnalyzed} reviews with ${(result.confidence * 100).toFixed(1)}% confidence`);
+                                    
+                                    // Store optimization result for potential UI notification
+                                    if (typeof window !== 'undefined') {
+                                        window.fsrsOptimizationResult = {
+                                            success: true,
+                                            improvements: result.improvements,
+                                            confidence: result.confidence,
+                                            reviewsAnalyzed: result.reviewsAnalyzed
+                                        };
+                                    }
+                                } else {
+                                    console.log(`⚠️ FSRS optimization skipped: ${result.reason}`);
+                                }
+                            })
+                            .catch(optimizationError => {
+                                console.warn('FSRS optimization failed:', optimizationError);
+                            });
+                    } else {
+                        console.log(`📊 FSRS optimization status: ${optimizationStatus.reason} (${optimizationStatus.totalReviews} reviews)`);
+                    }
+                } catch (optimizationError) {
+                    console.warn('Failed to check FSRS optimization:', optimizationError);
+                    // Don't fail the session if optimization check fails
+                }
             }
 
             return true;
         } catch (error) {
             console.error('Error submitting batch reviews:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Get FSRS parameters for a user
+     * @param {string} userId - User ID
+     * @returns {Promise<Object>} FSRS parameters
+     */
+    async getUserFSRSParameters(userId) {
+        try {
+            return await fsrsParametersService.getUserParameters(userId);
+        } catch (error) {
+            console.error('Error loading user FSRS parameters:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Update FSRS parameters for a user
+     * @param {string} userId - User ID
+     * @param {Object} parameterUpdates - Parameter updates
+     * @returns {Promise<Object>} Updated parameters
+     */
+    async updateUserFSRSParameters(userId, parameterUpdates) {
+        try {
+            return await fsrsParametersService.updateParameters(userId, parameterUpdates);
+        } catch (error) {
+            console.error('Error updating user FSRS parameters:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Initialize default FSRS parameters for a new user
+     * @param {string} userId - User ID
+     * @returns {Promise<Object>} Created parameters
+     */
+    async initializeUserFSRSParameters(userId) {
+        try {
+            return await fsrsParametersService.createDefaultParameters(userId);
+        } catch (error) {
+            console.error('Error initializing user FSRS parameters:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Clear FSRS parameter cache for a user
+     * @param {string} userId - User ID
+     */
+    clearFSRSParameterCache(userId) {
+        fsrsParametersService.clearCache(userId);
+    }
+
+    // Debug function to test Portuguese card selection
+    async debugPortugueseCards(userId) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            console.log('=== DEBUG: Portuguese Cards Analysis ===');
+            
+            // Check Portuguese subject
+            const { data: subject, error: subjectError } = await supabase
+                .from('subjects')
+                .select('*')
+                .eq('name', 'Portuguese')
+                .single();
+            
+            if (subjectError) {
+                console.error('Subject error:', subjectError);
+                return;
+            }
+            
+            console.log('Portuguese subject:', subject);
+            
+            // Check Portuguese cards
+            const { data: cards, error: cardsError } = await supabase
+                .from('cards')
+                .select('id, question, subject_id, flagged_for_review')
+                .eq('subject_id', subject.id);
+            
+            if (cardsError) {
+                console.error('Cards error:', cardsError);
+                return;
+            }
+            
+            console.log('Portuguese cards total:', cards?.length);
+            console.log('Portuguese cards flagged:', cards?.filter(c => c.flagged_for_review).length);
+            
+            // Check user progress for Portuguese cards
+            const { data: progress, error: progressError } = await supabase
+                .from('user_card_progress')
+                .select('card_id, state, next_review_date')
+                .eq('user_id', userId)
+                .in('card_id', cards?.map(c => c.id) || []);
+            
+            if (progressError) {
+                console.error('Progress error:', progressError);
+                return;
+            }
+            
+            console.log('Portuguese cards with progress:', progress?.length);
+            console.log('Portuguese cards by state:', {
+                new: progress?.filter(p => p.state === 'new').length,
+                learning: progress?.filter(p => p.state === 'learning').length,
+                review: progress?.filter(p => p.state === 'review').length
+            });
+            
+            // Test the actual query used in getCardsDue
+            const { data: dueTest, error: dueTestError } = await supabase
+                .from('user_card_progress')
+                .select(`
+                    *,
+                    cards!inner (
+                        id,
+                        question,
+                        answer,
+                        subject_id,
+                        subsection,
+                        flagged_for_review,
+                        subjects!inner (
+                            name,
+                            is_active,
+                            is_public
+                        )
+                    )
+                `)
+                .eq('user_id', userId)
+                .eq('cards.flagged_for_review', false)
+                .eq('cards.subjects.is_active', true)
+                .eq('cards.subjects.is_public', true)
+                .eq('cards.subjects.name', 'Portuguese');
+            
+            if (dueTestError) {
+                console.error('Due test error:', dueTestError);
+                return;
+            }
+            
+            console.log('Portuguese cards returned by due query:', dueTest?.length);
+            
+            return {
+                subject,
+                totalCards: cards?.length,
+                flaggedCards: cards?.filter(c => c.flagged_for_review).length,
+                userProgress: progress?.length,
+                dueQueryResult: dueTest?.length
+            };
+            
+        } catch (error) {
+            console.error('Debug error:', error);
+            return { error: error.message };
         }
     }
 }

@@ -163,6 +163,29 @@ body {
     z-index: 10;
 }
 
+/* Last seen indicator styling */
+.last-seen-indicator {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.85);
+    padding: 3px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.01em;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    z-index: 10;
+    border: 1px solid rgba(100, 116, 139, 0.15);
+    backdrop-filter: blur(4px);
+    transition: opacity 0.2s ease;
+}
+
+.last-seen-indicator:empty {
+    display: none;
+}
+
 /* Remove debug flip text */
 .card-front::after,
 .card-back::after { content: none; }
