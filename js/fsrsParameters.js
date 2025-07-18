@@ -13,24 +13,26 @@ class FSRSParametersService {
         
         // Default FSRS parameters based on FSRS research
         this.defaultParams = {
-            // FSRS algorithm weights (w0-w16)
+            // FSRS algorithm weights (w0-w18)
             w0: 0.4197,    // Initial stability for new cards
             w1: 1.1829,    // Stability increase factor for Good rating  
             w2: 3.1262,    // Stability increase factor for Easy rating
             w3: 15.4722,   // Stability decrease factor for Hard rating
             w4: 7.2102,    // Stability decrease factor for Again rating
             w5: 0.5316,    // Impact of card difficulty on stability
-            w6: 1.0651,    // Impact of previous stability
+            w6: 1.0651,    // Difficulty adjustment factor
             w7: 0.0234,    // Impact of elapsed time since last review
-            w8: 1.616,     // Bonus factor for Easy ratings
-            w9: 0.0721,    // Penalty factor for Hard ratings
-            w10: 0.1284,   // Penalty factor for Again ratings
-            w11: 1.0824,   // Rate at which difficulty decays
+            w8: 1.616,     // Stability increase exponential factor
+            w9: 0.0721,    // Stability power factor
+            w10: 0.1284,   // Retrievability impact factor
+            w11: 1.0824,   // Failure stability multiplier
             w12: 0.0,      // Minimum allowed stability value
             w13: 100.0,    // Maximum allowed stability value
             w14: 1.0,      // Minimum allowed difficulty value
-            w15: 10.0,     // Maximum allowed difficulty value
-            w16: 2.9013,   // Factor for speed-focused learning
+            w15: 10.0,     // Maximum allowed difficulty value / Hard rating multiplier
+            w16: 2.9013,   // Easy rating multiplier
+            w17: 0.0,      // Reserved for future use
+            w18: 0.0,      // Reserved for future use
             
             // Learning configuration
             learning_steps_minutes: [1, 10],
@@ -38,6 +40,7 @@ class FSRSParametersService {
             easy_interval_days: 4,
             maximum_interval_days: 36500, // ~100 years
             minimum_interval_days: 1,
+            desired_retention: 0.9, // Target retention rate
             
             // Daily limits
             new_cards_per_day: 20,
@@ -264,17 +267,55 @@ class FSRSParametersService {
     validateParameters(params) {
         const errors = [];
         
+        // Define reasonable bounds for FSRS weights (allowing negative values)
+        const weightBounds = {
+            w0: { min: -10.0, max: 10.0 },
+            w1: { min: -10.0, max: 10.0 },
+            w2: { min: -10.0, max: 10.0 },
+            w3: { min: -50.0, max: 50.0 },
+            w4: { min: -50.0, max: 50.0 },
+            w5: { min: -5.0, max: 5.0 },
+            w6: { min: -5.0, max: 5.0 },
+            w7: { min: -1.0, max: 1.0 },
+            w8: { min: -10.0, max: 10.0 },
+            w9: { min: -1.0, max: 1.0 },
+            w10: { min: -1.0, max: 1.0 },
+            w11: { min: -5.0, max: 5.0 },
+            w12: { min: 0.0, max: 1.0 },      // Min stability must be non-negative
+            w13: { min: 1.0, max: 1000.0 },  // Max stability must be reasonable
+            w14: { min: 0.1, max: 20.0 },    // Min difficulty must be positive
+            w15: { min: 1.0, max: 100.0 },   // Max difficulty must be reasonable
+            w16: { min: -10.0, max: 10.0 }
+        };
+        
         // Check FSRS weights (w0-w16)
         for (let i = 0; i <= 16; i++) {
             const weight = params[`w${i}`];
+            const bounds = weightBounds[`w${i}`];
+            
             if (typeof weight !== 'number' || isNaN(weight)) {
                 errors.push(`w${i} must be a valid number`);
+            } else if (weight < bounds.min || weight > bounds.max) {
+                errors.push(`w${i} must be between ${bounds.min} and ${bounds.max}, got ${weight}`);
             }
+        }
+        
+        // Check boundary constraints
+        if (params.w12 >= params.w13) {
+            errors.push('Minimum stability (w12) must be less than maximum stability (w13)');
+        }
+        
+        if (params.w14 >= params.w15) {
+            errors.push('Minimum difficulty (w14) must be less than maximum difficulty (w15)');
         }
         
         // Check intervals
         if (params.minimum_interval_days >= params.maximum_interval_days) {
             errors.push('Minimum interval must be less than maximum interval');
+        }
+        
+        if (params.minimum_interval_days < 1 || params.maximum_interval_days > 36500) {
+            errors.push('Interval days must be between 1 and 36500');
         }
         
         // Check daily limits
@@ -285,6 +326,15 @@ class FSRSParametersService {
         // Check learning steps
         if (!Array.isArray(params.learning_steps_minutes) || params.learning_steps_minutes.length === 0) {
             errors.push('Learning steps must be a non-empty array');
+        }
+        
+        // Check other constraints
+        if (params.graduating_interval_days < 1 || params.easy_interval_days < 1) {
+            errors.push('Graduating and easy intervals must be at least 1 day');
+        }
+        
+        if (params.lapse_multiplier < 0.1 || params.lapse_multiplier > 2.0) {
+            errors.push('Lapse multiplier must be between 0.1 and 2.0');
         }
         
         return {
