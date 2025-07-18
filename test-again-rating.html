@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Again Rating Changes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #results {
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Again Rating Changes</h1>
+    
+    <div class="test-container">
+        <h2>Session Manager Test</h2>
+        <p>This test verifies that cards rated as "again" (rating 1) now count as completed reviews.</p>
+        <button onclick="testSessionManager()">Test Session Manager</button>
+        <div id="sessionResults"></div>
+    </div>
+    
+    <div class="test-container">
+        <h2>FSRS Scheduling Test</h2>
+        <p>This test verifies that "again" ratings use FSRS scheduling instead of fixed 10-minute intervals.</p>
+        <button onclick="testFSRSScheduling()">Test FSRS Scheduling</button>
+        <div id="fsrsResults"></div>
+    </div>
+    
+    <div class="test-container">
+        <h2>All Tests</h2>
+        <button onclick="runAllTests()">Run All Tests</button>
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        import SessionManager from './js/sessionManager.js';
+        import { updateStability, updateDifficulty, calculateNextReview, RATING } from './js/fsrs.js';
+
+        window.testSessionManager = async function() {
+            const results = document.getElementById('sessionResults');
+            results.innerHTML = '';
+            
+            try {
+                const sessionManager = new SessionManager();
+                
+                // Mock session data
+                sessionManager.sessionData = {
+                    sessionId: 'test_session',
+                    userId: 'test_user',
+                    cards: [
+                        { card_id: 'card1', cards: { question: 'Test 1', answer: 'Answer 1' } },
+                        { card_id: 'card2', cards: { question: 'Test 2', answer: 'Answer 2' } },
+                        { card_id: 'card3', cards: { question: 'Test 3', answer: 'Answer 3' } }
+                    ],
+                    totalCardsInSession: 3,
+                    ratings: {},
+                    completedCards: new Set(),
+                    currentCardIndex: 0,
+                    sessionStartTime: new Date().toISOString()
+                };
+                
+                // Initialize ratings for all cards
+                sessionManager.sessionData.ratings['card1'] = [];
+                sessionManager.sessionData.ratings['card2'] = [];
+                sessionManager.sessionData.ratings['card3'] = [];
+                
+                // Test 1: Rate first card as "again" (rating 1)
+                const success1 = sessionManager.rateCard('card1', 1, 2000);
+                const isCard1Completed = sessionManager.sessionData.completedCards.has('card1');
+                
+                results.innerHTML += `<div class="test-result ${success1 && isCard1Completed ? 'success' : 'error'}">
+                    Test 1: Card rated as "again" should be completed
+                    Result: ${success1 ? 'Rating recorded' : 'Rating failed'}, 
+                    Completed: ${isCard1Completed ? 'Yes' : 'No'}
+                </div>`;
+                
+                // Test 2: Rate second card as "good" (rating 3)
+                const success2 = sessionManager.rateCard('card2', 3, 1500);
+                const isCard2Completed = sessionManager.sessionData.completedCards.has('card2');
+                
+                results.innerHTML += `<div class="test-result ${success2 && isCard2Completed ? 'success' : 'error'}">
+                    Test 2: Card rated as "good" should be completed
+                    Result: ${success2 ? 'Rating recorded' : 'Rating failed'}, 
+                    Completed: ${isCard2Completed ? 'Yes' : 'No'}
+                </div>`;
+                
+                // Test 3: Check progress
+                const progress = sessionManager.getProgress();
+                const expectedCompleted = 2;
+                const progressCorrect = progress.completed === expectedCompleted;
+                
+                results.innerHTML += `<div class="test-result ${progressCorrect ? 'success' : 'error'}">
+                    Test 3: Progress should show 2/3 completed
+                    Result: ${progress.completed}/${progress.total} (${progress.percentage.toFixed(1)}%)
+                </div>`;
+                
+                // Test 4: Check that session is not complete yet
+                const isSessionComplete = sessionManager.isSessionComplete();
+                
+                results.innerHTML += `<div class="test-result ${!isSessionComplete ? 'success' : 'error'}">
+                    Test 4: Session should not be complete yet
+                    Result: ${isSessionComplete ? 'Complete' : 'Not complete'}
+                </div>`;
+                
+                // Test 5: Complete the session
+                sessionManager.rateCard('card3', 2, 1800);
+                const isSessionCompleteNow = sessionManager.isSessionComplete();
+                
+                results.innerHTML += `<div class="test-result ${isSessionCompleteNow ? 'success' : 'error'}">
+                    Test 5: Session should be complete now
+                    Result: ${isSessionCompleteNow ? 'Complete' : 'Not complete'}
+                </div>`;
+                
+                // Test 6: Verify no againCards references
+                const hasAgainCards = sessionManager.sessionData.hasOwnProperty('againCards');
+                
+                results.innerHTML += `<div class="test-result ${!hasAgainCards ? 'success' : 'error'}">
+                    Test 6: againCards should not exist in session data
+                    Result: ${hasAgainCards ? 'Still exists' : 'Removed'}
+                </div>`;
+                
+            } catch (error) {
+                results.innerHTML += `<div class="test-result error">
+                    Error: ${error.message}
+                </div>`;
+            }
+        };
+
+        window.testFSRSScheduling = function() {
+            const results = document.getElementById('fsrsResults');
+            results.innerHTML = '';
+            
+            try {
+                const params = {
+                    w11: 1.0824,
+                    w12: 0.0,
+                    w13: 100.0,
+                    w14: 1.0,
+                    w15: 10.0,
+                    w16: 2.9013,
+                    desired_retention: 0.9,
+                    minimum_interval_days: 1,
+                    maximum_interval_days: 36500
+                };
+                
+                const initialStability = 2.0;
+                const initialDifficulty = 5.0;
+                
+                // Test "again" rating (rating 1)
+                const againStability = updateStability(initialStability, initialDifficulty, RATING.AGAIN, 1, params);
+                const againDifficulty = updateDifficulty(initialDifficulty, RATING.AGAIN, params);
+                const againReview = calculateNextReview(againStability, againDifficulty, RATING.AGAIN, params);
+                
+                results.innerHTML += `<div class="test-result info">
+                    Again Rating (1) Results:
+                    Stability: ${initialStability} → ${againStability.toFixed(3)}
+                    Difficulty: ${initialDifficulty} → ${againDifficulty.toFixed(3)}
+                    Next review: ${againReview.interval} days
+                    Scheduled: ${againReview.nextReviewDate.toLocaleString()}
+                </div>`;
+                
+                // Test that interval is NOT exactly 10 minutes
+                const tenMinutesMs = 10 * 60 * 1000;
+                const actualIntervalMs = againReview.nextReviewDate.getTime() - Date.now();
+                const isNotTenMinutes = Math.abs(actualIntervalMs - tenMinutesMs) > 60000; // More than 1 minute difference
+                
+                results.innerHTML += `<div class="test-result ${isNotTenMinutes ? 'success' : 'error'}">
+                    Test: "Again" cards should NOT be scheduled for exactly 10 minutes
+                    Result: ${isNotTenMinutes ? 'Using FSRS scheduling' : 'Still using 10-minute scheduling'}
+                    Actual interval: ${Math.round(actualIntervalMs / 1000 / 60)} minutes
+                </div>`;
+                
+                // Test that stability decreased for "again" rating
+                const stabilityDecreased = againStability < initialStability;
+                
+                results.innerHTML += `<div class="test-result ${stabilityDecreased ? 'success' : 'error'}">
+                    Test: "Again" rating should decrease stability
+                    Result: ${stabilityDecreased ? 'Stability decreased' : 'Stability did not decrease'}
+                </div>`;
+                
+                // Test that difficulty increased for "again" rating
+                const difficultyIncreased = againDifficulty > initialDifficulty;
+                
+                results.innerHTML += `<div class="test-result ${difficultyIncreased ? 'success' : 'error'}">
+                    Test: "Again" rating should increase difficulty
+                    Result: ${difficultyIncreased ? 'Difficulty increased' : 'Difficulty did not increase'}
+                </div>`;
+                
+            } catch (error) {
+                results.innerHTML += `<div class="test-result error">
+                    Error: ${error.message}
+                </div>`;
+            }
+        };
+
+        window.runAllTests = function() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<div class="test-result info">Running all tests...</div>';
+            
+            setTimeout(() => {
+                testSessionManager();
+                testFSRSScheduling();
+                results.innerHTML += '<div class="test-result success">All tests completed!</div>';
+            }, 100);
+        };
+    </script>
+</body>
+</html>

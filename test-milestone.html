@@ -52,11 +52,12 @@
         </div>
         
         <h3>Test Actions:</h3>
-        <button class="test-button" onclick="testMilestone(5)">Test 5 Cards Milestone</button>
         <button class="test-button" onclick="testMilestone(10)">Test 10 Cards Milestone</button>
         <button class="test-button" onclick="testMilestone(25)">Test 25 Cards Milestone</button>
+        <button class="test-button" onclick="testMilestone(50)">Test 50 Cards Milestone</button>
+        <button class="test-button" onclick="testMilestone(100)">Test 100 Cards Milestone</button>
         <button class="test-button" onclick="testCardReview()">Simulate Card Review</button>
-        <button class="test-button" onclick="resetSession()">Reset Session</button>
+        <button class="test-button" onclick="resetDaily()">Reset Daily Progress</button>
         
         <h3>Manual Test:</h3>
         <button class="test-button" onclick="showManualNotification()">Show Manual Notification</button>
@@ -67,7 +68,26 @@
         </div>
     </div>
 
-    <script src="js/streakUI.js" type="module"></script>
+    <script type="module">
+        // Mock database service for testing
+        window.mockReviewsToday = 0;
+        
+        // Mock database module
+        const mockDatabase = {
+            async getCurrentReviewsToday(userId) {
+                return window.mockReviewsToday;
+            }
+        };
+        
+        // Override import for database service
+        const originalImport = window.import;
+        window.import = function(module) {
+            if (module === './database.js') {
+                return Promise.resolve({ default: mockDatabase });
+            }
+            return originalImport ? originalImport(module) : import(module);
+        };
+    </script>
     <script>
         let consoleLog = document.getElementById('console-log');
         
@@ -91,10 +111,11 @@
                 // Import streakUI
                 const { default: streakUI } = await import('./js/streakUI.js');
                 window.streakUI = streakUI;
-                await streakUI.initialize();
+                await streakUI.initialize('test-user-id');
                 
                 document.getElementById('streak-available').textContent = 'Yes';
-                document.getElementById('cards-count').textContent = streakUI.getCardsReviewedCount();
+                const cardsCount = await streakUI.getCardsReviewedCount();
+                document.getElementById('cards-count').textContent = cardsCount;
                 
                 console.log('StreakUI initialized successfully');
                 
@@ -130,26 +151,34 @@
             window.streakUI.showMilestoneNotification(count);
         }
         
-        function testCardReview() {
+        async function testCardReview() {
             if (!window.streakUI) {
                 console.error('StreakUI not available');
                 return;
             }
             
             console.log('Simulating card review');
-            window.streakUI.trackCardReview();
-            document.getElementById('cards-count').textContent = window.streakUI.getCardsReviewedCount();
+            // Increment mock counter
+            window.mockReviewsToday++;
+            await window.streakUI.trackCardReview();
+            const cardsCount = await window.streakUI.getCardsReviewedCount();
+            document.getElementById('cards-count').textContent = cardsCount;
         }
         
-        function resetSession() {
+        async function resetDaily() {
             if (!window.streakUI) {
                 console.error('StreakUI not available');
                 return;
             }
             
-            console.log('Resetting session');
-            window.streakUI.resetSession();
-            document.getElementById('cards-count').textContent = window.streakUI.getCardsReviewedCount();
+            console.log('Resetting daily progress');
+            window.mockReviewsToday = 0;
+            localStorage.removeItem('streakUI_lastResetDate');
+            localStorage.removeItem('streakUI_achievedMilestones');
+            window.streakUI.loadTodaysAchievedMilestones();
+            const cardsCount = await window.streakUI.getCardsReviewedCount();
+            document.getElementById('cards-count').textContent = cardsCount;
+            console.log('Daily progress reset');
         }
         
         function showManualNotification() {

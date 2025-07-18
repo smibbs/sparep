@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabase-client.js';
+import { SESSION_CONFIG } from './config.js';
 
 // Authentication service for handling user registration, login, and session management
 class AuthService {
@@ -122,13 +123,13 @@ class AuthService {
     // Get daily review limit for user
     async getDailyReviewLimit() {
         const profile = await this.getUserProfile();
-        if (!profile) return 20;
+        if (!profile) return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
         
         switch (profile.user_tier) {
-            case 'free': return 20;
+            case 'free': return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
             case 'paid':
-            case 'admin': return 9999; // Effectively unlimited
-            default: return 20;
+            case 'admin': return SESSION_CONFIG.PAID_USER_DAILY_LIMIT; // Effectively unlimited
+            default: return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
         }
     }
 
@@ -147,7 +148,7 @@ class AuthService {
         // Reset count if it's a new day
         const reviewsToday = (lastReviewDate === today) ? profile.reviews_today : 0;
         
-        return reviewsToday < 20;
+        return reviewsToday < SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
     }
 
     // Subscribe to auth state changes

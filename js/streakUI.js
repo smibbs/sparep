@@ -1,70 +1,126 @@
 /**
  * Streak UI Components
- * Handles display of card review milestone notifications
+ * Handles display of card review milestone notifications based on total daily cards
  */
+
+import database from './database.js';
 
 class StreakUI {
     constructor() {
-        this.cardsReviewedInSession = 0;
-        this.milestones = [5, 10, 25, 50, 100];
+        this.milestones = [10, 25, 50, 100, 200];
         this.achievedMilestones = new Set();
         this.notificationTimeout = null;
+        this.currentUserId = null;
     }
 
     /**
      * Initialize the streak UI
+     * @param {string} userId - Current user ID
      */
-    async initialize() {
-        // Reset session counters
-        this.cardsReviewedInSession = 0;
-        this.achievedMilestones.clear();
+    async initialize(userId) {
+        this.currentUserId = userId;
+        // Load today's achieved milestones from localStorage
+        this.loadTodaysAchievedMilestones();
     }
 
     /**
      * Track a card review and check for milestones
      */
-    trackCardReview() {
-        this.cardsReviewedInSession++;
+    async trackCardReview() {
+        if (!this.currentUserId) {
+            console.warn('StreakUI: User ID not set, cannot track card review');
+            return;
+        }
         
-        // Check if we've reached a milestone
-        const currentMilestone = this.milestones.find(milestone => 
-            milestone === this.cardsReviewedInSession && 
-            !this.achievedMilestones.has(milestone)
-        );
-        
-        if (currentMilestone) {
-            this.achievedMilestones.add(currentMilestone);
-            this.showMilestoneNotification(currentMilestone);
+        try {
+            // Get current total reviews today from database
+            const totalReviewsToday = await database.getCurrentReviewsToday(this.currentUserId);
+            
+            // Check if we've reached a milestone
+            const currentMilestone = this.milestones.find(milestone => 
+                milestone === totalReviewsToday && 
+                !this.achievedMilestones.has(milestone)
+            );
+            
+            if (currentMilestone) {
+                this.achievedMilestones.add(currentMilestone);
+                this.saveTodaysAchievedMilestones();
+                this.showMilestoneNotification(currentMilestone);
+            }
+        } catch (error) {
+            console.error('StreakUI: Error tracking card review:', error);
+            // Don't let streak tracking errors break the session
         }
     }
 
     /**
-     * Get current cards reviewed count
+     * Get current cards reviewed count for today
+     * @returns {Promise<number>} Current total reviews today
      */
-    getCardsReviewedCount() {
-        return this.cardsReviewedInSession;
+    async getCardsReviewedCount() {
+        if (!this.currentUserId) {
+            return 0;
+        }
+        try {
+            return await database.getCurrentReviewsToday(this.currentUserId);
+        } catch (error) {
+            console.error('StreakUI: Error getting cards reviewed count:', error);
+            return 0;
+        }
     }
 
     /**
-     * Reset session counters (call at start of new session)
+     * Check if it's a new day and reset daily achievements if needed
      */
-    resetSession() {
-        this.cardsReviewedInSession = 0;
-        this.achievedMilestones.clear();
+    checkAndResetDailyAchievements() {
+        const today = new Date().toISOString().split('T')[0];
+        const lastResetDate = localStorage.getItem('streakUI_lastResetDate');
+        
+        if (lastResetDate !== today) {
+            this.achievedMilestones.clear();
+            localStorage.setItem('streakUI_lastResetDate', today);
+            localStorage.removeItem('streakUI_achievedMilestones');
+        }
     }
 
     /**
-     * Get milestone message based on cards reviewed
+     * Load today's achieved milestones from localStorage
+     */
+    loadTodaysAchievedMilestones() {
+        this.checkAndResetDailyAchievements();
+        
+        const stored = localStorage.getItem('streakUI_achievedMilestones');
+        if (stored) {
+            try {
+                const achievements = JSON.parse(stored);
+                this.achievedMilestones = new Set(achievements);
+            } catch (error) {
+                console.warn('Error loading achieved milestones:', error);
+                this.achievedMilestones = new Set();
+            }
+        }
+    }
+
+    /**
+     * Save today's achieved milestones to localStorage
+     */
+    saveTodaysAchievedMilestones() {
+        const achievements = Array.from(this.achievedMilestones);
+        localStorage.setItem('streakUI_achievedMilestones', JSON.stringify(achievements));
+    }
+
+    /**
+     * Get milestone message based on cards reviewed today
      */
     getMilestoneMessage(cardsReviewed) {
         const messages = {
-            5: "Great start! You've reviewed 5 cards!",
-            10: "Nice work! 10 cards reviewed!",
-            25: "Excellent! You've reviewed 25 cards!",
-            50: "Amazing! 50 cards reviewed!",
-            100: "Outstanding! You've reviewed 100 cards!"
+            10: "Great start! You've reviewed 10 cards today!",
+            25: "Nice work! 25 cards reviewed today!",
+            50: "Excellent! You've reviewed 50 cards today!",
+            100: "Amazing! 100 cards reviewed today!",
+            200: "Outstanding! You've reviewed 200 cards today!"
         };
-        return messages[cardsReviewed] || `Congratulations! You've reviewed ${cardsReviewed} cards!`;
+        return messages[cardsReviewed] || `Congratulations! You've reviewed ${cardsReviewed} cards today!`;
     }
 
     /**

@@ -19,27 +19,39 @@ const CARD_STATE = {
     RELEARNING: 'relearning'
 };
 
-// Default parameters (used as fallback)
+// FSRS algorithm constants
+const FSRS_CONSTANTS = {
+    FACTOR: 19/81,  // F = 19/81 (from FSRS paper)
+    DECAY: -0.5,    // C = -0.5 (exponential decay constant)
+    DESIRED_RETENTION: 0.9  // Default desired retention rate
+};
+
+// Default parameters (used as fallback) - All 19 FSRS parameters
 const DEFAULT_PARAMS = {
     w0: 0.4197, w1: 1.1829, w2: 3.1262, w3: 15.4722, w4: 7.2102,
     w5: 0.5316, w6: 1.0651, w7: 0.0234, w8: 1.616, w9: 0.0721,
     w10: 0.1284, w11: 1.0824, w12: 0.0, w13: 100.0, w14: 1.0,
     w15: 10.0, w16: 2.9013,
+    // Additional parameters for complete FSRS implementation
+    w17: 0.0, w18: 0.0, 
     learning_steps_minutes: [1, 10],
     graduating_interval_days: 1,
     easy_interval_days: 4,
     maximum_interval_days: 36500,
-    minimum_interval_days: 1
+    minimum_interval_days: 1,
+    desired_retention: 0.9
 };
 
 /**
  * Calculate retrievability based on elapsed time and stability
+ * Formula: R(t) = (1 + F * (t/S))^C where F = 19/81, C = -0.5
  * @param {number} elapsedTime - Time elapsed since last review (in days)
  * @param {number} stability - Current stability value
  * @returns {number} Retrievability (0-1)
  */
 function calculateRetrievability(elapsedTime, stability) {
-    return Math.pow(1 + elapsedTime / (9 * stability), -1);
+    if (stability <= 0) return 0;
+    return Math.pow(1 + FSRS_CONSTANTS.FACTOR * (elapsedTime / stability), FSRS_CONSTANTS.DECAY);
 }
 
 /**
@@ -64,13 +76,21 @@ function calculateInitialDifficulty(rating, params = DEFAULT_PARAMS) {
 }
 
 /**
- * Calculate the next review interval based on stability
+ * Calculate the next review interval based on stability and desired retention
+ * Formula: I(R_d) = (S / F) * (R_d^(1/C) - 1) where F = 19/81, C = -0.5
  * @param {number} stability - Current stability value
+ * @param {number} desiredRetention - Desired retention rate (0-1)
  * @param {Object} params - FSRS parameters
  * @returns {number} Interval in days
  */
-function calculateInterval(stability, params = DEFAULT_PARAMS) {
-    const interval = stability * 9;
+function calculateInterval(stability, desiredRetention = null, params = DEFAULT_PARAMS) {
+    if (stability <= 0) return params.minimum_interval_days;
+    
+    const retention = desiredRetention || params.desired_retention || FSRS_CONSTANTS.DESIRED_RETENTION;
+    
+    // I(R_d) = (S / F) * (R_d^(1/C) - 1)
+    const interval = (stability / FSRS_CONSTANTS.FACTOR) * (Math.pow(retention, 1 / FSRS_CONSTANTS.DECAY) - 1);
+    
     return Math.min(Math.max(params.minimum_interval_days, Math.round(interval)), params.maximum_interval_days);
 }
 
@@ -88,8 +108,8 @@ function calculateNextReview(stability, difficulty, rating, params = DEFAULT_PAR
     stability = Math.max(params.w12 || 0.1, stability);
     difficulty = Math.min(Math.max(params.w14, difficulty), params.w15);
     
-    // Calculate interval based on stability
-    const interval = calculateInterval(stability, params);
+    // Calculate interval based on stability and desired retention
+    const interval = calculateInterval(stability, params.desired_retention, params);
     
     // Calculate next review date
     const now = new Date();
@@ -105,6 +125,7 @@ function calculateNextReview(stability, difficulty, rating, params = DEFAULT_PAR
 
 /**
  * Update stability based on current value, difficulty, rating, and elapsed time
+ * Uses the correct FSRS stability update formulas
  * @param {number} currentStability - Current stability value
  * @param {number} difficulty - Current difficulty value
  * @param {number} rating - User rating (1-4)
@@ -118,38 +139,41 @@ function updateStability(currentStability, difficulty, rating, elapsedDays = 0, 
     difficulty = Math.min(Math.max(params.w14, difficulty), params.w15);
     elapsedDays = Math.max(0, elapsedDays);
     
-    // Calculate retrievability if elapsed time is available
+    // Calculate retrievability based on elapsed time
     const retrievability = elapsedDays > 0 ? calculateRetrievability(elapsedDays, currentStability) : 0.9;
     
-    // FSRS stability update formula
+    // FSRS stability update formulas based on rating
     let newStability;
     
     if (rating === RATING.AGAIN) {
-        // Failed review - significant stability decrease
-        newStability = currentStability * Math.exp(params.w11) * (
-            Math.pow(difficulty, params.w5) * 
-            Math.pow(currentStability, params.w6) * 
-            Math.exp(-params.w7 * elapsedDays)
-        ) * params.w10;
+        // Failed review - stability decrease
+        // S' = S * w11 * (1 - retrievability) * ((11 - difficulty) / 10)
+        newStability = currentStability * params.w11 * (1 - retrievability) * ((11 - difficulty) / 10);
     } else {
-        // Successful review - stability increase based on rating
-        const difficultyFactor = Math.pow(difficulty, params.w5);
-        const stabilityFactor = Math.pow(currentStability, params.w6);
-        const timeFactor = Math.exp(-params.w7 * elapsedDays);
+        // Successful review - stability increase
+        // Base stability increase factor
+        const stabilityIncrease = Math.exp(params.w8) * 
+            (11 - difficulty) * 
+            Math.pow(currentStability, params.w9) * 
+            (Math.exp(params.w10 * (1 - retrievability)) - 1);
         
+        // Rating-specific multipliers
+        let ratingMultiplier;
         switch (rating) {
             case RATING.HARD:
-                newStability = currentStability * (1 + params.w1 * difficultyFactor * stabilityFactor * timeFactor * params.w9);
+                ratingMultiplier = params.w15;
                 break;
             case RATING.GOOD:
-                newStability = currentStability * (1 + params.w1 * difficultyFactor * stabilityFactor * timeFactor);
+                ratingMultiplier = 1;
                 break;
             case RATING.EASY:
-                newStability = currentStability * (1 + params.w1 * difficultyFactor * stabilityFactor * timeFactor * params.w8);
+                ratingMultiplier = params.w16;
                 break;
             default:
-                newStability = currentStability;
+                ratingMultiplier = 1;
         }
+        
+        newStability = currentStability + stabilityIncrease * ratingMultiplier;
     }
     
     // Apply stability bounds
@@ -167,15 +191,12 @@ function updateDifficulty(currentDifficulty, rating, params = DEFAULT_PARAMS) {
     // Validate inputs
     currentDifficulty = Math.min(Math.max(params.w14, currentDifficulty), params.w15);
     
-    // FSRS difficulty update formula
-    const difficultyAdjustment = params.w16 * (rating - 3);
+    // FSRS difficulty update formula using correct parameter w6
+    const difficultyAdjustment = params.w6 * (rating - 3);
     const newDifficulty = currentDifficulty + difficultyAdjustment;
     
-    // Apply difficulty bounds and decay
-    const boundedDifficulty = Math.min(Math.max(params.w14, newDifficulty), params.w15);
-    
-    // Apply difficulty decay (makes difficulty gradually decrease over time)
-    return boundedDifficulty - params.w11 * (boundedDifficulty - params.w14) * 0.01;
+    // Apply difficulty bounds
+    return Math.min(Math.max(params.w14, newDifficulty), params.w15);
 }
 
 // Export functions for use in other modules
@@ -183,6 +204,7 @@ export {
     RATING,
     CARD_STATE,
     DEFAULT_PARAMS,
+    FSRS_CONSTANTS,
     calculateRetrievability,
     calculateInitialStability,
     calculateInitialDifficulty,

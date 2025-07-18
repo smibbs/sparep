@@ -3,6 +3,7 @@ import { RATING, calculateNextReview, updateStability, updateDifficulty } from '
 import database from './database.js';
 import auth from './auth.js';
 import SessionManager from './sessionManager.js';
+import { SESSION_CONFIG } from './config.js';
 
 // Use global Supabase client
 const supabase = window.supabaseClient;
@@ -211,6 +212,7 @@ async function updateProgress() {
     const progressBar = document.getElementById('progress-bar');
     const progressFill = document.getElementById('progress-fill');
     const progressText = document.getElementById('progress-text');
+    const progressContainer = document.querySelector('.progress-container');
     
     if (progressBar && progressFill && progressText) {
         try {
@@ -222,6 +224,9 @@ async function updateProgress() {
             
             progressFill.style.width = percentage + '%';
             progressBar.classList.remove('hidden');
+            if (progressContainer) {
+                progressContainer.classList.remove('hidden'); // Ensure container is visible
+            }
             progressText.classList.add('hidden');
         } catch (error) {
             // Fallback to simple display if error getting session progress
@@ -230,6 +235,9 @@ async function updateProgress() {
             
             progressFill.style.width = percentage + '%';
             progressBar.classList.remove('hidden');
+            if (progressContainer) {
+                progressContainer.classList.remove('hidden'); // Ensure container is visible
+            }
             progressText.classList.add('hidden');
         }
     }
@@ -301,36 +309,33 @@ async function displayCurrentCard() {
             console.warn('Failed to fetch subject name:', error);
         }
     }
+    
+    // Batch all DOM updates to minimize reflows/repaints
     const lastSeenText = formatTimeAgo(currentCard.last_review_date);
-    cardFront.innerHTML = `<div class="last-seen-indicator" id="last-seen-front">${lastSeenText}</div><div class="subject-label">${subjectName}</div><p>${currentCard.cards.question}</p>`;
-    cardBack.innerHTML = `<div class="last-seen-indicator" id="last-seen-back">${lastSeenText}</div><div class="subject-label">${subjectName}</div><p>${currentCard.cards.answer}</p>`;
     const progressInfo = getProgressInfo(currentCard);
-    if (progressInfo) {
-        cardFront.innerHTML += progressInfo;
-    }
-
-    // Reset card to front face and show rating buttons
-    if (card) {
-        card.classList.remove('revealed');
-    }
-
-    // Update progress display
-    updateProgress().catch(error => {
-        console.warn('Failed to update progress:', error);
-    });
-
-    // Enable rating buttons
-    const ratingButtons = document.querySelectorAll('.rating-button');
-    ratingButtons.forEach(btn => btn.disabled = false);
-
-    // Set up initial button visibility - flip button should be visible, rating buttons hidden
+    
+    // Get all DOM elements at once
     const flipButton = document.getElementById('flip-button');
     const ratingButtonsDiv = document.getElementById('rating-buttons');
     const reportCardContainer = document.getElementById('report-card-container');
     const controls = document.querySelector('.controls');
-    const cardInner = document.querySelector('.card-inner');
+    const ratingButtons = document.querySelectorAll('.rating-button');
     const reportCardLink = document.getElementById('report-card-link');
     
+    // Batch content updates
+    const frontContent = `<div class="last-seen-indicator" id="last-seen-front">${lastSeenText}</div><div class="subject-label">${subjectName}</div><p>${currentCard.cards.question}</p>${progressInfo || ''}`;
+    const backContent = `<div class="last-seen-indicator" id="last-seen-back">${lastSeenText}</div><div class="subject-label">${subjectName}</div><p>${currentCard.cards.answer}</p>`;
+    
+    // Update content in one batch
+    cardFront.innerHTML = frontContent;
+    cardBack.innerHTML = backContent;
+    
+    // Reset card state and update UI in one batch
+    if (card) {
+        card.classList.remove('revealed');
+    }
+    
+    // Batch all button state changes
     if (flipButton && ratingButtonsDiv && controls) {
         flipButton.classList.remove('hidden');
         ratingButtonsDiv.classList.add('hidden');
@@ -340,7 +345,15 @@ async function displayCurrentCard() {
         controls.classList.add('flip-only');
     }
     
-    // Show report card link for non-admin users only
+    // Enable rating buttons
+    ratingButtons.forEach(btn => btn.disabled = false);
+    
+    // Update progress display in background
+    updateProgress().catch(error => {
+        console.warn('Failed to update progress:', error);
+    });
+    
+    // Show report card link for non-admin users only (non-blocking)
     if (reportCardLink) {
         appState.authService.isAdmin().then(isAdmin => {
             if (isAdmin) {
@@ -433,7 +446,7 @@ async function showSessionCompleteMessage() {
                 frontContent.innerHTML = `
                     <div class="session-complete-message">
                         <h2>Session Complete! 🎉</h2>
-                        <p>You've completed your 20-card session.</p>
+                        <p>You've completed your ${SESSION_CONFIG.CARDS_PER_SESSION}-card session.</p>
                         <p>Your daily review limit has been reached.</p>
                         <p>Come back tomorrow for more cards!</p>
                     </div>
@@ -443,7 +456,7 @@ async function showSessionCompleteMessage() {
                 frontContent.innerHTML = `
                     <div class="session-complete-message">
                         <h2>Session Complete! 🎉</h2>
-                        <p>You've completed 20 cards in this session.</p>
+                        <p>You've completed ${SESSION_CONFIG.CARDS_PER_SESSION} cards in this session.</p>
                         <div class="session-actions">
                             <button id="new-session-button" class="nav-button">Start New Session</button>
                         </div>
@@ -571,19 +584,19 @@ async function loadSession() {
             const reviewsToday = (lastReviewDate === today) ? 
                 (userProfile.reviews_today || 0) : 0;
             
-            if (reviewsToday >= 20) {
+            if (reviewsToday >= SESSION_CONFIG.FREE_USER_DAILY_LIMIT) {
                 showContent(true);
                 showDailyLimitMessage({ 
                     limitReached: true, 
                     tier: 'free', 
                     reviewsToday, 
-                    limit: 20 
+                    limit: SESSION_CONFIG.FREE_USER_DAILY_LIMIT 
                 });
                 return;
             }
         }
 
-        // Initialize new session with 20 cards
+        // Initialize new session with configured number of cards
         if (loadingText) {
             loadingText.textContent = 'Loading your flashcards...';
         }
@@ -591,10 +604,7 @@ async function loadSession() {
         try {
             await appState.sessionManager.initializeSession(appState.user.id, appState.dbService);
             
-            // Reset milestone tracking for new session
-            if (typeof window.streakUI !== 'undefined') {
-                window.streakUI.resetSession();
-            }
+            // No need to reset milestone tracking - it's based on daily totals now
         } catch (error) {
             if (error.message.includes('No cards available')) {
                 showContent(true);
@@ -674,7 +684,7 @@ async function initializeApp() {
         // Initialize streak UI for milestone notifications only
         try {
             const { default: streakUI } = await import('./streakUI.js');
-            await streakUI.initialize();
+            await streakUI.initialize(appState.user.id);
             window.streakUI = streakUI; // Make globally available
             console.log('Streak UI initialized');
         } catch (error) {
@@ -731,7 +741,7 @@ function setupEventListeners() {
     }
     if (ratingButtons) {
         ratingButtons.querySelectorAll('.rating-button').forEach(btn => {
-            btn.addEventListener('click', debounce(handleRating, 400));
+            btn.addEventListener('click', debounce(handleRating, 200));
         });
     }
     if (reportCardLink) {
@@ -810,8 +820,14 @@ async function handleRating(event) {
             return;
         }
 
-        // Disable rating buttons while processing
+        // Disable rating buttons while processing (visual feedback)
         const ratingButtons = document.querySelectorAll('.rating-button');
+        const ratingButtonsContainer = document.getElementById('rating-buttons');
+        
+        // Use CSS class for better performance and visual feedback
+        if (ratingButtonsContainer) {
+            ratingButtonsContainer.classList.add('processing');
+        }
         ratingButtons.forEach(btn => btn.disabled = true);
 
         // Calculate response time (if we have a start time)
@@ -820,18 +836,20 @@ async function handleRating(event) {
             null;
 
         // Record the rating in the session manager (local cache)
-        appState.sessionManager.recordRating(rating, responseTime);
+        const recordSuccess = appState.sessionManager.recordRating(rating, responseTime);
+        if (!recordSuccess) {
+            throw new Error('Failed to record rating in session manager');
+        }
 
         // Increment session reviewed count
         appState.sessionReviewedCount++;
         
-        // Track milestone for cards reviewed (only for ratings 2, 3, 4)
+        // Track milestone for cards reviewed (only for ratings 2, 3, 4) - non-blocking
         if (rating >= 2 && typeof window.streakUI !== 'undefined') {
-            try {
-                window.streakUI.trackCardReview();
-            } catch (error) {
+            // Run streak tracking in background without blocking UI
+            window.streakUI.trackCardReview().catch(error => {
                 console.error('Error tracking card review milestone:', error);
-            }
+            });
         }
         
         // Check if session is complete
@@ -847,18 +865,40 @@ async function handleRating(event) {
             await displayCurrentCard();
         } else {
             // This shouldn't happen if session isn't complete
-            showError('No more cards available in session');
+            console.error('Session state inconsistent: no current card but session not complete');
+            console.error('Session data:', appState.sessionManager.getSessionData());
+            showError('Session state error. Please refresh the page to continue.');
         }
 
-        // Re-enable rating buttons
+        // Re-enable rating buttons after processing
+        if (ratingButtonsContainer) {
+            ratingButtonsContainer.classList.remove('processing');
+        }
         ratingButtons.forEach(btn => btn.disabled = false);
 
     } catch (error) {
         // Error handling rating
-        showError('Failed to record your rating. Please try again.');
+        console.error('Error in handleRating:', error);
+        console.error('Rating:', rating);
+        console.error('Current card:', appState.currentCard);
+        console.error('Session data:', appState.sessionManager.getSessionData());
+        
+        // More specific error messages
+        if (error.message.includes('Failed to record rating in session manager')) {
+            showError('Failed to save your rating. Please try again.');
+        } else if (error.message.includes('Session state error')) {
+            showError('Session state error. Please refresh the page to continue.');
+        } else {
+            showError('An error occurred while processing your rating. Please try again.');
+        }
         
         // Re-enable rating buttons on error
         const ratingButtons = document.querySelectorAll('.rating-button');
+        const ratingButtonsContainer = document.getElementById('rating-buttons');
+        
+        if (ratingButtonsContainer) {
+            ratingButtonsContainer.classList.remove('processing');
+        }
         ratingButtons.forEach(btn => btn.disabled = false);
     }
 }

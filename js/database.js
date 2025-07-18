@@ -2,6 +2,7 @@ import { getSupabaseClient } from './supabase-client.js';
 import { updateStability, updateDifficulty, calculateNextReview, calculateInitialStability, calculateInitialDifficulty } from './fsrs.js';
 import fsrsParametersService from './fsrsParameters.js';
 import fsrsOptimizationService from './fsrsOptimization.js';
+import { SESSION_CONFIG } from './config.js';
 
 class DatabaseService {
     constructor() {
@@ -50,11 +51,11 @@ class DatabaseService {
                 .single();
 
             if (profileError) {
-                // No user profile found, using default limit of 20
+                // No user profile found, using default limit
             }
 
             const userTier = userProfile?.user_tier || 'free';
-            const newCardsLimit = userProfile?.daily_new_cards_limit || 20;
+            const newCardsLimit = userProfile?.daily_new_cards_limit || SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
             
             // Check daily review limit for free users
             if (userTier === 'free') {
@@ -66,9 +67,9 @@ class DatabaseService {
                 const reviewsToday = (lastReviewDate === today) ? 
                     (userProfile.reviews_today || 0) : 0;
                 
-                if (reviewsToday >= 20) {
+                if (reviewsToday >= SESSION_CONFIG.FREE_USER_DAILY_LIMIT) {
                     // Daily review limit reached for free user
-                    return { limitReached: true, tier: 'free', reviewsToday, limit: 20 };
+                    return { limitReached: true, tier: 'free', reviewsToday, limit: SESSION_CONFIG.FREE_USER_DAILY_LIMIT };
                 }
             }
             // User tier and limits checked
@@ -228,16 +229,9 @@ class DatabaseService {
                 newDifficulty = updateDifficulty(currentDifficulty, rating, fsrsParams);
             }
             
-            // Special handling for "again" rating - schedule for 10 minutes later
-            let nextReviewDate;
-            if (rating === 1) {
-                // Schedule "again" cards for exactly 10 minutes from now
-                nextReviewDate = new Date(Date.now() + 10 * 60 * 1000);
-            } else {
-                // Normal FSRS scheduling for rating 2-4
-                const reviewResult = calculateNextReview(newStability, newDifficulty, rating, fsrsParams, currentState);
-                nextReviewDate = reviewResult.nextReviewDate;
-            }
+            // Use FSRS scheduling for all ratings including "again"
+            const reviewResult = calculateNextReview(newStability, newDifficulty, rating, fsrsParams, currentState);
+            const nextReviewDate = reviewResult.nextReviewDate;
 
             // State transition logic
             let nextState = currentState;
@@ -509,8 +503,27 @@ class DatabaseService {
             const newStateCards = (dueCards || []).filter(card => card.state === 'new');
             const additionalNewCards = (newCards || []);
             
-            // Combine all new cards (both from progress and additional)
-            const allNewCards = [...newStateCards, ...additionalNewCards];
+            // Deduplicate new cards by card_id to avoid duplicates
+            const seenCardIds = new Set();
+            const deduplicatedNewCards = [];
+            
+            // Add new cards from due query first
+            for (const card of newStateCards) {
+                if (!seenCardIds.has(card.card_id)) {
+                    seenCardIds.add(card.card_id);
+                    deduplicatedNewCards.push(card);
+                }
+            }
+            
+            // Add additional new cards, but only if we haven't seen them
+            for (const card of additionalNewCards) {
+                if (!seenCardIds.has(card.card_id)) {
+                    seenCardIds.add(card.card_id);
+                    deduplicatedNewCards.push(card);
+                }
+            }
+            
+            const allNewCards = deduplicatedNewCards;
             
             // Create a balanced mix: prioritize truly due cards, then fill with new cards
             const allCards = [];
@@ -520,17 +533,28 @@ class DatabaseService {
             allCards.push(...reviewCards);
             allCards.push(...learningCards);
             
-            // Fill remaining slots with new cards to ensure 20-card sessions
-            const remainingSlots = Math.max(0, 20 - allCards.length);
+            // Fill remaining slots with new cards to ensure proper session size
+            const remainingSlots = Math.max(0, SESSION_CONFIG.CARDS_PER_SESSION - allCards.length);
             if (remainingSlots > 0) {
                 allCards.push(...allNewCards.slice(0, remainingSlots));
             }
             
             // If we still don't have enough cards, use any remaining cards
-            const finalRemainingSlots = Math.max(0, 20 - allCards.length);
+            const finalRemainingSlots = Math.max(0, SESSION_CONFIG.CARDS_PER_SESSION - allCards.length);
             if (finalRemainingSlots > 0) {
                 const additionalCards = allNewCards.slice(remainingSlots);
                 allCards.push(...additionalCards.slice(0, finalRemainingSlots));
+            }
+            
+            // Final deduplication step for entire session
+            const finalSessionCards = [];
+            const finalSeenCardIds = new Set();
+            
+            for (const card of allCards) {
+                if (!finalSeenCardIds.has(card.card_id)) {
+                    finalSeenCardIds.add(card.card_id);
+                    finalSessionCards.push(card);
+                }
             }
             
             // Debug: Log session composition
@@ -539,18 +563,18 @@ class DatabaseService {
                 review: reviewCards.length,
                 learning: learningCards.length, 
                 new: allNewCards.length,
-                total: allCards.length
+                total: finalSessionCards.length
             });
-            console.log('Cards selected for session:', allCards.length);
+            console.log('Cards selected for session:', finalSessionCards.length);
             
             // Show first few cards with due date info
-            allCards.slice(0, 5).forEach((card, index) => {
+            finalSessionCards.slice(0, 5).forEach((card, index) => {
                 const nextReview = new Date(card.next_review_date);
                 const isDue = nextReview <= now;
                 console.log(`${index + 1}. Subject: ${card.cards?.subjects?.name}, State: ${card.state}, Due: ${isDue ? 'Yes' : 'No'} (${nextReview.toDateString()})`);
             });
             
-            return allCards;
+            return finalSessionCards;
         } catch (error) {
             // Error fetching due and new cards
             throw error;
@@ -564,7 +588,7 @@ class DatabaseService {
      * @param {string} userTier - The user's tier (free, paid, admin)
      * @returns {Promise<Array>} Array of new cards
      */
-    async getNewCards(userId, limit = 20, userTier = 'free') {
+    async getNewCards(userId, limit = SESSION_CONFIG.CARDS_PER_SESSION, userTier = 'free') {
         try {
             // Getting new cards for user
             const supabase = await this.getSupabase();
@@ -932,8 +956,10 @@ class DatabaseService {
                 if (!ratings || ratings.length === 0) continue;
 
                 // Get the final rating (last rating >= 2, or last rating if all are 1)
-                const completingRating = ratings.reverse().find(r => r.rating >= 2) || ratings[0];
-                const allRatings = ratings.reverse(); // Restore original order
+                // Use slice() to create a copy before reversing to avoid mutating original array
+                const reversedRatings = ratings.slice().reverse();
+                const completingRating = reversedRatings.find(r => r.rating >= 2) || ratings[ratings.length - 1];
+                const allRatings = ratings; // Original array remains unchanged
                 
                 // Find the current progress for this card
                 const cardInSession = sessionData.cards.find(c => c.card_id === cardId);
@@ -962,15 +988,9 @@ class DatabaseService {
                     newDifficulty = updateDifficulty(currentDifficulty, completingRating.rating, fsrsParams);
                 }
                 
-                let nextReviewDate;
-                if (completingRating.rating === 1) {
-                    // If final rating is still "again", schedule for 10 minutes
-                    nextReviewDate = new Date(Date.now() + 10 * 60 * 1000);
-                } else {
-                    // Normal FSRS scheduling with parameters
-                    const reviewResult = calculateNextReview(newStability, newDifficulty, completingRating.rating, fsrsParams, currentState);
-                    nextReviewDate = reviewResult.nextReviewDate;
-                }
+                // Use FSRS scheduling for all ratings including "again"
+                const reviewResult = calculateNextReview(newStability, newDifficulty, completingRating.rating, fsrsParams, currentState);
+                const nextReviewDate = reviewResult.nextReviewDate;
 
                 // Determine next state
                 let nextState = currentState;
@@ -1275,6 +1295,42 @@ class DatabaseService {
         } catch (error) {
             console.error('Debug error:', error);
             return { error: error.message };
+        }
+    }
+
+    /**
+     * Get current reviews_today count for a user
+     * @param {string} userId - User ID
+     * @returns {Promise<number>} Current reviews_today count
+     */
+    async getCurrentReviewsToday(userId) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            const { data: profile, error } = await supabase
+                .from('user_profiles')
+                .select('reviews_today, last_review_date')
+                .eq('id', userId)
+                .single();
+            
+            if (error) {
+                console.error('Error fetching reviews_today:', error);
+                return 0;
+            }
+            
+            // Check if it's still the same day
+            const today = new Date().toISOString().split('T')[0];
+            const lastReviewDate = profile.last_review_date;
+            
+            // If last review was today, return the count, otherwise return 0
+            if (lastReviewDate === today) {
+                return profile.reviews_today || 0;
+            }
+            
+            return 0;
+        } catch (error) {
+            console.error('Error getting current reviews today:', error);
+            return 0;
         }
     }
 }
