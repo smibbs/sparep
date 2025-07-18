@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Session Completion Card</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        body {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        .test-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <h1>Session Completion Card Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Balanced Ratings</h2>
+        <div class="test-container">
+            <div id="test1-content">Test content will appear here</div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Mostly Good Ratings</h2>
+        <div class="test-container">
+            <div id="test2-content">Test content will appear here</div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Mixed Ratings with Some Again</h2>
+        <div class="test-container">
+            <div id="test3-content">Test content will appear here</div>
+        </div>
+    </div>
+
+    <script>
+        // Test data for different rating patterns
+        const testData = {
+            test1: {
+                ratings: {
+                    "1": [{ rating: 3, responseTime: 2000, timestamp: "2023-01-01T10:00:00Z" }],
+                    "2": [{ rating: 4, responseTime: 1500, timestamp: "2023-01-01T10:01:00Z" }],
+                    "3": [{ rating: 2, responseTime: 3000, timestamp: "2023-01-01T10:02:00Z" }],
+                    "4": [{ rating: 1, responseTime: 4000, timestamp: "2023-01-01T10:03:00Z" }],
+                    "5": [{ rating: 3, responseTime: 2500, timestamp: "2023-01-01T10:04:00Z" }]
+                },
+                cards: [
+                    { card_id: "1", cards: { question: "Q1", answer: "A1" } },
+                    { card_id: "2", cards: { question: "Q2", answer: "A2" } },
+                    { card_id: "3", cards: { question: "Q3", answer: "A3" } },
+                    { card_id: "4", cards: { question: "Q4", answer: "A4" } },
+                    { card_id: "5", cards: { question: "Q5", answer: "A5" } }
+                ]
+            },
+            test2: {
+                ratings: {
+                    "1": [{ rating: 3, responseTime: 2000, timestamp: "2023-01-01T10:00:00Z" }],
+                    "2": [{ rating: 3, responseTime: 1800, timestamp: "2023-01-01T10:01:00Z" }],
+                    "3": [{ rating: 4, responseTime: 1500, timestamp: "2023-01-01T10:02:00Z" }],
+                    "4": [{ rating: 3, responseTime: 2200, timestamp: "2023-01-01T10:03:00Z" }],
+                    "5": [{ rating: 3, responseTime: 1900, timestamp: "2023-01-01T10:04:00Z" }]
+                },
+                cards: [
+                    { card_id: "1", cards: { question: "Q1", answer: "A1" } },
+                    { card_id: "2", cards: { question: "Q2", answer: "A2" } },
+                    { card_id: "3", cards: { question: "Q3", answer: "A3" } },
+                    { card_id: "4", cards: { question: "Q4", answer: "A4" } },
+                    { card_id: "5", cards: { question: "Q5", answer: "A5" } }
+                ]
+            },
+            test3: {
+                ratings: {
+                    "1": [{ rating: 1, responseTime: 5000, timestamp: "2023-01-01T10:00:00Z" }],
+                    "2": [{ rating: 1, responseTime: 4500, timestamp: "2023-01-01T10:01:00Z" }],
+                    "3": [{ rating: 2, responseTime: 3500, timestamp: "2023-01-01T10:02:00Z" }],
+                    "4": [{ rating: 3, responseTime: 2000, timestamp: "2023-01-01T10:03:00Z" }],
+                    "5": [{ rating: 4, responseTime: 1500, timestamp: "2023-01-01T10:04:00Z" }]
+                },
+                cards: [
+                    { card_id: "1", cards: { question: "Q1", answer: "A1" } },
+                    { card_id: "2", cards: { question: "Q2", answer: "A2" } },
+                    { card_id: "3", cards: { question: "Q3", answer: "A3" } },
+                    { card_id: "4", cards: { question: "Q4", answer: "A4" } },
+                    { card_id: "5", cards: { question: "Q5", answer: "A5" } }
+                ]
+            }
+        };
+
+        // Helper functions (copied from script.js)
+        function generateReviewScheduleChart(sessionData) {
+            if (!sessionData || !sessionData.cards || !sessionData.ratings) {
+                return '<div class="schedule-chart"><p>No review data available</p></div>';
+            }
+
+            // Define time buckets with colors
+            const timeBuckets = {
+                today: { count: 0, label: 'Today', color: '#ff6b6b' },      // Red - urgent
+                week: { count: 0, label: 'This Week', color: '#ffa726' },   // Orange - soon
+                month: { count: 0, label: 'This Month', color: '#ffee58' }, // Yellow - medium
+                later: { count: 0, label: 'Later', color: '#66bb6a' }      // Green - distant
+            };
+
+            const now = new Date();
+
+            // Calculate next review dates for each card (simplified for testing)
+            for (const [cardId, ratings] of Object.entries(sessionData.ratings)) {
+                if (!ratings || ratings.length === 0) continue;
+
+                // Get the final rating for this card
+                const finalRating = ratings[ratings.length - 1].rating;
+                
+                // Find the corresponding card data
+                const cardData = sessionData.cards.find(card => String(card.card_id) === cardId);
+                if (!cardData) continue;
+
+                // Use simple approximation for testing
+                const intervalDays = { 1: 1, 2: 3, 3: 7, 4: 14 };
+                const days = intervalDays[finalRating] || 7;
+                const nextReviewDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+                // Categorize into time buckets
+                const diffMs = nextReviewDate.getTime() - now.getTime();
+                const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+                if (diffDays < 1) {
+                    timeBuckets.today.count++;
+                } else if (diffDays < 7) {
+                    timeBuckets.week.count++;
+                } else if (diffDays < 30) {
+                    timeBuckets.month.count++;
+                } else {
+                    timeBuckets.later.count++;
+                }
+            }
+
+            // Calculate total for percentages
+            const totalCards = Object.values(timeBuckets).reduce((sum, bucket) => sum + bucket.count, 0);
+            
+            if (totalCards === 0) {
+                return '<div class="schedule-chart"><p>No cards in this session</p></div>';
+            }
+
+            // Generate chart HTML
+            let chartHTML = '<div class="schedule-chart"><h3>Review Schedule</h3>';
+            
+            // Create horizontal bars for each time bucket
+            for (const [key, bucket] of Object.entries(timeBuckets)) {
+                const percentage = totalCards > 0 ? (bucket.count / totalCards) * 100 : 0;
+                
+                chartHTML += `
+                    <div class="schedule-row">
+                        <div class="schedule-label">${bucket.label}</div>
+                        <div class="schedule-bar-container">
+                            <div class="schedule-bar" style="width: ${percentage}%; background-color: ${bucket.color}"></div>
+                            <div class="schedule-count">${bucket.count}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            chartHTML += '</div>';
+            return chartHTML;
+        }
+
+        function generateRatingChart(sessionData) {
+            if (!sessionData || !sessionData.ratings) {
+                return '<div class="rating-chart"><p>No rating data available</p></div>';
+            }
+
+            const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0 };
+            const ratingLabels = { 1: 'Again', 2: 'Hard', 3: 'Good', 4: 'Easy' };
+            const ratingColors = { 1: '#dc3545', 2: '#ffc107', 3: '#28a745', 4: '#17a2b8' };
+
+            for (const [cardId, ratings] of Object.entries(sessionData.ratings)) {
+                if (ratings && ratings.length > 0) {
+                    const finalRating = ratings[ratings.length - 1].rating;
+                    if (finalRating >= 1 && finalRating <= 4) {
+                        ratingCounts[finalRating]++;
+                    }
+                }
+            }
+
+            const totalCards = Object.values(ratingCounts).reduce((sum, count) => sum + count, 0);
+            
+            if (totalCards === 0) {
+                return '<div class="rating-chart"><p>No cards rated in this session</p></div>';
+            }
+
+            let chartHTML = '<div class="rating-chart"><h3>Session Ratings</h3>';
+            
+            for (let rating = 1; rating <= 4; rating++) {
+                const count = ratingCounts[rating];
+                const percentage = totalCards > 0 ? (count / totalCards) * 100 : 0;
+                const color = ratingColors[rating];
+                const label = ratingLabels[rating];
+                
+                chartHTML += `
+                    <div class="rating-row">
+                        <div class="rating-label">${label}</div>
+                        <div class="rating-bar-container">
+                            <div class="rating-bar" style="width: ${percentage}%; background-color: ${color}"></div>
+                            <div class="rating-count">${count}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            chartHTML += '</div>';
+            return chartHTML;
+        }
+
+        function generateReviewSummary(sessionData) {
+            if (!sessionData || !sessionData.cards || !sessionData.ratings) {
+                return '<div class="review-summary"><p>No review data available</p></div>';
+            }
+
+            const now = new Date();
+            const timeBuckets = {
+                day: 0,
+                week: 0,
+                month: 0,
+                later: 0
+            };
+
+            for (const [cardId, ratings] of Object.entries(sessionData.ratings)) {
+                if (!ratings || ratings.length === 0) continue;
+
+                const finalRating = ratings[ratings.length - 1].rating;
+                const cardData = sessionData.cards.find(card => String(card.card_id) === cardId);
+                if (!cardData) continue;
+
+                const intervalDays = {
+                    1: 1,
+                    2: 3,
+                    3: 7,
+                    4: 14
+                };
+                
+                const days = intervalDays[finalRating] || 7;
+                const nextReviewDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+                const diffMs = nextReviewDate.getTime() - now.getTime();
+                const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+                if (diffDays < 1) {
+                    timeBuckets.day++;
+                } else if (diffDays < 7) {
+                    timeBuckets.week++;
+                } else if (diffDays < 30) {
+                    timeBuckets.month++;
+                } else {
+                    timeBuckets.later++;
+                }
+            }
+
+            const summaryParts = [];
+            if (timeBuckets.day > 0) {
+                summaryParts.push(`${timeBuckets.day} cards due in <1 day`);
+            }
+            if (timeBuckets.week > 0) {
+                summaryParts.push(`${timeBuckets.week} cards due in <1 week`);
+            }
+            if (timeBuckets.month > 0) {
+                summaryParts.push(`${timeBuckets.month} cards due in <1 month`);
+            }
+            if (timeBuckets.later > 0) {
+                summaryParts.push(`${timeBuckets.later} cards due later`);
+            }
+
+            const summaryText = summaryParts.length > 0 ? summaryParts.join(', ') : 'No upcoming reviews';
+
+            return `
+                <div class="review-summary">
+                    <h3>Next Reviews</h3>
+                    <p>${summaryText}</p>
+                </div>
+            `;
+        }
+
+        // Generate test content using new completion structure
+        function generateTestContent(sessionData) {
+            const ratingChart = generateRatingChart(sessionData);
+            const scheduleChart = generateReviewScheduleChart(sessionData);
+            const reviewSummary = generateReviewSummary(sessionData);
+            
+            return `
+                <div class="completion-wrapper">
+                    <div class="completion-message">
+                        <h2>Session Complete!</h2>
+                        <p>You've completed 5 cards in this session.</p>
+                        
+                        <div class="session-stats">
+                            ${ratingChart}
+                            ${scheduleChart}
+                            ${reviewSummary}
+                        </div>
+                        
+                        <div class="session-actions">
+                            <button class="nav-button">Start New Session</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Populate test content
+        document.getElementById('test1-content').innerHTML = generateTestContent(testData.test1);
+        document.getElementById('test2-content').innerHTML = generateTestContent(testData.test2);
+        document.getElementById('test3-content').innerHTML = generateTestContent(testData.test3);
+    </script>
+</body>
+</html>

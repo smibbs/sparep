@@ -392,16 +392,18 @@ async function handleSessionComplete() {
             loadingText.textContent = 'Saving your progress...';
         }
 
-        // Submit batch to database
+        // Get session data BEFORE clearing for completion statistics
         const sessionData = appState.sessionManager.getSessionData();
+        
+        // Submit batch to database
         await appState.dbService.submitBatchReviews(sessionData);
         
         // Clear the session
         appState.sessionManager.clearSession();
         
-        // Show completion UI
+        // Show completion UI with session data
         showContent(true);
-        await showSessionCompleteMessage();
+        await showSessionCompleteMessage(sessionData);
         
     } catch (error) {
         console.error('Failed to submit session:', error);
@@ -410,55 +412,298 @@ async function handleSessionComplete() {
 }
 
 /**
- * Show session completion message with tier-specific options
+ * Generate rating chart HTML for session completion
+ * @param {Object} sessionData - Session data containing ratings
+ * @returns {string} HTML string for rating chart
  */
-async function showSessionCompleteMessage() {
-    const frontContent = document.querySelector('.card-front p');
-    const backContent = document.querySelector('.card-back p');
-    const flipButton = document.getElementById('flip-button');
-    const ratingButtons = document.getElementById('rating-buttons');
-    const progressContainer = document.querySelector('.progress-container');
-    const cardInner = document.querySelector('.card-inner');
-    const card = document.querySelector('.card');
+function generateRatingChart(sessionData) {
+    if (!sessionData || !sessionData.ratings) {
+        return '<div class="rating-chart"><p>No rating data available</p></div>';
+    }
+
+    // Count final ratings for each card
+    const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    const ratingLabels = { 1: 'Again', 2: 'Hard', 3: 'Good', 4: 'Easy' };
+    const ratingColors = { 1: '#dc3545', 2: '#ffc107', 3: '#28a745', 4: '#17a2b8' };
+
+    // Analyze ratings for each card
+    for (const [cardId, ratings] of Object.entries(sessionData.ratings)) {
+        if (ratings && ratings.length > 0) {
+            // Get the final rating for this card (last rating in the array)
+            const finalRating = ratings[ratings.length - 1].rating;
+            if (finalRating >= 1 && finalRating <= 4) {
+                ratingCounts[finalRating]++;
+            }
+        }
+    }
+
+    const totalCards = Object.values(ratingCounts).reduce((sum, count) => sum + count, 0);
+    
+    if (totalCards === 0) {
+        return '<div class="rating-chart"><p>No cards rated in this session</p></div>';
+    }
+
+    // Generate chart HTML
+    let chartHTML = '<div class="rating-chart"><h3>Session Ratings</h3>';
+    
+    for (let rating = 1; rating <= 4; rating++) {
+        const count = ratingCounts[rating];
+        const percentage = totalCards > 0 ? (count / totalCards) * 100 : 0;
+        const color = ratingColors[rating];
+        const label = ratingLabels[rating];
+        
+        chartHTML += `
+            <div class="rating-row">
+                <div class="rating-label">${label}</div>
+                <div class="rating-bar-container">
+                    <div class="rating-bar" style="width: ${percentage}%; background-color: ${color}"></div>
+                    <div class="rating-count">${count}</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    chartHTML += '</div>';
+    return chartHTML;
+}
+
+/**
+ * Generate review schedule chart HTML for session completion
+ * @param {Object} sessionData - Session data containing cards and ratings
+ * @returns {string} HTML string for review schedule chart
+ */
+function generateReviewScheduleChart(sessionData) {
+    if (!sessionData || !sessionData.cards || !sessionData.ratings) {
+        return '<div class="schedule-chart"><p>No review data available</p></div>';
+    }
+
+    // Define time buckets with colors
+    const timeBuckets = {
+        today: { count: 0, label: 'Today', color: '#ff6b6b' },      // Red - urgent
+        week: { count: 0, label: 'This Week', color: '#ffa726' },   // Orange - soon
+        month: { count: 0, label: 'This Month', color: '#ffee58' }, // Yellow - medium
+        later: { count: 0, label: 'Later', color: '#66bb6a' }      // Green - distant
+    };
+
+    const now = new Date();
+
+    // Calculate next review dates using FSRS for each card
+    for (const [cardId, ratings] of Object.entries(sessionData.ratings)) {
+        if (!ratings || ratings.length === 0) continue;
+
+        // Get the final rating for this card
+        const finalRating = ratings[ratings.length - 1].rating;
+        
+        // Find the corresponding card data
+        const cardData = sessionData.cards.find(card => String(card.card_id) === cardId);
+        if (!cardData) continue;
+
+        // Calculate next review date using FSRS
+        let nextReviewDate;
+        try {
+            // Get current stability and difficulty, with fallbacks
+            const currentStability = cardData.stability || 1.0;
+            const currentDifficulty = cardData.difficulty || 5.0;
+            const currentState = cardData.state || 'review';
+            
+            // Use FSRS calculateNextReview function
+            const fsrsResult = calculateNextReview(currentStability, currentDifficulty, finalRating);
+            nextReviewDate = fsrsResult.nextReviewDate;
+        } catch (error) {
+            console.warn('FSRS calculation failed, using approximation:', error);
+            // Fallback to simple approximation
+            const intervalDays = { 1: 1, 2: 3, 3: 7, 4: 14 };
+            const days = intervalDays[finalRating] || 7;
+            nextReviewDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+        }
+
+        // Categorize into time buckets
+        const diffMs = nextReviewDate.getTime() - now.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+        if (diffDays < 1) {
+            timeBuckets.today.count++;
+        } else if (diffDays < 7) {
+            timeBuckets.week.count++;
+        } else if (diffDays < 30) {
+            timeBuckets.month.count++;
+        } else {
+            timeBuckets.later.count++;
+        }
+    }
+
+    // Calculate total for percentages
+    const totalCards = Object.values(timeBuckets).reduce((sum, bucket) => sum + bucket.count, 0);
+    
+    if (totalCards === 0) {
+        return '<div class="schedule-chart"><p>No cards in this session</p></div>';
+    }
+
+    // Generate chart HTML
+    let chartHTML = '<div class="schedule-chart"><h3>Review Schedule</h3>';
+    
+    // Create horizontal bars for each time bucket
+    for (const [key, bucket] of Object.entries(timeBuckets)) {
+        const percentage = totalCards > 0 ? (bucket.count / totalCards) * 100 : 0;
+        
+        chartHTML += `
+            <div class="schedule-row">
+                <div class="schedule-label">${bucket.label}</div>
+                <div class="schedule-bar-container">
+                    <div class="schedule-bar" style="width: ${percentage}%; background-color: ${bucket.color}"></div>
+                    <div class="schedule-count">${bucket.count}</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    chartHTML += '</div>';
+    return chartHTML;
+}
+
+/**
+ * Generate review summary HTML for session completion
+ * @param {Object} sessionData - Session data containing cards and ratings
+ * @returns {string} HTML string for review summary
+ */
+function generateReviewSummary(sessionData) {
+    if (!sessionData || !sessionData.cards || !sessionData.ratings) {
+        return '<div class="review-summary"><p>No review data available</p></div>';
+    }
+
+    // Calculate next review dates for each card using FSRS
+    const now = new Date();
+    const timeBuckets = {
+        day: 0,    // <1 day
+        week: 0,   // 1-7 days
+        month: 0,  // 7-30 days
+        later: 0   // >30 days
+    };
+
+    for (const [cardId, ratings] of Object.entries(sessionData.ratings)) {
+        if (!ratings || ratings.length === 0) continue;
+
+        // Get the final rating for this card
+        const finalRating = ratings[ratings.length - 1].rating;
+        
+        // Find the corresponding card data
+        const cardData = sessionData.cards.find(card => String(card.card_id) === cardId);
+        if (!cardData) continue;
+
+        // Calculate next review date using FSRS
+        let nextReviewDate;
+        try {
+            // Get current stability and difficulty, with fallbacks
+            const currentStability = cardData.stability || 1.0;
+            const currentDifficulty = cardData.difficulty || 5.0;
+            
+            // Use FSRS calculateNextReview function
+            const fsrsResult = calculateNextReview(currentStability, currentDifficulty, finalRating);
+            nextReviewDate = fsrsResult.nextReviewDate;
+        } catch (error) {
+            console.warn('FSRS calculation failed, using approximation:', error);
+            // Fallback to simple approximation
+            const intervalDays = { 1: 1, 2: 3, 3: 7, 4: 14 };
+            const days = intervalDays[finalRating] || 7;
+            nextReviewDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+        }
+
+        // Categorize into time buckets
+        const diffMs = nextReviewDate.getTime() - now.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+        if (diffDays < 1) {
+            timeBuckets.day++;
+        } else if (diffDays < 7) {
+            timeBuckets.week++;
+        } else if (diffDays < 30) {
+            timeBuckets.month++;
+        } else {
+            timeBuckets.later++;
+        }
+    }
+
+    // Generate summary text
+    const summaryParts = [];
+    if (timeBuckets.day > 0) {
+        summaryParts.push(`${timeBuckets.day} cards due in <1 day`);
+    }
+    if (timeBuckets.week > 0) {
+        summaryParts.push(`${timeBuckets.week} cards due in <1 week`);
+    }
+    if (timeBuckets.month > 0) {
+        summaryParts.push(`${timeBuckets.month} cards due in <1 month`);
+    }
+    if (timeBuckets.later > 0) {
+        summaryParts.push(`${timeBuckets.later} cards due later`);
+    }
+
+    const summaryText = summaryParts.length > 0 ? summaryParts.join(', ') : 'No upcoming reviews';
+
+    return `
+        <div class="review-summary">
+            <h3>Next Reviews</h3>
+            <p>${summaryText}</p>
+        </div>
+    `;
+}
+
+/**
+ * Show session completion message with tier-specific options
+ * @param {Object} sessionData - Session data containing ratings and cards
+ */
+async function showSessionCompleteMessage(sessionData) {
+    const contentDiv = document.getElementById('content');
     
     // Set completion state
     appState.isCompleted = true;
     
-    // Ensure card is showing the front face
-    if (card) {
-        card.classList.remove('revealed');
-    }
-    
-    // Remove click event listener from card-inner
-    if (cardInner && appState.cardInnerClickHandler) {
-        cardInner.style.cursor = 'default';
-        cardInner.removeEventListener('click', appState.cardInnerClickHandler);
-    }
+    // Generate session statistics
+    const ratingChart = generateRatingChart(sessionData);
+    const scheduleChart = generateReviewScheduleChart(sessionData);
+    const reviewSummary = generateReviewSummary(sessionData);
     
     // Get user tier to show appropriate message
     try {
         const userProfile = await appState.authService.getUserProfile(true);
         const userTier = userProfile?.user_tier || 'free';
         
-        if (frontContent) {
+        if (contentDiv) {
             if (userTier === 'free') {
                 // Free users - show limit reached
-                frontContent.innerHTML = `
-                    <div class="session-complete-message">
-                        <h2>Session Complete! 🎉</h2>
-                        <p>You've completed your ${SESSION_CONFIG.CARDS_PER_SESSION}-card session.</p>
-                        <p>Your daily review limit has been reached.</p>
-                        <p>Come back tomorrow for more cards!</p>
+                contentDiv.innerHTML = `
+                    <div class="completion-wrapper">
+                        <div class="completion-message">
+                            <h2>Session Complete!</h2>
+                            <p>You've completed your ${SESSION_CONFIG.CARDS_PER_SESSION}-card session.</p>
+                            <p>Your daily review limit has been reached.</p>
+                            <p>Come back tomorrow for more cards!</p>
+                            
+                            <div class="session-stats">
+                                ${ratingChart}
+                                ${scheduleChart}
+                                ${reviewSummary}
+                            </div>
+                        </div>
                     </div>
                 `;
             } else {
                 // Paid users - offer new session
-                frontContent.innerHTML = `
-                    <div class="session-complete-message">
-                        <h2>Session Complete! 🎉</h2>
-                        <p>You've completed ${SESSION_CONFIG.CARDS_PER_SESSION} cards in this session.</p>
-                        <div class="session-actions">
-                            <button id="new-session-button" class="nav-button">Start New Session</button>
+                contentDiv.innerHTML = `
+                    <div class="completion-wrapper">
+                        <div class="completion-message">
+                            <h2>Session Complete!</h2>
+                            <p>You've completed ${SESSION_CONFIG.CARDS_PER_SESSION} cards in this session.</p>
+                            
+                            <div class="session-stats">
+                                ${ratingChart}
+                                ${scheduleChart}
+                                ${reviewSummary}
+                            </div>
+                            
+                            <div class="session-actions">
+                                <button id="new-session-button" class="nav-button">Start New Session</button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -476,30 +721,22 @@ async function showSessionCompleteMessage() {
         }
     } catch (error) {
         // Fallback message
-        if (frontContent) {
-            frontContent.innerHTML = `
-                <div class="session-complete-message">
-                    <h2>Session Complete! 🎉</h2>
-                    <p>You've completed your study session.</p>
+        if (contentDiv) {
+            contentDiv.innerHTML = `
+                <div class="completion-wrapper">
+                    <div class="completion-message">
+                        <h2>Session Complete!</h2>
+                        <p>You've completed your study session.</p>
+                        
+                        <div class="session-stats">
+                            ${ratingChart}
+                            ${scheduleChart}
+                            ${reviewSummary}
+                        </div>
+                    </div>
                 </div>
             `;
         }
-    }
-    
-    if (backContent) {
-        backContent.textContent = '';
-    }
-    
-    if (flipButton) {
-        flipButton.classList.add('hidden');
-    }
-    
-    if (ratingButtons) {
-        ratingButtons.classList.add('hidden');
-    }
-    
-    if (progressContainer) {
-        progressContainer.classList.add('hidden');
     }
 }
 
