@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabase-client.js';
+import NavigationController from './navigation.js';
 
 class AdminService {
     constructor(autoInitialize = true) {
@@ -17,6 +18,10 @@ class AdminService {
     async initialize() {
         try {
             await this.supabasePromise;
+            
+            // Initialize navigation controller
+            this.navigationController = new NavigationController();
+            
             this.setupAdminInterface();
         } catch (error) {
             console.error('Failed to initialize AdminService:', error);
@@ -27,6 +32,10 @@ class AdminService {
     async initializeAsStandalone() {
         try {
             await this.supabasePromise;
+            
+            // Initialize navigation controller
+            this.navigationController = new NavigationController();
+            
             this.setupEventListeners();
             this.loadSubjects();
             this.loadSubjectsForManagement();

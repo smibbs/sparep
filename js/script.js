@@ -4,6 +4,7 @@ import database from './database.js';
 import auth from './auth.js';
 import SessionManager from './sessionManager.js';
 import { SESSION_CONFIG } from './config.js';
+import NavigationController from './navigation.js';
 
 // Use global Supabase client
 const supabase = window.supabaseClient;
@@ -24,6 +25,11 @@ async function checkAndShowAdminNav(userId) {
             const adminNavLink = document.getElementById('admin-nav-link');
             if (adminNavLink) {
                 adminNavLink.classList.remove('hidden');
+                
+                // Update mobile menu admin link as well
+                if (appState.navigationController) {
+                    appState.navigationController.updateAdminVisibility();
+                }
             }
         }
     } catch (error) {
@@ -69,7 +75,8 @@ const appState = {
     sessionManager: new SessionManager(), // Session management
     isCompleted: false,      // Track if session is completed
     cardInnerClickHandler: null, // Store reference to card-inner click handler
-    forceNewSession: false // Flag to force new session creation
+    forceNewSession: false, // Flag to force new session creation
+    navigationController: null // Navigation controller for hamburger menu
 };
 
 /**
@@ -908,6 +915,9 @@ async function initializeApp() {
 
         // Check if user is admin and show admin link
         await checkAndShowAdminNav(user.id);
+
+        // Initialize navigation controller
+        appState.navigationController = new NavigationController();
 
         // Initialize FSRS parameters for the user
         try {
