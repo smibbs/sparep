@@ -1,5 +1,6 @@
 import database from './database.js';
 import { getSupabaseClient } from './supabase-client.js';
+import NavigationController from './navigation.js';
 
 /**
  * Check if user is admin and show admin navigation link
@@ -18,6 +19,11 @@ async function checkAndShowAdminNav(userId) {
             const adminNavLink = document.getElementById('admin-nav-link');
             if (adminNavLink) {
                 adminNavLink.classList.remove('hidden');
+                
+                // Update mobile menu admin link as well
+                if (navigationController) {
+                    navigationController.updateAdminVisibility();
+                }
             }
         }
     } catch (error) {
@@ -352,10 +358,17 @@ function setupDashboardEvents() {
     document.getElementById('dashboard-error-logout-button')?.addEventListener('click', () => window.authService.signOut());
 }
 
+// Global navigation controller
+let navigationController = null;
+
 // Wait for DOM and authService
 window.addEventListener('DOMContentLoaded', async () => {
     // Wait for authService to be available
     while (!window.authService) await new Promise(r => setTimeout(r, 50));
+    
+    // Initialize navigation controller
+    navigationController = new NavigationController();
+    
     setupDashboardEvents();
     updateDashboard();
 }); 

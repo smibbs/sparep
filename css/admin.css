@@ -1,11 +1,22 @@
 /* Admin Dashboard Styles */
 
-/* Page Layout */
+/* Body and Page Layout */
+body {
+    background: #000000 !important;
+    color: white !important;
+    margin: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+}
+
 .admin-content {
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
     font-family: system-ui, -apple-system, sans-serif;
+    background: #000000;
+    color: white;
+    min-height: 100vh;
 }
 
 .admin-header {
@@ -46,7 +57,7 @@
 
 .admin-section h3 {
     margin: 0 0 15px 0;
-    color: #495057;
+    color: white;
     font-size: 18px;
     font-weight: 600;
 }
@@ -55,8 +66,8 @@
 .analytics-tabs {
     display: flex;
     margin-bottom: 25px;
-    border-bottom: 2px solid #e9ecef;
-    background: #f8f9fa;
+    border-bottom: 2px solid #555;
+    background: #222;
     border-radius: 8px 8px 0 0;
     overflow-x: auto;
 }
@@ -68,7 +79,7 @@
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
-    color: #6c757d;
+    color: #ccc;
     border-bottom: 3px solid transparent;
     transition: all 0.2s ease;
     white-space: nowrap;
@@ -78,13 +89,13 @@
 .analytics-tab.active {
     color: #007bff;
     border-bottom-color: #007bff;
-    background-color: #fff;
+    background-color: #333337;
     font-weight: 600;
 }
 
 .analytics-tab:hover:not(.active) {
     color: #007bff;
-    background-color: #f8f9fa;
+    background-color: #444;
 }
 
 .analytics-tab-content {
@@ -109,12 +120,12 @@
 }
 
 .stat-card {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    background: linear-gradient(135deg, #333337 0%, #222 100%);
     padding: 20px;
     border-radius: 12px;
     text-align: center;
-    border: 1px solid #dee2e6;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border: 1px solid #555;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -126,7 +137,7 @@
 .stat-card h4 {
     margin: 0 0 8px 0;
     font-size: 12px;
-    color: #6c757d;
+    color: white;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     font-weight: 600;
@@ -147,9 +158,9 @@
     align-items: center;
     flex-wrap: wrap;
     padding: 20px;
-    background: #f8f9fa;
+    background: #222;
     border-radius: 8px;
-    border: 1px solid #e9ecef;
+    border: 1px solid #555;
 }
 
 .tab-header {
@@ -163,7 +174,7 @@
 
 .tab-header h3 {
     margin: 0;
-    color: #495057;
+    color: white;
     font-size: 20px;
 }
 
@@ -178,10 +189,10 @@
 .analytics-table-container {
     max-height: 500px;
     overflow-y: auto;
-    border: 1px solid #e9ecef;
+    border: 1px solid #555;
     border-radius: 8px;
-    background: #fff;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    background: #333337;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
 .analytics-table {
@@ -191,12 +202,12 @@
 }
 
 .analytics-table th {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    background: linear-gradient(135deg, #222 0%, #111 100%);
     padding: 12px 10px;
     text-align: left;
-    border-bottom: 2px solid #dee2e6;
+    border-bottom: 2px solid #555;
     font-weight: 600;
-    color: #495057;
+    color: white;
     position: sticky;
     top: 0;
     z-index: 10;
@@ -213,12 +224,12 @@
 }
 
 .analytics-table th.sortable:hover {
-    background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+    background: linear-gradient(135deg, #333 0%, #222 100%);
 }
 
 .analytics-table th.sortable.sorted {
-    background: linear-gradient(135deg, #dee2e6 0%, #ced4da 100%);
-    color: #212529;
+    background: linear-gradient(135deg, #444 0%, #333 100%);
+    color: white;
 }
 
 .sort-arrow {
@@ -235,12 +246,13 @@
 
 .analytics-table td {
     padding: 10px;
-    border-bottom: 1px solid #f8f9fa;
+    border-bottom: 1px solid #555;
     vertical-align: top;
+    color: white;
 }
 
 .analytics-table tr:hover {
-    background-color: #f8f9fa;
+    background-color: #444;
 }
 
 .analytics-table .problem-score {
@@ -291,14 +303,14 @@
 /* Export Section */
 .export-section {
     padding: 25px;
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    background: linear-gradient(135deg, #222 0%, #111 100%);
     border-radius: 12px;
-    border: 1px solid #dee2e6;
+    border: 1px solid #555;
 }
 
 .export-section h3 {
     margin: 0 0 20px 0;
-    color: #495057;
+    color: white;
     font-size: 18px;
 }
 
@@ -315,7 +327,7 @@
     gap: 10px;
     cursor: pointer;
     font-weight: 500;
-    color: #495057;
+    color: white;
     padding: 8px;
     border-radius: 4px;
     transition: background-color 0.2s ease;
@@ -344,10 +356,12 @@
     flex: 1;
     min-width: 150px;
     padding: 10px 12px;
-    border: 1px solid #ced4da;
+    border: 1px solid #555;
     border-radius: 6px;
     font-size: 14px;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    background: #333337;
+    color: white;
 }
 
 .form-input:focus, .form-select:focus {
@@ -431,12 +445,12 @@
 
 /* Flagged Cards */
 .flagged-card {
-    background: #fff;
-    border: 1px solid #e9ecef;
+    background: #333337;
+    border: 1px solid #555;
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 15px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -446,33 +460,33 @@
 }
 
 .flagged-card.admin-flagged {
-    background: #f8d7da;
-    border: 1px solid #f1aeb5;
+    background: #3d2222;
+    border: 1px solid #552c2c;
     border-left: 4px solid #dc3545;
 }
 
 .flagged-card.user-flagged {
-    background: #fff3cd;
-    border: 1px solid #ffeaa7;
+    background: #3d3522;
+    border: 1px solid #55492c;
     border-left: 4px solid #ffc107;
 }
 
 .flagged-card h4 {
     margin: 0 0 10px 0;
     font-size: 16px;
-    color: #495057;
+    color: white;
     font-weight: 600;
 }
 
 .flagged-card p {
     margin: 8px 0;
     font-size: 14px;
-    color: #6c757d;
+    color: #ccc;
     line-height: 1.5;
 }
 
 .flagged-card p strong {
-    color: #495057;
+    color: white;
     font-weight: 600;
 }
 
@@ -498,7 +512,7 @@
 }
 
 .text-muted {
-    color: #6c757d !important;
+    color: #ccc !important;
 }
 
 .alert {
@@ -594,7 +608,7 @@
 .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid #f3f3f3;
+    border: 4px solid #555;
     border-top: 4px solid #007bff;
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -608,7 +622,7 @@
 
 .loading-text, .error-text {
     font-size: 16px;
-    color: #6c757d;
+    color: white;
     margin-bottom: 20px;
 }
 
@@ -647,12 +661,12 @@
 }
 
 .subjects-table th {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    background: linear-gradient(135deg, #222 0%, #111 100%);
     padding: 12px 10px;
     text-align: left;
-    border-bottom: 2px solid #dee2e6;
+    border-bottom: 2px solid #555;
     font-weight: 600;
-    color: #495057;
+    color: white;
     position: sticky;
     top: 0;
     z-index: 10;
@@ -663,21 +677,22 @@
 
 .subjects-table td {
     padding: 12px 10px;
-    border-bottom: 1px solid #f8f9fa;
+    border-bottom: 1px solid #555;
     vertical-align: middle;
+    color: white;
 }
 
 .subjects-table tr:hover {
-    background-color: #f8f9fa;
+    background-color: #444;
 }
 
 .subject-info strong {
-    color: #212529;
+    color: white;
     font-size: 14px;
 }
 
 .subject-info .text-muted {
-    color: #6c757d;
+    color: #ccc;
     font-size: 12px;
     margin-top: 4px;
 }
@@ -741,14 +756,15 @@
 .table-container {
     max-height: 600px;
     overflow-y: auto;
-    border: 1px solid #dee2e6;
+    border: 1px solid #555;
     border-radius: 6px;
+    background: #333337;
 }
 
 .no-data {
     text-align: center;
     padding: 40px;
-    color: #6c757d;
+    color: #ccc;
     font-style: italic;
 }
 
