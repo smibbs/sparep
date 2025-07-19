@@ -3,9 +3,9 @@
     --onboarding-primary: #4a90e2;
     --onboarding-success: #2ecc71;
     --onboarding-warning: #e74c3c;
-    --onboarding-text: #2c3e50;
-    --onboarding-text-light: #7f8c8d;
-    --onboarding-background: #f5f6fa;
+    --onboarding-text: white;
+    --onboarding-text-light: #ccc;
+    --onboarding-background: #000000;
 }
 
 /* Adjust body styles for fixed layout */
@@ -61,9 +61,9 @@ body {
 }
 
 .login-side .auth-box {
-    background: white;
+    background: #333337;
     border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 /* Right side: Fixed animation area */
