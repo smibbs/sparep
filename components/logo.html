@@ -4,8 +4,11 @@
   flex-direction: column;
   align-items: center;
   color: #333;
-  margin: 20px 0;
-  position: relative;
+  margin: 0;
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 100;
   cursor: pointer;
   transition: transform 0.2s ease;
@@ -13,7 +16,7 @@
 }
 
 .app-logo:hover {
-  transform: scale(1.05);
+  transform: translateX(-50%) scale(1.05);
 }
 
 .app-logo .micro {
@@ -47,6 +50,10 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  .app-logo {
+    top: 16px;
+  }
+  
   .app-logo .micro {
     font-size: 16px;
     width: 95px;
@@ -56,6 +63,12 @@
     font-size: 28px;
     width: 72px;
     padding: 4px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-logo {
+    top: 12px;
   }
 }
 </style>
