@@ -276,7 +276,8 @@ body {
     overflow: hidden !important;
     border-radius: 16px;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2);
-    background: #333337;
+    background: #1f2121;
+    border: 1px solid #3d3f3f;
 }
 
 .card-inner {
@@ -305,7 +306,7 @@ body {
     padding: 32px;
     box-sizing: border-box;
     border-radius: 16px;
-    background: #333337;
+    background: #1f2121;
     color: white;
     font-family: "Times New Roman", "Georgia", "Playfair Display", "Crimson Text", serif !important;
     font-size: 1.5rem;
@@ -322,7 +323,7 @@ body {
 }
 
 .card-front { z-index: 2; }
-.card-back { z-index: 1; background: #333337; }
+.card-back { z-index: 1; background: #1f2121; }
 
 .card.revealed .card-front { display: none; }
 .card.revealed .card-back { display: flex; }
@@ -686,7 +687,7 @@ body {
 
 .status-new {
     background-color: #e3f2fd;
-    color: #1976d2;
+    color: #007AFF;
 }
 
 .status-learning {
@@ -755,7 +756,7 @@ body {
 }
 
 .rating-easy {
-    background-color: #17a2b8;
+    background-color: #007AFF;
 }
 
 /* Rating button hover states */
@@ -779,9 +780,9 @@ body {
     }
     
     .rating-easy:hover {
-        background-color: #138496;
+        background-color: #0056b3;
         transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(23, 162, 184, 0.2);
+        box-shadow: 0 4px 8px rgba(0, 122, 255, 0.2);
     }
 }
 
@@ -867,12 +868,12 @@ body {
     padding: 20px;
     background-color: #e3f2fd;
     border-radius: 8px;
-    border-left: 4px solid #2196f3;
+    border-left: 4px solid #007AFF;
 }
 
 .daily-limit-message .upgrade-info p {
     margin: 0 0 10px 0;
-    color: #1976d2;
+    color: #007AFF;
 }
 
 .daily-limit-message .upgrade-info p:last-child {
