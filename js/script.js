@@ -271,7 +271,7 @@ async function getSubjectName(subjectId) {
             .from('subjects')
             .select('name')
             .eq('id', subjectId)
-            .single();
+            .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows gracefully
             
         if (error) throw error;
         
@@ -849,6 +849,9 @@ async function loadSession() {
         
         // Clear force new session flag
         appState.forceNewSession = false;
+
+        // Ensure user profile exists before doing any operations
+        await appState.dbService.ensureUserProfileExists(appState.user.id);
 
         // Initialize progress for new user if needed
         await appState.dbService.initializeUserProgress(appState.user.id);
