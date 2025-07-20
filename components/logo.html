@@ -48,6 +48,16 @@
   box-shadow: 0 0 10px rgba(0, 122, 255, 0.3);
 }
 
+/* Login page specific styling */
+.login-logo {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  margin: 0 0 20px 0;
+  z-index: 1;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .app-logo {
@@ -64,11 +74,36 @@
     width: 72px;
     padding: 4px 10px;
   }
+  
+  /* Mobile login page adjustments */
+  .login-logo {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+    margin: 0 0 15px 0;
+  }
 }
 
 @media (max-width: 480px) {
   .app-logo {
     top: 24px;
+  }
+  
+  /* Mobile login page adjustments */
+  .login-logo {
+    margin: 0 0 10px 0;
+  }
+  
+  .login-logo .micro {
+    font-size: 14px;
+    width: 84px;
+  }
+  
+  .login-logo .boxed {
+    font-size: 24px;
+    width: 60px;
+    padding: 3px 8px;
   }
 }
 </style>

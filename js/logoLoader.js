@@ -56,13 +56,9 @@ function insertLogoInLoginPage(logoHTML) {
             const logoDiv = logoDivOriginal.cloneNode(true);
             logoDiv.classList.add('login-logo');
             
-            // Add login-specific styling
+            // Add login-specific styling (styles from logo component will handle positioning)
             const loginStyle = document.createElement('style');
-            loginStyle.textContent = style.textContent + `
-                .login-logo {
-                    margin: 0 0 20px 0;
-                }
-            `;
+            loginStyle.textContent = style.textContent;
             
             // Insert style in head
             document.head.appendChild(loginStyle);
@@ -106,10 +102,16 @@ function insertLogoInPageContent(logoHTML) {
             const pageStyle = document.createElement('style');
             pageStyle.textContent = style.textContent + `
                 .page-content-logo {
-                    margin: 20px auto 40px auto;
+                    margin: 20px auto 40px auto !important;
                     text-align: center;
-                    position: relative;
+                    position: relative !important;
+                    top: auto !important;
+                    left: auto !important;
+                    transform: none !important;
                     z-index: 10;
+                    display: flex !important;
+                    flex-direction: column !important;
+                    align-items: center !important;
                 }
                 .page-content-logo .micro {
                     font-size: 16px;
@@ -124,7 +126,11 @@ function insertLogoInPageContent(logoHTML) {
                 /* Responsive adjustments for page content logo */
                 @media (max-width: 768px) {
                     .page-content-logo {
-                        margin: 15px auto 30px auto;
+                        margin: 15px auto 30px auto !important;
+                        position: relative !important;
+                        top: auto !important;
+                        left: auto !important;
+                        transform: none !important;
                     }
                     .page-content-logo .micro {
                         font-size: 14px;
