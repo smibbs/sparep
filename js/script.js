@@ -74,6 +74,7 @@ const appState = {
     sessionReviewedCount: 0, // Track cards reviewed in this session
     totalCards: 0,
     isLoading: true,
+    isLoadingSession: false, // Prevent concurrent loadSession calls
     user: null,
     dbService: database,  // Use the default database instance
     authService: auth,    // Use the default auth instance
@@ -723,10 +724,32 @@ async function showSessionCompleteMessage(sessionData) {
                 // Add event listener for new session button
                 const newSessionButton = document.getElementById('new-session-button');
                 if (newSessionButton) {
-                    newSessionButton.addEventListener('click', async () => {
-                        // Force a new session (don't load from storage)
-                        appState.forceNewSession = true;
-                        await loadSession();
+                    newSessionButton.addEventListener('click', async (event) => {
+                        // Prevent default and stop propagation
+                        event.preventDefault();
+                        event.stopPropagation();
+                        
+                        // Prevent double-clicks and concurrent calls
+                        if (appState.isLoadingSession) {
+                            console.log('Session already loading, ignoring new session button click');
+                            return;
+                        }
+                        
+                        console.log('🆕 New session button clicked');
+                        
+                        // Disable button temporarily
+                        newSessionButton.disabled = true;
+                        
+                        try {
+                            // Force a new session (don't load from storage)
+                            appState.forceNewSession = true;
+                            await loadSession();
+                        } finally {
+                            // Re-enable button after a delay
+                            setTimeout(() => {
+                                newSessionButton.disabled = false;
+                            }, 1000);
+                        }
                     });
                 }
             }
@@ -783,6 +806,15 @@ function getProgressInfo(card) {
  * Initialize or load a session
  */
 async function loadSession() {
+    // Prevent concurrent loadSession calls
+    if (appState.isLoadingSession) {
+        console.log('Session loading already in progress, skipping duplicate call');
+        return;
+    }
+    
+    appState.isLoadingSession = true;
+    console.log('🔄 Starting loadSession()');
+    
     try {
         if (!appState.user) {
             throw new Error('No user found');
@@ -879,9 +911,15 @@ async function loadSession() {
         
         // Transition to content
         await transitionToState('content');
+        console.log('✅ Session loaded successfully');
         
     } catch (error) {
+        console.error('❌ Session loading failed:', error);
         showError(error.message || 'Failed to load your study session');
+    } finally {
+        // Always clear the loading flag
+        appState.isLoadingSession = false;
+        console.log('🏁 loadSession() completed');
     }
 }
 

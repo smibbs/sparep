@@ -399,19 +399,27 @@ class DatabaseService {
      * @returns {Promise<Array>} Array of cards due for review
      */
     async getCardsDue(userId) {
+        console.log('📚 getCardsDue called for user:', userId);
         try {
             const supabase = await this.getSupabase();
             const now = new Date();
             const nowISOString = now.toISOString();
 
             // Get user tier to determine card filtering
+            console.log('🔍 Fetching user profile...');
             const { data: userProfile, error: profileError } = await supabase
                 .from('user_profiles')
                 .select('user_tier')
                 .eq('id', userId)
                 .single();
 
+            if (profileError) {
+                console.error('❌ Error fetching user profile:', profileError);
+                throw profileError;
+            }
+
             const userTier = userProfile?.user_tier || 'free';
+            console.log('👤 User tier:', userTier);
 
             // Build select query with card filtering based on user tier
             let cardSelect = `
@@ -432,6 +440,7 @@ class DatabaseService {
             `;
 
             // 1. Get cards that are actually due for review (next_review_date <= NOW) or are new
+            console.log('🔄 Building due cards query...');
             let dueQuery = supabase
                 .from('user_card_progress')
                 .select(cardSelect)
@@ -446,9 +455,16 @@ class DatabaseService {
                     .eq('cards.subjects.is_public', true);
             }
 
+            console.log('📡 Executing due cards query...');
             const { data: dueCards, error: dueError } = await dueQuery
                 .order('next_review_date', { ascending: true });
-            if (dueError) throw dueError;
+            
+            if (dueError) {
+                console.error('❌ Error in due cards query:', dueError);
+                throw dueError;
+            }
+            
+            console.log('✅ Due cards query successful, found:', dueCards?.length || 0, 'cards');
 
             // Debug: Log due cards to check if filtering is working
             console.log('Due cards loaded:', dueCards?.length, 'for user tier:', userTier);
