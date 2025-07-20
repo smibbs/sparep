@@ -5,11 +5,6 @@ class AdminService {
     constructor(autoInitialize = true) {
         this.supabasePromise = getSupabaseClient();
         
-        // Sort state tracking
-        this.currentSortColumn = null;
-        this.sortDirection = null; // 'asc', 'desc', or null
-        this.originalData = null; // Store original unsorted data
-        
         if (autoInitialize) {
             this.initialize();
         }
@@ -39,7 +34,7 @@ class AdminService {
             this.setupEventListeners();
             this.loadSubjects();
             this.loadSubjectsForManagement();
-            this.loadSummaryAnalytics();
+            this.loadAnalytics();
             this.loadFlaggedCards();
         } catch (error) {
             console.error('Failed to initialize standalone AdminService:', error);
@@ -105,76 +100,43 @@ class AdminService {
                 <div class="admin-content">
                     <!-- Analytics Section -->
                     <div id="analytics-section" class="admin-main-section">
-                        <div class="analytics-tabs">
-                            <button class="analytics-tab active" data-tab="summary">Summary</button>
-                            <button class="analytics-tab" data-tab="difficulty">Difficulty</button>
-                            <button class="analytics-tab" data-tab="export">Export</button>
-                        </div>
-                        
-                        <!-- Summary Tab -->
-                        <div id="summary-tab" class="analytics-tab-content active">
-                            <div class="analytics-summary">
-                                <div class="summary-stats">
-                                    <div class="stat-card">
-                                        <h4>Total Cards</h4>
-                                        <span id="total-cards-count">-</span>
-                                    </div>
-                                    <div class="stat-card">
-                                        <h4>Problem Cards</h4>
-                                        <span id="problem-cards-count">-</span>
-                                    </div>
-                                    <div class="stat-card">
-                                        <h4>Avg Response Time</h4>
-                                        <span id="avg-response-time">-</span>
-                                    </div>
-                                    <div class="stat-card">
-                                        <h4>Overall Again %</h4>
-                                        <span id="overall-again-percentage">-</span>
-                                    </div>
-                                    <div class="stat-card">
-                                        <h4>Avg Failed Attempts</h4>
-                                        <span id="avg-failed-attempts">-</span>
-                                    </div>
-                                </div>
-                                <div class="filters-section">
-                                    <select id="subject-filter" class="form-select">
-                                        <option value="">All Subjects</option>
-                                    </select>
-                                    <button id="apply-filters" class="btn btn-primary">Apply Filters</button>
-                                </div>
-                                <div id="problem-cards-list" class="analytics-table-container"></div>
+                        <div class="analytics-header">
+                            <h3>Card Analytics</h3>
+                            <div class="analytics-controls">
+                                <select id="subject-filter" class="form-select">
+                                    <option value="">All Subjects</option>
+                                </select>
+                                <button id="apply-filters" class="btn btn-primary">Apply Filters</button>
+                                <button id="export-csv" class="btn btn-success">Export CSV</button>
                             </div>
                         </div>
                         
-                        <!-- Difficulty Tab -->
-                        <div id="difficulty-tab" class="analytics-tab-content">
-                            <div class="tab-header">
-                                <h3>Difficulty Consistency Analysis</h3>
-                                <div class="difficulty-filters">
-                                    <select id="difficulty-classification-filter" class="form-select">
-                                        <option value="">All Classifications</option>
-                                        <option value="optimal">Optimal</option>
-                                        <option value="consistently_hard">Consistently Hard</option>
-                                        <option value="highly_variable">Highly Variable</option>
-                                        <option value="moderately_variable">Moderately Variable</option>
-                                    </select>
-                                    <button id="refresh-difficulty" class="btn btn-primary">Refresh</button>
-                                </div>
+                        <!-- Summary Stats -->
+                        <div class="summary-stats">
+                            <div class="stat-card">
+                                <h4>Total Cards</h4>
+                                <span id="total-cards-count">-</span>
                             </div>
-                            <div id="difficulty-analytics" class="analytics-table-container"></div>
+                            <div class="stat-card">
+                                <h4>Problem Cards</h4>
+                                <span id="problem-cards-count">-</span>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Avg Response Time</h4>
+                                <span id="avg-response-time">-</span>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Overall Again %</h4>
+                                <span id="overall-again-percentage">-</span>
+                            </div>
+                            <div class="stat-card">
+                                <h4>Avg Failed Attempts</h4>
+                                <span id="avg-failed-attempts">-</span>
+                            </div>
                         </div>
                         
-                        <!-- Export Tab -->
-                        <div id="export-tab" class="analytics-tab-content">
-                            <div class="export-section">
-                                <h3>Export Analytics Data</h3>
-                                <div class="export-options">
-                                    <label><input type="checkbox" id="export-summary" checked> Summary Analytics</label>
-                                    <label><input type="checkbox" id="export-difficulty" checked> Difficulty Analysis</label>
-                                </div>
-                                <button id="export-csv" class="btn btn-success">Export to CSV</button>
-                            </div>
-                        </div>
+                        <!-- Analytics Table -->
+                        <div id="analytics-table" class="analytics-table-container"></div>
                     </div>
                     
                     <!-- Management Section -->
@@ -264,35 +226,23 @@ class AdminService {
                     }
                     
                     /* Analytics Styles */
-                    .analytics-tabs {
+                    .analytics-header {
                         display: flex;
+                        justify-content: space-between;
+                        align-items: center;
                         margin-bottom: 20px;
+                        padding-bottom: 15px;
                         border-bottom: 2px solid #e9ecef;
                     }
-                    .analytics-tab {
-                        padding: 10px 20px;
-                        border: none;
-                        background: none;
-                        cursor: pointer;
-                        font-size: 14px;
-                        color: #6c757d;
-                        border-bottom: 2px solid transparent;
-                        transition: all 0.2s;
-                    }
-                    .analytics-tab.active {
+                    .analytics-header h3 {
+                        margin: 0;
                         color: #007bff;
-                        border-bottom-color: #007bff;
-                        font-weight: 600;
+                        font-size: 18px;
                     }
-                    .analytics-tab:hover {
-                        color: #007bff;
-                        background-color: #f8f9fa;
-                    }
-                    .analytics-tab-content {
-                        display: none;
-                    }
-                    .analytics-tab-content.active {
-                        display: block;
+                    .analytics-controls {
+                        display: flex;
+                        gap: 10px;
+                        align-items: center;
                     }
                     
                     /* Summary Stats */
@@ -322,25 +272,6 @@ class AdminService {
                         color: #007bff;
                     }
                     
-                    /* Filters */
-                    .filters-section {
-                        display: flex;
-                        gap: 10px;
-                        margin-bottom: 20px;
-                        align-items: center;
-                        flex-wrap: wrap;
-                    }
-                    .tab-header {
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        margin-bottom: 20px;
-                    }
-                    .difficulty-filters {
-                        display: flex;
-                        gap: 10px;
-                        align-items: center;
-                    }
                     
                     /* Analytics Tables */
                     .analytics-table-container {
@@ -575,24 +506,9 @@ class AdminService {
             this.showSection('management');
         });
 
-        // Analytics tabs
-        document.querySelectorAll('.analytics-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                this.switchAnalyticsTab(tab.dataset.tab);
-            });
-        });
-
         // Analytics actions
         document.getElementById('apply-filters')?.addEventListener('click', () => {
-            this.loadSummaryAnalytics();
-        });
-
-        document.getElementById('refresh-difficulty')?.addEventListener('click', () => {
-            this.loadDifficultyAnalytics();
-        });
-
-        document.getElementById('apply-flagged-filters')?.addEventListener('click', () => {
-            this.loadFlaggedCardsAnalytics();
+            this.loadAnalytics();
         });
 
         document.getElementById('export-csv')?.addEventListener('click', () => {
@@ -632,7 +548,7 @@ class AdminService {
 
         // Initialize analytics
         this.loadSubjects();
-        this.loadSummaryAnalytics();
+        this.loadAnalytics();
     }
 
     async loadFlaggedCards() {
@@ -957,35 +873,56 @@ class AdminService {
         }
     }
 
-    switchAnalyticsTab(tabName) {
-        // Hide all tab contents
-        document.querySelectorAll('.analytics-tab-content').forEach(content => {
-            content.classList.remove('active');
-        });
+    // Combined analytics loading function
+    async loadAnalytics() {
+        try {
+            const supabase = await this.getSupabase();
+            const subjectId = document.getElementById('subject-filter')?.value || null;
 
-        // Remove active class from all tabs
-        document.querySelectorAll('.analytics-tab').forEach(tab => {
-            tab.classList.remove('active');
-        });
+            console.log('Loading combined analytics...', { subjectId });
 
-        // Show selected tab content
-        const targetContent = document.getElementById(`${tabName}-tab`);
-        const targetTab = document.querySelector(`[data-tab="${tabName}"]`);
-        
-        if (targetContent) targetContent.classList.add('active');
-        if (targetTab) targetTab.classList.add('active');
+            // Load basic cards data with review statistics
+            let basicQuery = supabase
+                .from('cards')
+                .select(`
+                    id, question, answer, subject_id, correct_reviews, incorrect_reviews, 
+                    average_response_time_ms, user_flag_count, flagged_for_review,
+                    subjects:subject_id(name),
+                    review_history(rating)
+                `);
 
-        // Load data for the tab if needed
-        switch (tabName) {
-            case 'summary':
-                this.loadSummaryAnalytics();
-                break;
-            case 'difficulty':
-                this.loadDifficultyAnalytics();
-                break;
-            case 'flagged':
-                this.loadFlaggedCardsAnalytics();
-                break;
+            if (subjectId) {
+                basicQuery = basicQuery.eq('subject_id', subjectId);
+            }
+            
+            const { data: basicCards, error: basicError } = await basicQuery
+                .order('total_reviews', { ascending: false })
+                .limit(100);
+
+            if (basicError) throw basicError;
+
+            if (!basicCards || basicCards.length === 0) {
+                document.getElementById('analytics-table').innerHTML = '<p class="text-muted text-center">No cards found matching the current filters.</p>';
+                this.updateSummaryStats([], 0);
+                return;
+            }
+
+            // Process the data
+            const processedData = this.processAnalyticsData(basicCards);
+            
+            // Load failed attempts data
+            const { data: failedAttemptsData } = await supabase
+                .rpc('get_failed_attempts_before_good_rating');
+            
+            const avgFailedAttempts = failedAttemptsData?.[0]?.avg_failed_attempts_before_good || 0;
+            
+            // Update the interface
+            this.updateSummaryStats(processedData, avgFailedAttempts);
+            this.displayAnalyticsTable(processedData);
+
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+            document.getElementById('analytics-table').innerHTML = `<div class="alert alert-danger">Error loading analytics: ${error.message}</div>`;
         }
     }
 
@@ -1452,141 +1389,38 @@ class AdminService {
         }
     }
 
+    // Legacy function - redirect to new combined function
     async loadSummaryAnalytics() {
-        try {
-            const supabase = await this.getSupabase();
-            const subjectId = document.getElementById('subject-filter')?.value || null;
-
-            console.log('Loading summary analytics...', { subjectId });
-
-            // Try basic cards data first since it's more reliable
-            console.log('Fetching basic cards data...');
-            let basicQuery = supabase
-                .from('cards')
-                .select(`
-                    id, question, answer, subject_id, correct_reviews, incorrect_reviews, 
-                    average_response_time_ms, user_flag_count, flagged_for_review,
-                    subjects:subject_id(name),
-                    review_history(rating)
-                `);
-
-            if (subjectId) {
-                basicQuery = basicQuery.eq('subject_id', subjectId);
-            }
-            
-            const { data: basicCards, error: basicError } = await basicQuery
-                .order('total_reviews', { ascending: false })
-                .limit(50);
-
-            console.log('Basic cards result:', { data: basicCards, error: basicError });
-
-            if (basicError) {
-                console.error('Basic cards query failed:', basicError);
-                throw basicError;
-            }
-
-            if (!basicCards || basicCards.length === 0) {
-                console.log('No cards found with current filters');
-                document.getElementById('problem-cards-list').innerHTML = '<p class="text-muted text-center">No cards found matching the current filters.</p>';
-                
-                // Still show stats even if no cards
-                document.getElementById('total-cards-count').textContent = '0';
-                document.getElementById('problem-cards-count').textContent = '0';
-                document.getElementById('avg-response-time').textContent = '0ms';
-                document.getElementById('overall-again-percentage').textContent = '0%';
-                document.getElementById('avg-failed-attempts').textContent = '0';
-                return;
-            }
-
-            // Transform basic data to match expected format
-            const transformedData = basicCards.map(card => {
-                // Calculate actual review count from review_history
-                const actualReviewCount = card.review_history?.length || 0;
-                
-                // Count rating=1 entries for "again" percentage (matches analytics view logic)
-                const againCount = card.review_history?.filter(review => review.rating === 1).length || 0;
-                
-                return {
-                    card_id: card.id,
-                    question: card.question,
-                    answer: card.answer,
-                    subject_id: card.subject_id,
-                    subject_name: card.subjects?.name || 'Unknown',
-                    total_reviews: actualReviewCount,
-                    correct_reviews: card.correct_reviews,
-                    incorrect_reviews: card.incorrect_reviews,
-                    average_response_time_ms: card.average_response_time_ms,
-                    user_flag_count: card.user_flag_count,
-                    flagged_for_review: card.flagged_for_review,
-                    // Calculate again percentage from actual rating=1 count
-                    again_percentage: actualReviewCount > 0 
-                        ? Math.round((againCount / actualReviewCount) * 100) 
-                        : 0,
-                    problem_score: (card.user_flag_count || 0) * 20 + (card.flagged_for_review ? 50 : 0)
-                };
-            });
-
-            console.log('Transformed data:', transformedData);
-            
-            // Load failed attempts metric (system average)
-            const { data: failedAttemptsData, error: failedAttemptsError } = await supabase
-                .rpc('get_failed_attempts_before_good_rating');
-            
-            console.log('Failed attempts result:', { data: failedAttemptsData, error: failedAttemptsError });
-            
-            // Load per-card failed attempts data
-            const { data: perCardFailedAttemptsData, error: perCardFailedAttemptsError } = await supabase
-                .rpc('get_failed_attempts_per_card', {
-                    p_subject_id: subjectId,
-                    p_min_reviews: 5, // Default minimum reviews for meaningful analysis
-                    p_limit: 50
-                });
-            
-            console.log('Per-card failed attempts result:', { data: perCardFailedAttemptsData, error: perCardFailedAttemptsError });
-            
-            // Merge per-card failed attempts data with transformed data
-            if (perCardFailedAttemptsData && !perCardFailedAttemptsError) {
-                const failedAttemptsMap = new Map();
-                perCardFailedAttemptsData.forEach(card => {
-                    failedAttemptsMap.set(card.card_id, card.failed_attempts_before_good);
-                });
-                
-                // Add failed attempts data to each card
-                transformedData.forEach(card => {
-                    card.failed_attempts_before_good = failedAttemptsMap.get(card.card_id) || 0;
-                });
-            } else {
-                // If per-card data failed to load, set all cards to 0
-                transformedData.forEach(card => {
-                    card.failed_attempts_before_good = 0;
-                });
-            }
-            
-            // Add system average failed attempts to display data
-            const avgFailedAttempts = failedAttemptsData && failedAttemptsData.length > 0 
-                ? failedAttemptsData[0].avg_failed_attempts_before_good 
-                : 0;
-            
-            this.displaySummaryData(transformedData, true, avgFailedAttempts);
-
-        } catch (error) {
-            console.error('Error loading summary analytics:', error);
-            const container = document.getElementById('problem-cards-list');
-            if (container) {
-                container.innerHTML = `<div class="alert alert-danger">Error loading analytics data: ${error.message}</div>`;
-            }
-            
-            // Show error in stats too
-            document.getElementById('total-cards-count').textContent = 'Error';
-            document.getElementById('problem-cards-count').textContent = 'Error';
-            document.getElementById('avg-response-time').textContent = 'Error';
-            document.getElementById('overall-again-percentage').textContent = 'Error';
-            document.getElementById('avg-failed-attempts').textContent = 'Error';
-        }
+        return this.loadAnalytics();
     }
 
-    displaySummaryData(analytics, isBasicData, avgFailedAttempts = 0) {
-        // Update summary stats
+    // Process analytics data with simplified scoring
+    processAnalyticsData(cards) {
+        return cards.map(card => {
+            const actualReviewCount = card.review_history?.length || 0;
+            const againCount = card.review_history?.filter(review => review.rating === 1).length || 0;
+            const againPercentage = actualReviewCount > 0 ? Math.round((againCount / actualReviewCount) * 100) : 0;
+            
+            // Simplified problem score: flag count * 10 + again percentage + (flagged ? 50 : 0)
+            const problemScore = (card.user_flag_count || 0) * 10 + againPercentage + (card.flagged_for_review ? 50 : 0);
+            
+            return {
+                card_id: card.id,
+                question: card.question,
+                answer: card.answer,
+                subject_name: card.subjects?.name || 'Unknown',
+                total_reviews: actualReviewCount,
+                again_percentage: againPercentage,
+                average_response_time_ms: card.average_response_time_ms || 0,
+                user_flag_count: card.user_flag_count || 0,
+                flagged_for_review: card.flagged_for_review,
+                problem_score: problemScore
+            };
+        }).sort((a, b) => b.problem_score - a.problem_score); // Sort by problem score descending
+    }
+
+    // Update summary statistics
+    updateSummaryStats(analytics, avgFailedAttempts = 0) {
         const totalCards = analytics?.length || 0;
         const problemCards = analytics?.filter(card => (card.problem_score || 0) > 30).length || 0;
         const avgResponseTime = analytics?.length > 0 
@@ -1596,402 +1430,55 @@ class AdminService {
             ? Math.round(analytics.reduce((sum, card) => sum + (card.again_percentage || 0), 0) / analytics.length)
             : 0;
 
-        // Calculate relative difficulty score for each card
-        if (analytics?.length > 0) {
-            analytics.forEach(card => {
-                const cardAgainPercentage = card.again_percentage || 0;
-                
-                if (overallAgainPercentage === 0) {
-                    // When deck average is 0, cards with any "again" ratings are relatively difficult
-                    card.relative_difficulty_score = cardAgainPercentage > 0 ? 100 : 0;
-                } else {
-                    // Calculate relative score: ((card_rate - deck_average) / deck_average) * 100
-                    card.relative_difficulty_score = Math.round(
-                        ((cardAgainPercentage - overallAgainPercentage) / overallAgainPercentage) * 100
-                    );
-                }
-            });
-        }
-
         document.getElementById('total-cards-count').textContent = totalCards;
         document.getElementById('problem-cards-count').textContent = problemCards;
         document.getElementById('avg-response-time').textContent = `${avgResponseTime}ms`;
         document.getElementById('overall-again-percentage').textContent = `${overallAgainPercentage}%`;
         document.getElementById('avg-failed-attempts').textContent = avgFailedAttempts || '0';
+    }
 
-        // Show appropriate columns based on data availability
+    // Display analytics table with simplified columns
+    displayAnalyticsTable(data) {
         const columns = [
             { key: 'question', label: 'Question', className: 'card-question' },
             { key: 'subject_name', label: 'Subject' },
             { key: 'total_reviews', label: 'Reviews' },
             { key: 'again_percentage', label: 'Again %', formatter: (val) => val ? `${val}%` : '-' },
-            { 
-                key: 'relative_difficulty_score', 
-                label: 'Relative Difficulty', 
-                formatter: (val) => {
-                    if (val === undefined || val === null) return '-';
-                    const sign = val >= 0 ? '+' : '';
-                    const color = val > 50 ? 'red' : val > 20 ? 'orange' : val < -20 ? 'green' : 'black';
-                    return {
-                        html: `<span style="color: ${color}; font-weight: ${Math.abs(val) > 50 ? 'bold' : 'normal'}">${sign}${val}%</span>`
-                    };
-                }
-            },
-            { key: 'failed_attempts_before_good', label: 'Failed Attempts', formatter: (val) => val || '0' }
+            { key: 'average_response_time_ms', label: 'Avg Time', formatter: (val) => val ? `${val}ms` : '-' },
+            { key: 'user_flag_count', label: 'User Flags' },
+            { key: 'problem_score', label: 'Problem Score', className: 'problem-score', formatter: this.formatProblemScore }
         ];
 
-        if (!isBasicData) {
-            columns.push(
-                { key: 'consistency_score', label: 'Consistency', formatter: (val) => val ? Math.round(val) : '-' }
-            );
-        }
-
-        columns.push(
-            { key: 'problem_score', label: 'Problem Score', className: 'problem-score', formatter: this.formatProblemScore }
-        );
-
-        // Reset sort state for new data
-        this.currentSortColumn = null;
-        this.sortDirection = null;
-        this.originalData = null;
-        
-        // Create problem cards table
-        this.renderAnalyticsTable('problem-cards-list', analytics, columns);
-
-        if (isBasicData) {
-            const container = document.getElementById('problem-cards-list');
-            const note = document.createElement('div');
-            note.className = 'alert alert-info';
-            note.innerHTML = '<strong>Note:</strong> Advanced analytics will appear after users begin reviewing cards with the updated tracking enabled.';
-            container.insertBefore(note, container.firstChild);
-        }
+        this.renderSimpleTable('analytics-table', data, columns);
     }
 
-
-
-    async loadDifficultyAnalytics() {
-        try {
-            const supabase = await this.getSupabase();
-            const subjectId = document.getElementById('subject-filter')?.value || null;
-            const minReviews = 5; // Default minimum reviews for meaningful analysis
-            const classification = document.getElementById('difficulty-classification-filter')?.value || null;
-
-            console.log('Loading difficulty analytics...', { subjectId, minReviews, classification });
-
-            const { data: difficultyData, error } = await supabase
-                .rpc('get_difficulty_consistency_analytics', {
-                    p_subject_id: subjectId,
-                    p_min_reviews: minReviews,
-                    p_classification: classification,
-                    p_limit: 50
-                });
-
-            console.log('Difficulty analytics result:', { data: difficultyData, error });
-
-            if (error) throw error;
-
-            // Reset sort state for new data
-            this.currentSortColumn = null;
-            this.sortDirection = null;
-            this.originalData = null;
-
-            this.renderAnalyticsTable('difficulty-analytics', difficultyData, [
-                { key: 'question', label: 'Question', className: 'card-question' },
-                { key: 'subject_name', label: 'Subject' },
-                { key: 'total_reviews', label: 'Reviews' },
-                { key: 'difficulty_classification', label: 'Classification', formatter: this.formatClassification },
-                { key: 'avg_rating', label: 'Avg Rating', formatter: (val) => val ? val.toFixed(2) : '-' },
-                { key: 'consistency_score', label: 'Consistency', formatter: (val) => val ? Math.round(val) : '-' },
-                { key: 'rating_variance', label: 'Variance', formatter: (val) => val ? val.toFixed(2) : '-' }
-            ]);
-
-        } catch (error) {
-            console.error('Error loading difficulty analytics:', error);
-            document.getElementById('difficulty-analytics').innerHTML = `<p class="text-muted">Error loading difficulty data: ${error.message}</p>`;
-        }
-    }
-
-    async loadFlaggedCardsAnalytics() {
-        try {
-            const supabase = await this.getSupabase();
-            const reasonFilter = document.getElementById('flag-reason-filter')?.value || null;
-            const statusFilter = document.getElementById('flag-status-filter')?.value || null;
-
-            console.log('Loading flagged cards analytics...', { reasonFilter, statusFilter });
-
-            // Build the query for flagged cards analytics
-            let query = supabase
-                .from('user_card_flags')
-                .select(`
-                    id, reason, comment, created_at, resolved_at, resolution_action,
-                    card_id, user_id,
-                    cards!inner(id, question, answer, subject_id, subjects!inner(name))
-                `);
-
-            // Apply filters
-            if (reasonFilter) {
-                query = query.eq('reason', reasonFilter);
-            }
-            
-            if (statusFilter === 'resolved') {
-                query = query.not('resolved_at', 'is', null);
-            } else if (statusFilter === 'unresolved') {
-                query = query.is('resolved_at', null);
-            }
-
-            const { data: flaggedData, error } = await query
-                .order('created_at', { ascending: false })
-                .limit(100);
-
-            console.log('Flagged cards result:', { data: flaggedData, error });
-
-            if (error) throw error;
-
-            // Process data for analytics
-            const processedData = this.processFlaggedCardsData(flaggedData || []);
-            
-            // Update summary statistics
-            this.updateFlaggedCardsSummary(flaggedData || []);
-
-            // Reset sort state for new data
-            this.currentSortColumn = null;
-            this.sortDirection = null;
-            this.originalData = null;
-
-            // Render the analytics table
-            this.renderAnalyticsTable('flagged-cards-analytics', processedData, [
-                { key: 'question', label: 'Question', className: 'card-question' },
-                { key: 'subject_name', label: 'Subject' },
-                { key: 'flag_count', label: 'Total Flags' },
-                { key: 'reasons', label: 'Flag Reasons' },
-                { key: 'latest_flag_date', label: 'Latest Flag', formatter: (val) => val ? new Date(val).toLocaleDateString() : '-' },
-                { key: 'resolved_count', label: 'Resolved' },
-                { key: 'unresolved_count', label: 'Unresolved' },
-                { key: 'status', label: 'Status', formatter: this.formatFlagStatus }
-            ]);
-
-        } catch (error) {
-            console.error('Error loading flagged cards analytics:', error);
-            document.getElementById('flagged-cards-analytics').innerHTML = `<p class="text-muted">Error loading flagged cards data: ${error.message}</p>`;
-        }
-    }
-
-    processFlaggedCardsData(flaggedData) {
-        // Group flags by card
-        const cardMap = new Map();
-        
-        flaggedData.forEach(flag => {
-            const cardId = flag.card_id;
-            
-            if (!cardMap.has(cardId)) {
-                cardMap.set(cardId, {
-                    card_id: cardId,
-                    question: flag.cards.question,
-                    answer: flag.cards.answer,
-                    subject_name: flag.cards.subjects.name,
-                    flags: [],
-                    flag_count: 0,
-                    resolved_count: 0,
-                    unresolved_count: 0,
-                    reasons: new Set(),
-                    latest_flag_date: null
-                });
-            }
-            
-            const card = cardMap.get(cardId);
-            card.flags.push(flag);
-            card.flag_count++;
-            
-            if (flag.resolved_at) {
-                card.resolved_count++;
-            } else {
-                card.unresolved_count++;
-            }
-            
-            card.reasons.add(flag.reason);
-            
-            if (!card.latest_flag_date || new Date(flag.created_at) > new Date(card.latest_flag_date)) {
-                card.latest_flag_date = flag.created_at;
-            }
-        });
-        
-        // Convert to array and format
-        return Array.from(cardMap.values()).map(card => ({
-            ...card,
-            reasons: Array.from(card.reasons).join(', '),
-            status: card.unresolved_count > 0 ? 'Has Unresolved' : 'All Resolved'
-        })).sort((a, b) => b.flag_count - a.flag_count); // Sort by flag count desc
-    }
-
-    updateFlaggedCardsSummary(flaggedData) {
-        const totalFlags = flaggedData.length;
-        const unresolvedFlags = flaggedData.filter(flag => !flag.resolved_at).length;
-        const resolvedFlags = totalFlags - unresolvedFlags;
-        const resolutionRate = totalFlags > 0 ? Math.round((resolvedFlags / totalFlags) * 100) : 0;
-        
-        // Count reasons
-        const reasonCounts = {};
-        flaggedData.forEach(flag => {
-            reasonCounts[flag.reason] = (reasonCounts[flag.reason] || 0) + 1;
-        });
-        
-        const mostCommonReason = Object.keys(reasonCounts).length > 0 
-            ? Object.keys(reasonCounts).reduce((a, b) => reasonCounts[a] > reasonCounts[b] ? a : b)
-            : 'None';
-        
-        // Update DOM elements
-        document.getElementById('total-flagged-count').textContent = totalFlags;
-        document.getElementById('unresolved-flagged-count').textContent = unresolvedFlags;
-        document.getElementById('most-common-reason').textContent = mostCommonReason;
-        document.getElementById('resolution-rate').textContent = `${resolutionRate}%`;
-    }
-
-    formatFlagStatus(status) {
-        const statusColors = {
-            'Has Unresolved': 'color: #dc3545; font-weight: bold;',
-            'All Resolved': 'color: #28a745;'
-        };
-        
-        return {
-            html: `<span style="${statusColors[status] || ''}">${status}</span>`
-        };
-    }
-
-    // Sorting functionality
-    getSortValue(row, column) {
-        let value = row[column.key];
-        
-        // Handle different data types
-        switch (column.key) {
-            case 'total_reviews':
-            case 'failed_attempts_before_good':
-            case 'flag_count':
-            case 'resolved_count':
-            case 'unresolved_count':
-                return typeof value === 'number' ? value : 0;
-                
-            case 'again_percentage':
-                return typeof value === 'number' ? value : 0;
-                
-            case 'relative_difficulty_score':
-                return typeof value === 'number' ? value : 0;
-                
-            case 'problem_score':
-                return typeof value === 'number' ? value : (value === '-' ? -1 : 0);
-                
-            case 'latest_flag_date':
-                return value ? new Date(value).getTime() : 0;
-                
-            case 'question':
-            case 'subject_name':
-            case 'reasons':
-            case 'status':
-                return (value || '').toString().toLowerCase();
-                
-            default:
-                return value || '';
-        }
-    }
-
-    sortTableData(data, column, direction) {
-        if (!data || !column) return data;
-        
-        return [...data].sort((a, b) => {
-            const valueA = this.getSortValue(a, column);
-            const valueB = this.getSortValue(b, column);
-            
-            let comparison = 0;
-            
-            if (typeof valueA === 'number' && typeof valueB === 'number') {
-                comparison = valueA - valueB;
-            } else {
-                comparison = valueA < valueB ? -1 : valueA > valueB ? 1 : 0;
-            }
-            
-            return direction === 'desc' ? -comparison : comparison;
-        });
-    }
-
-    handleColumnSort(containerId, data, columns, columnIndex) {
-        const column = columns[columnIndex];
-        
-        // Determine next sort direction
-        let newDirection;
-        if (this.currentSortColumn === column.key) {
-            // Cycling through: asc -> desc -> original -> asc
-            if (this.sortDirection === 'asc') {
-                newDirection = 'desc';
-            } else if (this.sortDirection === 'desc') {
-                newDirection = null; // Return to original
-            } else {
-                newDirection = 'asc';
-            }
-        } else {
-            newDirection = 'asc';
-        }
-        
-        this.currentSortColumn = newDirection ? column.key : null;
-        this.sortDirection = newDirection;
-        
-        // Sort the data
-        const sortedData = newDirection ? 
-            this.sortTableData(data, column, newDirection) : 
-            this.originalData || data;
-        
-        // Re-render the table
-        this.renderAnalyticsTable(containerId, sortedData, columns);
-    }
-
-    renderAnalyticsTable(containerId, data, columns) {
+    // Simplified table rendering with basic asc/desc sorting
+    renderSimpleTable(containerId, data, columns) {
         const container = document.getElementById(containerId);
         if (!container) return;
 
         if (!data || data.length === 0) {
-            container.innerHTML = '<p class="text-muted text-center">No data available with current filters.</p>';
+            container.innerHTML = '<p class="text-muted text-center">No data available.</p>';
             return;
-        }
-
-        // Store original data for reset functionality
-        if (!this.originalData) {
-            this.originalData = [...data];
         }
 
         const table = document.createElement('table');
         table.className = 'analytics-table';
 
-        // Create header
+        // Create header with simple sorting
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
+        
         columns.forEach((col, index) => {
             const th = document.createElement('th');
-            th.className = 'sortable';
-            
-            // Add column label
-            const labelSpan = document.createElement('span');
-            labelSpan.textContent = col.label;
-            th.appendChild(labelSpan);
-            
-            // Add sort arrow
-            const arrow = document.createElement('span');
-            arrow.className = 'sort-arrow';
-            
-            if (this.currentSortColumn === col.key) {
-                th.classList.add('sorted');
-                arrow.classList.add('active');
-                arrow.textContent = this.sortDirection === 'asc' ? '▲' : '▼';
-            } else {
-                arrow.textContent = '⚬'; // neutral indicator
-            }
-            
-            th.appendChild(arrow);
-            
-            // Add click handler
+            th.textContent = col.label;
+            th.style.cursor = 'pointer';
             th.addEventListener('click', () => {
-                this.handleColumnSort(containerId, data, columns, index);
+                this.sortTable(table, index, col.key);
             });
-            
             headerRow.appendChild(th);
         });
+        
         thead.appendChild(headerRow);
         table.appendChild(thead);
 
@@ -2004,16 +1491,12 @@ class AdminService {
                 let value = row[col.key];
                 
                 if (col.formatter) {
-                    if (typeof col.formatter === 'function') {
-                        const formatted = col.formatter(value);
-                        if (typeof formatted === 'object' && formatted.html) {
-                            td.innerHTML = formatted.html;
-                            if (formatted.className) td.className = formatted.className;
-                        } else {
-                            td.textContent = formatted;
-                        }
+                    const formatted = col.formatter(value);
+                    if (typeof formatted === 'object' && formatted.html) {
+                        td.innerHTML = formatted.html;
+                        if (formatted.className) td.className = formatted.className;
                     } else {
-                        td.textContent = col.formatter;
+                        td.textContent = formatted;
                     }
                 } else {
                     td.textContent = value !== null && value !== undefined ? value : '-';
@@ -2026,18 +1509,72 @@ class AdminService {
             });
             tbody.appendChild(tr);
         });
+        
         table.appendChild(tbody);
-
         container.innerHTML = '';
         container.appendChild(table);
     }
+
+    // Simple table sorting (asc/desc only)
+    sortTable(table, columnIndex, sortKey) {
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Determine current sort direction
+        const currentDirection = table.dataset.sortDirection || 'asc';
+        const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+        table.dataset.sortDirection = newDirection;
+        table.dataset.sortColumn = columnIndex;
+        
+        // Sort rows
+        rows.sort((a, b) => {
+            const aValue = a.cells[columnIndex].textContent.trim();
+            const bValue = b.cells[columnIndex].textContent.trim();
+            
+            let comparison = 0;
+            
+            // Try numeric comparison first
+            const aNum = parseFloat(aValue.replace(/[^\d.-]/g, ''));
+            const bNum = parseFloat(bValue.replace(/[^\d.-]/g, ''));
+            
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+                comparison = aNum - bNum;
+            } else {
+                comparison = aValue.localeCompare(bValue);
+            }
+            
+            return newDirection === 'desc' ? -comparison : comparison;
+        });
+        
+        // Update table header indicators
+        table.querySelectorAll('th').forEach((th, index) => {
+            th.textContent = th.textContent.replace(/ [▲▼]/, '');
+            if (index === columnIndex) {
+                th.textContent += newDirection === 'asc' ? ' ▲' : ' ▼';
+            }
+        });
+        
+        // Reorder rows
+        rows.forEach(row => tbody.appendChild(row));
+
+    }
+
+
+
+
+
+
+
+
+
+
 
     formatProblemScore(score) {
         if (!score) return '-';
         const roundedScore = Math.round(score);
         let className = 'problem-score ';
         if (roundedScore >= 50) className += 'high';
-        else if (roundedScore >= 25) className += 'medium';
+        else if (roundedScore >= 20) className += 'medium';
         else className += 'low';
         
         return {
@@ -2046,75 +1583,72 @@ class AdminService {
         };
     }
 
-    formatClassification(classification) {
-        if (!classification) return '-';
-        let className = '';
-        switch (classification) {
-            case 'optimal':
-                className = 'classification-optimal';
-                break;
-            case 'consistently_hard':
-                className = 'classification-hard';
-                break;
-            case 'highly_variable':
-            case 'moderately_variable':
-                className = 'classification-variable';
-                break;
-        }
-        
-        return {
-            html: classification.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-            className: className
-        };
-    }
 
+    // Simplified export function
     async exportAnalyticsData() {
         try {
-            const exportSummary = document.getElementById('export-summary')?.checked;
-            const exportDifficulty = document.getElementById('export-difficulty')?.checked;
-
-            if (!exportSummary && !exportDifficulty) {
-                alert('Please select at least one data type to export.');
+            const supabase = await this.getSupabase();
+            const subjectId = document.getElementById('subject-filter')?.value || null;
+            
+            // Get current analytics data
+            let query = supabase
+                .from('cards')
+                .select(`
+                    id, question, answer, 
+                    subjects:subject_id(name),
+                    total_reviews, correct_reviews, incorrect_reviews,
+                    average_response_time_ms, user_flag_count, flagged_for_review
+                `);
+                
+            if (subjectId) {
+                query = query.eq('subject_id', subjectId);
+            }
+            
+            const { data, error } = await query.limit(1000);
+            
+            if (error) throw error;
+            
+            if (!data || data.length === 0) {
+                alert('No data to export.');
                 return;
             }
-
-            const supabase = await this.getSupabase();
-            const csvData = [];
             
-            if (exportSummary) {
-                const { data } = await supabase.from('card_analytics_summary').select('*').limit(1000);
-                if (data) {
-                    csvData.push(['=== SUMMARY ANALYTICS ===']);
-                    csvData.push(Object.keys(data[0]));
-                    data.forEach(row => csvData.push(Object.values(row)));
-                    csvData.push([]);
-                }
-            }
-
-            if (exportDifficulty) {
-                const { data } = await supabase.from('card_difficulty_consistency').select('*').limit(1000);
-                if (data) {
-                    csvData.push(['=== DIFFICULTY CONSISTENCY ANALYTICS ===']);
-                    csvData.push(Object.keys(data[0]));
-                    data.forEach(row => csvData.push(Object.values(row)));
-                }
-            }
-
+            // Prepare CSV data
+            const csvData = [];
+            csvData.push(['Card ID', 'Question', 'Answer', 'Subject', 'Total Reviews', 'Correct Reviews', 'Incorrect Reviews', 'Avg Response Time (ms)', 'User Flags', 'Admin Flagged']);
+            
+            data.forEach(card => {
+                csvData.push([
+                    card.id,
+                    `"${card.question.replace(/"/g, '""')}"`, // Escape quotes
+                    `"${card.answer.replace(/"/g, '""')}"`,
+                    card.subjects?.name || 'Unknown',
+                    card.total_reviews || 0,
+                    card.correct_reviews || 0,
+                    card.incorrect_reviews || 0,
+                    card.average_response_time_ms || 0,
+                    card.user_flag_count || 0,
+                    card.flagged_for_review ? 'Yes' : 'No'
+                ]);
+            });
+            
             // Create and download CSV
             const csvContent = csvData.map(row => row.join(',')).join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `spaced-rep-analytics-${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `spaced-rep-cards-${new Date().toISOString().split('T')[0]}.csv`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-
+            
+            console.log(`Exported ${data.length} cards to CSV`);
+            
         } catch (error) {
-            console.error('Error exporting analytics data:', error);
-            alert('Failed to export data. Please try again.');
+            console.error('Error exporting data:', error);
+            alert('Failed to export data: ' + error.message);
         }
     }
 }

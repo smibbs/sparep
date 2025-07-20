@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Flashcard App</title>
+    <title>Admin Dashboard - nanotopic</title>
     <link rel="stylesheet" href="css/styles.css?v=6">
     <link rel="stylesheet" href="css/admin.css?v=6">
     <link rel="stylesheet" href="css/slide-menu.css?v=1">
@@ -40,117 +40,43 @@
             
             <!-- Analytics Section -->
             <div id="analytics-section" class="admin-main-section">
-                <div class="analytics-tabs">
-                    <button class="analytics-tab active" data-tab="summary">Summary</button>
-                    <button class="analytics-tab" data-tab="difficulty">Difficulty</button>
-                    <button class="analytics-tab" data-tab="flagged">Flagged Cards</button>
-                    <button class="analytics-tab" data-tab="export">Export</button>
-                </div>
-                
-                <!-- Summary Tab -->
-                <div id="summary-tab" class="analytics-tab-content active">
-                    <div class="analytics-summary">
-                        <div class="summary-stats">
-                            <div class="stat-card">
-                                <h4>Total Cards</h4>
-                                <span id="total-cards-count">-</span>
-                            </div>
-                            <div class="stat-card">
-                                <h4>Problem Cards</h4>
-                                <span id="problem-cards-count">-</span>
-                            </div>
-                            <div class="stat-card">
-                                <h4>Avg Response Time</h4>
-                                <span id="avg-response-time">-</span>
-                            </div>
-                            <div class="stat-card">
-                                <h4>Overall Again %</h4>
-                                <span id="overall-again-percentage">-</span>
-                            </div>
-                            <div class="stat-card">
-                                <h4>Avg Failed Attempts</h4>
-                                <span id="avg-failed-attempts">-</span>
-                            </div>
-                        </div>
-                        <div class="filters-section">
-                            <select id="subject-filter" class="form-select">
-                                <option value="">All Subjects</option>
-                            </select>
-                            <button id="apply-filters" class="btn btn-primary">Apply Filters</button>
-                        </div>
-                        <div id="problem-cards-list" class="analytics-table-container"></div>
+                <div class="analytics-header">
+                    <h3>Card Analytics</h3>
+                    <div class="analytics-controls">
+                        <select id="subject-filter" class="form-select">
+                            <option value="">All Subjects</option>
+                        </select>
+                        <button id="apply-filters" class="btn btn-primary">Apply Filters</button>
+                        <button id="export-csv" class="btn btn-success">Export CSV</button>
                     </div>
                 </div>
                 
-                <!-- Difficulty Tab -->
-                <div id="difficulty-tab" class="analytics-tab-content">
-                    <div class="tab-header">
-                        <h3>Difficulty Consistency Analysis</h3>
-                        <div class="difficulty-filters">
-                            <select id="difficulty-classification-filter" class="form-select">
-                                <option value="">All Classifications</option>
-                                <option value="optimal">Optimal</option>
-                                <option value="consistently_hard">Consistently Hard</option>
-                                <option value="highly_variable">Highly Variable</option>
-                                <option value="moderately_variable">Moderately Variable</option>
-                            </select>
-                            <button id="refresh-difficulty" class="btn btn-primary">Refresh</button>
-                        </div>
+                <!-- Summary Stats -->
+                <div class="summary-stats">
+                    <div class="stat-card">
+                        <h4>Total Cards</h4>
+                        <span id="total-cards-count">-</span>
                     </div>
-                    <div id="difficulty-analytics" class="analytics-table-container"></div>
-                </div>
-                
-                <!-- Flagged Cards Tab -->
-                <div id="flagged-tab" class="analytics-tab-content">
-                    <div class="analytics-summary">
-                        <div class="summary-stats">
-                            <div class="stat-card">
-                                <h4>Total Flagged</h4>
-                                <span id="total-flagged-count">-</span>
-                            </div>
-                            <div class="stat-card">
-                                <h4>Unresolved</h4>
-                                <span id="unresolved-flagged-count">-</span>
-                            </div>
-                            <div class="stat-card">
-                                <h4>Most Common Reason</h4>
-                                <span id="most-common-reason">-</span>
-                            </div>
-                            <div class="stat-card">
-                                <h4>Resolution Rate</h4>
-                                <span id="resolution-rate">-</span>
-                            </div>
-                        </div>
-                        <div class="filters-section">
-                            <select id="flag-reason-filter" class="form-select">
-                                <option value="">All Reasons</option>
-                                <option value="incorrect">Incorrect</option>
-                                <option value="spelling">Spelling</option>
-                                <option value="confusing">Confusing</option>
-                                <option value="other">Other</option>
-                            </select>
-                            <select id="flag-status-filter" class="form-select">
-                                <option value="">All Status</option>
-                                <option value="unresolved">Unresolved</option>
-                                <option value="resolved">Resolved</option>
-                            </select>
-                            <button id="apply-flagged-filters" class="btn btn-primary">Apply Filters</button>
-                        </div>
-                        <div id="flagged-cards-analytics" class="analytics-table-container"></div>
+                    <div class="stat-card">
+                        <h4>Problem Cards</h4>
+                        <span id="problem-cards-count">-</span>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Avg Response Time</h4>
+                        <span id="avg-response-time">-</span>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Overall Again %</h4>
+                        <span id="overall-again-percentage">-</span>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Avg Failed Attempts</h4>
+                        <span id="avg-failed-attempts">-</span>
                     </div>
                 </div>
                 
-                <!-- Export Tab -->
-                <div id="export-tab" class="analytics-tab-content">
-                    <div class="export-section">
-                        <h3>Export Analytics Data</h3>
-                        <div class="export-options">
-                            <label><input type="checkbox" id="export-summary" checked> Summary Analytics</label>
-                            <label><input type="checkbox" id="export-difficulty" checked> Difficulty Analysis</label>
-                        </div>
-                        <button id="export-csv" class="btn btn-success">Export to CSV</button>
-                    </div>
-                </div>
+                <!-- Analytics Table -->
+                <div id="analytics-table" class="analytics-table-container"></div>
             </div>
             
             <!-- Management Section -->

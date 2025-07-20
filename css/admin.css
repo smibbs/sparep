@@ -45,6 +45,28 @@ body {
     margin-bottom: 30px;
 }
 
+/* Analytics Header */
+.analytics-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.analytics-header h3 {
+    margin: 0;
+    color: #007bff;
+    font-size: 18px;
+}
+
+.analytics-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
 .admin-section {
     margin-bottom: 30px;
     padding-bottom: 20px;
