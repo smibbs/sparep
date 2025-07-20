@@ -1083,20 +1083,22 @@ class DatabaseService {
                 }
 
                 // Update user streak after successful session completion
+                // TEMPORARILY DISABLED - Fix streak column issue
                 try {
-                    const { default: streakService } = await import('./streakService.js');
-                    const streakResult = await streakService.updateUserStreak(user.id);
+                    // const { default: streakService } = await import('./streakService.js');
+                    // const streakResult = await streakService.updateUserStreak(user.id);
                     
-                    if (streakResult.success && streakResult.isNewMilestone) {
-                        console.log(`🎉 New streak milestone achieved: ${streakResult.milestoneDays} days!`);
-                        // Store milestone achievement for UI notification
-                        if (typeof window !== 'undefined') {
-                            window.newStreakMilestone = {
-                                days: streakResult.milestoneDays,
-                                currentStreak: streakResult.currentStreak
-                            };
-                        }
-                    }
+                    // if (streakResult.success && streakResult.isNewMilestone) {
+                    //     console.log(`🎉 New streak milestone achieved: ${streakResult.milestoneDays} days!`);
+                    //     // Store milestone achievement for UI notification
+                    //     if (typeof window !== 'undefined') {
+                    //         window.newStreakMilestone = {
+                    //             days: streakResult.milestoneDays,
+                    //             currentStreak: streakResult.currentStreak
+                    //         };
+                    //     }
+                    // }
+                    console.log('Streak update temporarily disabled to fix session completion');
                 } catch (streakError) {
                     console.warn('Failed to update streak:', streakError);
                     // Don't fail the session if streak update fails
