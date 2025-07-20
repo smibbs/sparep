@@ -115,11 +115,11 @@ function insertLogoInPageContent(logoHTML) {
                 }
                 .page-content-logo .micro {
                     font-size: 16px;
-                    width: 95px;
+                    width: 76px; /* Adjusted for 'nano' */
                 }
                 .page-content-logo .boxed {
                     font-size: 28px;
-                    width: 72px;
+                    width: 81px; /* Adjusted for 'topic' */
                     padding: 4px 10px;
                 }
                 
@@ -134,11 +134,11 @@ function insertLogoInPageContent(logoHTML) {
                     }
                     .page-content-logo .micro {
                         font-size: 14px;
-                        width: 84px;
+                        width: 67px; /* Adjusted for mobile 'nano' */
                     }
                     .page-content-logo .boxed {
                         font-size: 24px;
-                        width: 60px;
+                        width: 68px; /* Adjusted for mobile 'topic' */
                         padding: 3px 8px;
                     }
                 }
