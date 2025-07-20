@@ -171,6 +171,10 @@ class AuthService {
             const repoName = pathParts[1]; // Second part after the first slash
             return `/${repoName}/`; // This ensures we include /sparep/ for GitHub Pages
         }
+        // For custom domain (nanotopic.co.uk)
+        if (window.location.hostname.includes('nanotopic.co.uk')) {
+            return '/';
+        }
         // For local development
         return '/';
     }
