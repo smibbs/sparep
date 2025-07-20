@@ -13,7 +13,7 @@ export async function loadLogo() {
         
         if (currentPage === 'login') {
             insertLogoInLoginPage(logoHTML);
-        } else if (['index', 'dashboard', 'admin'].includes(currentPage)) {
+        } else if (['index', 'dashboard', 'admin', 'profile'].includes(currentPage)) {
             insertLogoInMainPages(logoHTML);
         } else {
             // Default behavior for other pages
@@ -34,6 +34,7 @@ function getCurrentPageType() {
     if (filename.includes('login')) return 'login';
     if (filename.includes('dashboard')) return 'dashboard';
     if (filename.includes('admin')) return 'admin';
+    if (filename.includes('profile')) return 'profile';
     if (filename.includes('index') || filename === '' || filename === '/') return 'index';
     
     return 'other';
