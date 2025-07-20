@@ -1,6 +1,6 @@
 /* Auth Container and Box */
 :root {
-    --primary-color: #4a90e2;
+    --primary-color: #007AFF;
     --error-color: #e74c3c;
     --success-color: #2ecc71;
     --text-color: white;
@@ -120,7 +120,7 @@ body {
 }
 
 .auth-button:hover {
-    background-color: #357abd;
+    background-color: #0056b3;
 }
 
 .auth-button:disabled {

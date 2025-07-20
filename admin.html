@@ -6,16 +6,10 @@
     <title>Admin Dashboard - Flashcard App</title>
     <link rel="stylesheet" href="css/styles.css?v=6">
     <link rel="stylesheet" href="css/admin.css?v=6">
+    <link rel="stylesheet" href="css/slide-menu.css?v=1">
 </head>
 <body>
     <div id="app-container">
-        <div class="header-nav">
-            <nav class="navigation">
-                <a href="index.html" class="nav-button">Study</a>
-                <a href="dashboard.html" class="nav-button">Dashboard</a>
-                <button id="logout-button" class="nav-button">Sign Out</button>
-            </nav>
-        </div>
         
         <!-- Access Control Loading State -->
         <div id="access-loading" class="loading-state">
@@ -215,6 +209,9 @@
     <script src="js/supabase-client.js" type="module"></script>
     <script src="js/auth.js" type="module"></script>
     <script src="js/navigation.js" type="module"></script>
+    <script src="js/userAvatar.js" type="module"></script>
+    <script src="js/slideMenu.js" type="module"></script>
+    <script src="js/logoLoader.js" type="module"></script>
     <script src="js/admin.js" type="module"></script>
     
     <!-- Admin Page Initialization -->
@@ -224,13 +221,38 @@
         // Initialize admin page
         async function initAdminPage() {
             try {
+                console.log('Starting admin page initialization...');
+                
                 // Check if user is authenticated first
                 const user = await auth.getCurrentUser();
+                console.log('Current user:', user);
+                
                 if (!user) {
-                    // Redirect to login if not authenticated
+                    console.log('No user found, redirecting to login');
                     auth.redirectToLogin();
                     return;
                 }
+                
+                // Get user profile to check admin status
+                const userProfile = await auth.getUserProfile();
+                console.log('User profile:', userProfile);
+                console.log('Current user tier:', userProfile?.user_tier);
+                
+                if (!userProfile) {
+                    console.log('No user profile found');
+                    document.getElementById('access-loading').classList.add('hidden');
+                    document.getElementById('access-denied').classList.remove('hidden');
+                    return;
+                }
+                
+                if (userProfile.user_tier !== 'admin') {
+                    console.log(`User is not admin. Current tier: ${userProfile.user_tier}`);
+                    document.getElementById('access-loading').classList.add('hidden');
+                    document.getElementById('access-denied').classList.remove('hidden');
+                    return;
+                }
+                
+                console.log('User is admin, proceeding with initialization');
                 
                 // Import admin service after auth check
                 const { default: AdminService } = await import('./js/admin.js');
@@ -238,19 +260,30 @@
                 // Create admin instance but bypass auto-initialization
                 const adminService = new AdminService(false); // false = don't auto-init
                 
-                // Check admin access
-                const isAdmin = await adminService.checkAdminAccess();
-                
-                if (!isAdmin) {
-                    // Show access denied
-                    document.getElementById('access-loading').classList.add('hidden');
-                    document.getElementById('access-denied').classList.remove('hidden');
-                    return;
-                }
-                
                 // User is admin - show admin content and initialize
-                document.getElementById('access-loading').classList.add('hidden');
-                document.getElementById('admin-content').classList.remove('hidden');
+                console.log('Hiding loading and access denied, showing admin content');
+                
+                const loadingEl = document.getElementById('access-loading');
+                const deniedEl = document.getElementById('access-denied');
+                const adminEl = document.getElementById('admin-content');
+                
+                console.log('Before changes:');
+                console.log('Loading classes:', loadingEl.className);
+                console.log('Denied classes:', deniedEl.className);
+                console.log('Admin classes:', adminEl.className);
+                
+                loadingEl.classList.add('hidden');
+                deniedEl.classList.add('hidden');
+                adminEl.classList.remove('hidden');
+                
+                console.log('After changes:');
+                console.log('Loading classes:', loadingEl.className);
+                console.log('Denied classes:', deniedEl.className);
+                console.log('Admin classes:', adminEl.className);
+                
+                // Initialize slide menu navigation
+                const { default: slideMenu } = await import('./js/slideMenu.js');
+                await slideMenu.initialize();
                 
                 // Make admin service globally available for onclick handlers
                 window.adminService = adminService;
@@ -258,18 +291,15 @@
                 // Initialize admin functionality
                 adminService.initializeAsStandalone();
                 
-                // Set up logout functionality
-                document.getElementById('logout-button').addEventListener('click', () => {
-                    auth.signOut().then(() => {
-                        window.location.href = 'login.html';
+                // Set up logout functionality (only for access denied button, slide menu handles main logout)
+                const accessLogoutButton = document.getElementById('access-logout-button');
+                if (accessLogoutButton) {
+                    accessLogoutButton.addEventListener('click', () => {
+                        auth.signOut().then(() => {
+                            window.location.href = 'login.html';
+                        });
                     });
-                });
-                
-                document.getElementById('access-logout-button').addEventListener('click', () => {
-                    auth.signOut().then(() => {
-                        window.location.href = 'login.html';
-                    });
-                });
+                }
                 
             } catch (error) {
                 console.error('Error initializing admin page:', error);

@@ -6,6 +6,7 @@
     <title>Dashboard - Flashcard App</title>
     <link rel="stylesheet" href="css/styles.css?v=6">
     <link rel="stylesheet" href="css/dashboard.css?v=6">
+    <link rel="stylesheet" href="css/slide-menu.css?v=1">
     <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config/supabase-config.js"></script>
@@ -13,17 +14,13 @@
     <script src="js/auth.js" type="module"></script>
     <script src="js/database.js" type="module"></script>
     <script src="js/navigation.js" type="module"></script>
+    <script src="js/userAvatar.js" type="module"></script>
+    <script src="js/slideMenu.js" type="module"></script>
+    <script src="js/logoLoader.js" type="module"></script>
     <script src="js/dashboard.js" type="module"></script>
 </head>
 <body>
     <div id="dashboard-container">
-        <div class="header-nav">
-            <nav class="navigation">
-                <a href="index.html" class="nav-button">Study Now</a>
-                <a href="admin.html" id="admin-nav-link" class="nav-button hidden">Admin</a>
-                <button id="logout-button" class="nav-button">Sign Out</button>
-            </nav>
-        </div>
         <div id="dashboard-content" class="content">
             <h1>Dashboard</h1>
             <div id="dashboard-loading" class="loading-state">

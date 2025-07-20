@@ -215,7 +215,7 @@ body {
 /* Legacy support for single bar (fallback) */
 .subject-progress-bar-inner {
     height: 100%;
-    background: linear-gradient(90deg, #007AFF 60%, #00c6fb 100%);
+    background: linear-gradient(90deg, #007AFF 60%, #0056b3 100%);
     border-radius: 6px;
     transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
 }

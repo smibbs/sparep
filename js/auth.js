@@ -495,6 +495,162 @@ class AuthService {
             }
         });
     }
+
+    // Update user profile
+    async updateUserProfile(profileData) {
+        try {
+            const supabase = await this.getSupabase();
+            const user = await this.getCurrentUser();
+            if (!user) throw new Error('No authenticated user');
+
+            // Update display_name in user_profiles table
+            if (profileData.display_name !== undefined) {
+                const { error: profileError } = await supabase
+                    .from('user_profiles')
+                    .update({ display_name: profileData.display_name })
+                    .eq('id', user.id);
+
+                if (profileError) {
+                    throw new Error('Failed to update profile information');
+                }
+            }
+
+            // Update email if provided and different
+            if (profileData.email && profileData.email !== user.email) {
+                const { error: emailError } = await supabase.auth.updateUser({
+                    email: profileData.email
+                });
+
+                if (emailError) {
+                    // Rollback display name change if email update failed
+                    if (profileData.display_name !== undefined) {
+                        await supabase
+                            .from('user_profiles')
+                            .update({ display_name: this.userProfile?.display_name || '' })
+                            .eq('id', user.id);
+                    }
+                    throw new Error('Failed to update email address. Please check that the email is valid and not already in use.');
+                }
+            }
+
+            // Update other user metadata if provided
+            const userMetadataUpdates = {};
+            if (profileData.display_name !== undefined) {
+                userMetadataUpdates.display_name = profileData.display_name;
+            }
+
+            if (Object.keys(userMetadataUpdates).length > 0) {
+                const { error: metadataError } = await supabase.auth.updateUser({
+                    data: userMetadataUpdates
+                });
+
+                if (metadataError) {
+                    console.warn('Failed to update user metadata:', metadataError);
+                    // Don't throw here as the profile update was successful
+                }
+            }
+
+            // Refresh user profile cache
+            this.userProfile = null;
+            await this.getUserProfile(true);
+
+            return { success: true };
+        } catch (error) {
+            console.error('Error updating user profile:', error);
+            throw error;
+        }
+    }
+
+    // Change user password
+    async changePassword(currentPassword, newPassword) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            // Note: Supabase doesn't have a direct way to verify current password
+            // before changing it. The updateUser method will change the password
+            // if the user is authenticated. For additional security, you might
+            // want to implement a re-authentication flow.
+            
+            const { error } = await supabase.auth.updateUser({
+                password: newPassword
+            });
+
+            if (error) {
+                throw new Error('Failed to update password. Please try again.');
+            }
+
+            return { success: true };
+        } catch (error) {
+            console.error('Error changing password:', error);
+            throw error;
+        }
+    }
+
+    // Delete user account
+    async deleteAccount() {
+        try {
+            const supabase = await this.getSupabase();
+            const user = await this.getCurrentUser();
+            if (!user) throw new Error('No authenticated user');
+
+            // Note: Supabase doesn't provide a direct way to delete user accounts
+            // from the client side for security reasons. This would typically
+            // require a server-side function or admin API call.
+            // For now, we'll sign out the user and provide instructions.
+            
+            await this.signOut();
+            
+            throw new Error('Account deletion must be requested through customer support. You have been signed out for security.');
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            throw error;
+        }
+    }
+
+    // Send password reset email
+    async sendPasswordResetEmail(email) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password.html`
+            });
+
+            if (error) {
+                throw new Error('Failed to send password reset email. Please check the email address and try again.');
+            }
+
+            return { success: true };
+        } catch (error) {
+            console.error('Error sending password reset email:', error);
+            throw error;
+        }
+    }
+
+    // Verify email change
+    async verifyEmailChange(token) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            const { error } = await supabase.auth.verifyOtp({
+                token_hash: token,
+                type: 'email_change'
+            });
+
+            if (error) {
+                throw new Error('Failed to verify email change. The link may be expired or invalid.');
+            }
+
+            // Refresh user profile after email verification
+            this.userProfile = null;
+            await this.getUserProfile(true);
+
+            return { success: true };
+        } catch (error) {
+            console.error('Error verifying email change:', error);
+            throw error;
+        }
+    }
 }
 
 // Export both the class and the singleton instance
