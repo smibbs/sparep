@@ -52,6 +52,16 @@ coverage/
 test-results/
 *.test.local.js
 
+# Test files in root directory
+test-*.html
+
+# Temporary analysis and migration planning files  
+*migration_plan*.sql
+*analysis*.md
+*summary*.md
+get_schema.sql
+schema.sql
+
 # Lock files (optional - some prefer to commit these)
 # Uncomment if you don't want to track lock files:
 # package-lock.json
