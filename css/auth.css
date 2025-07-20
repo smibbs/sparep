@@ -197,9 +197,31 @@ body {
 }
 
 /* Responsive Design */
+@media (max-width: 768px) {
+    .auth-container {
+        padding: 15px;
+        max-width: 90%;
+        margin-bottom: 20px;
+    }
+
+    .auth-box {
+        padding: 25px;
+    }
+
+    .auth-header {
+        margin-bottom: 25px;
+    }
+
+    .form-group {
+        margin-bottom: 18px;
+    }
+}
+
 @media (max-width: 480px) {
     .auth-container {
         padding: 10px;
+        max-width: 95%;
+        margin-bottom: 15px;
     }
 
     .auth-box {
@@ -210,7 +232,16 @@ body {
         font-size: 20px;
     }
 
+    .auth-header {
+        margin-bottom: 20px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
     .form-group input {
         font-size: 14px;
+        padding: 10px;
     }
 } 
