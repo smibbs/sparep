@@ -49,6 +49,10 @@ function getBaseUrl() {
         const repoName = pathParts[1]; // Second part after the first slash
         return `/${repoName}/`;
     }
+    // For custom domain (nanotopic.co.uk)
+    if (window.location.hostname.includes('nanotopic.co.uk')) {
+        return '/';
+    }
     // For local development
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return '/';
