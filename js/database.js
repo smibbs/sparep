@@ -302,7 +302,7 @@ class DatabaseService {
             // Only increment daily review count for completed reviews (rating >= 2)
             if (rating >= 2) {
                 const { error: incrementError } = await supabase.rpc('increment_daily_reviews', {
-                    user_id: user.id
+                    p_user_id: user.id
                 });
 
                 if (incrementError) {
@@ -1091,7 +1091,7 @@ class DatabaseService {
             if (completedCardCount > 0) {
                 for (let i = 0; i < completedCardCount; i++) {
                     const { error: incrementError } = await supabase.rpc('increment_daily_reviews', {
-                        user_id: user.id
+                        p_user_id: user.id
                     });
                     if (incrementError) {
                         console.warn('Failed to increment daily review count:', incrementError);
@@ -1349,6 +1349,67 @@ class DatabaseService {
         } catch (error) {
             console.error('Error getting current reviews today:', error);
             return 0;
+        }
+    }
+
+    /**
+     * Ensure user profile exists for the given user
+     * @param {string} userId - The user's ID
+     * @returns {Promise<void>}
+     */
+    async ensureUserProfileExists(userId) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            // Check if user profile exists
+            const { data: existingProfile, error: checkError } = await supabase
+                .from('user_profiles')
+                .select('id')
+                .eq('id', userId)
+                .maybeSingle();
+                
+            if (checkError) {
+                console.error('Error checking user profile:', checkError);
+                return;
+            }
+            
+            // If profile exists, we're done
+            if (existingProfile) {
+                return;
+            }
+            
+            console.log('⚠️ User profile missing for user:', userId, 'Creating now...');
+            
+            // Get user email from current auth session (safer than admin API)
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError || !user || user.id !== userId) {
+                console.error('Error getting authenticated user data:', userError);
+                return;
+            }
+            
+            const displayName = user.user_metadata?.display_name || 
+                              user.email?.split('@')[0] || 
+                              'User';
+            
+            // Create user profile
+            const { error: insertError } = await supabase
+                .from('user_profiles')
+                .insert({
+                    id: userId,
+                    email: user.email,
+                    display_name: displayName,
+                    daily_new_cards_limit: 20,
+                    daily_review_limit: 100
+                });
+                
+            if (insertError) {
+                console.error('❌ Error creating user profile:', insertError);
+            } else {
+                console.log('✅ Created missing user profile for:', userId);
+            }
+            
+        } catch (error) {
+            console.error('Error in ensureUserProfileExists:', error);
         }
     }
 }
