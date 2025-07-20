@@ -5,6 +5,7 @@ import auth from './auth.js';
 import SessionManager from './sessionManager.js';
 import { SESSION_CONFIG } from './config.js';
 import NavigationController from './navigation.js';
+import slideMenu from './slideMenu.js';
 
 // Use global Supabase client
 const supabase = window.supabaseClient;
@@ -915,6 +916,9 @@ async function initializeApp() {
 
         // Check if user is admin and show admin link
         await checkAndShowAdminNav(user.id);
+
+        // Initialize slide menu navigation
+        await slideMenu.initialize();
 
         // Initialize navigation controller
         appState.navigationController = new NavigationController();

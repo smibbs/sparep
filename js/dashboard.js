@@ -1,6 +1,7 @@
 import database from './database.js';
 import { getSupabaseClient } from './supabase-client.js';
 import NavigationController from './navigation.js';
+import slideMenu from './slideMenu.js';
 
 /**
  * Check if user is admin and show admin navigation link
@@ -365,6 +366,9 @@ let navigationController = null;
 window.addEventListener('DOMContentLoaded', async () => {
     // Wait for authService to be available
     while (!window.authService) await new Promise(r => setTimeout(r, 50));
+    
+    // Initialize slide menu navigation
+    await slideMenu.initialize();
     
     // Initialize navigation controller
     navigationController = new NavigationController();
