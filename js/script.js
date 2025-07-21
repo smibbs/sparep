@@ -287,11 +287,22 @@ async function getSubjectName(subjectId) {
 /**
  * Display the current card
  */
+// Add guard to prevent rapid successive calls
+let displayCurrentCardInProgress = false;
+
 async function displayCurrentCard() {
-    if (!appState.currentCard) {
-        showError('No card available for review.');
+    // Prevent rapid successive calls
+    if (displayCurrentCardInProgress) {
         return;
     }
+    
+    displayCurrentCardInProgress = true;
+    
+    try {
+        if (!appState.currentCard) {
+            showError('No card available for review.');
+            return;
+        }
 
     const currentCard = appState.currentCard;
     // Displaying card
@@ -390,6 +401,10 @@ async function displayCurrentCard() {
     }
 
     showContent(true);
+    
+    } finally {
+        displayCurrentCardInProgress = false;
+    }
 }
 
 /**
@@ -735,7 +750,6 @@ async function showSessionCompleteMessage(sessionData) {
                             return;
                         }
                         
-                        console.log('🆕 New session button clicked');
                         
                         // Disable button temporarily
                         newSessionButton.disabled = true;
@@ -813,7 +827,6 @@ async function loadSession() {
     }
     
     appState.isLoadingSession = true;
-    console.log('🔄 Starting loadSession()');
     
     try {
         if (!appState.user) {
@@ -847,8 +860,10 @@ async function loadSession() {
             }
         }
         
-        // Clear force new session flag
+        // Clear force new session flag AND clear any stale session data
         appState.forceNewSession = false;
+        appState.isCompleted = false; // Reset completion state
+        appState.sessionManager.clearSession();
 
         // Ensure user profile exists before doing any operations
         await appState.dbService.ensureUserProfileExists(appState.user.id);
@@ -892,6 +907,7 @@ async function loadSession() {
         } catch (error) {
             if (error.message.includes('No cards available')) {
                 showContent(true);
+                restoreCardStructure(); // Restore original HTML structure
                 showNoMoreCardsMessage();
                 return;
             }
@@ -909,20 +925,21 @@ async function loadSession() {
 
         appState.isCompleted = false;
         
+        // Restore card structure first (in case completion screen overwrote it)
+        restoreCardStructure();
+        
         // Display the card
         await displayCurrentCard();
         
         // Transition to content
         await transitionToState('content');
-        console.log('✅ Session loaded successfully');
         
     } catch (error) {
-        console.error('❌ Session loading failed:', error);
+        console.error('Session loading failed:', error);
         showError(error.message || 'Failed to load your study session');
     } finally {
         // Always clear the loading flag
         appState.isLoadingSession = false;
-        console.log('🏁 loadSession() completed');
     }
 }
 
@@ -1150,6 +1167,11 @@ async function handleRating(event) {
         
         // Check if session is complete
         if (appState.sessionManager.isSessionComplete()) {
+            // Don't trigger completion if we're currently loading a session
+            if (appState.isLoadingSession) {
+                return;
+            }
+            
             await handleSessionComplete();
             return;
         }
@@ -1249,6 +1271,49 @@ function updateCardDisplay(card) {
     // Update progress display
     currentCardSpan.textContent = card.position || '?';
     totalCardsSpan.textContent = card.total || '?';
+}
+
+/**
+ * Restore the original card HTML structure (needed after completion screen overwrites it)
+ */
+function restoreCardStructure() {
+    const contentDiv = document.getElementById('content');
+    if (contentDiv) {
+        contentDiv.innerHTML = `
+            <div class="progress-container">
+                <div class="progress-bar hidden" id="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-text hidden" id="progress-text">Card 1</div>
+            </div>
+            <div class="card">
+                <div class="card-inner">
+                    <div class="card-front">
+                        <div class="last-seen-indicator" id="last-seen-front">Never</div>
+                        <p>Front of card (Question)</p>
+                    </div>
+                    <div class="card-back">
+                        <div class="last-seen-indicator" id="last-seen-back">Never</div>
+                        <p>Back of card (Answer)</p>
+                    </div>
+                </div>
+            </div>
+            <div class="controls">
+                <div class="primary-controls">
+                    <button id="flip-button" class="nav-button">Flip</button>
+                </div>
+                <div id="rating-buttons" class="rating-buttons hidden">
+                    <button id="rate-again" class="rating-button rating-again" data-rating="1">Again</button>
+                    <button id="rate-hard" class="rating-button rating-hard" data-rating="2">Hard</button>
+                    <button id="rate-good" class="rating-button rating-good" data-rating="3">Good</button>
+                    <button id="rate-easy" class="rating-button rating-easy" data-rating="4">Easy</button>
+                </div>
+                <div class="report-card-container hidden" id="report-card-container">
+                    <a href="#" id="report-card-link" class="report-card-link" title="Report this card">Report Card</a>
+                </div>
+            </div>
+        `;
+    }
 }
 
 function showNoMoreCardsMessage() {
