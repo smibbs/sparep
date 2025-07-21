@@ -16,7 +16,7 @@ This is a web-based spaced repetition flashcard application built with vanilla J
   - `dashboard.html` - User statistics and progress
 - **Modular JavaScript architecture**:
   - `js/script.js` - Main application logic and session management
-  - `js/sessionManager.js` - Handles 20-card batch sessions
+  - `js/sessionManager.js` - Handles 10-card batch sessions
   - `js/database.js` - Database service layer
   - `js/auth.js` - Authentication service
   - `js/fsrs.js` - FSRS algorithm implementation
@@ -37,7 +37,7 @@ Core tables managed through migration files in `/migration/`:
 - `user_profiles` - User tiers and limits
 
 ### Session Management
-- **20-card batch sessions** cached in sessionStorage
+- **10-card batch sessions** cached in sessionStorage
 - **Batch submission** at session completion
 - **State persistence** across page refreshes
 - **Rating system**: 1 (again), 2 (hard), 3 (good), 4 (easy)
@@ -98,7 +98,7 @@ open http://localhost:8000
 - Special handling for "again" ratings (10-minute intervals)
 
 ### User Tiers and Limits
-- Free users: 20 cards per day, single session
+- Free users: 20 cards per day (2 sessions of 10 cards each)
 - Paid users: unlimited sessions
 - Admin users: access to analytics dashboard
 
@@ -108,7 +108,7 @@ open http://localhost:8000
 - Card flagging system for content moderation
 
 ### Session Flow
-1. Load 20 cards (due cards + new cards as needed)
+1. Load 10 cards (due cards + new cards as needed)
 2. Present cards one at a time with flip/rate interface
 3. Handle "again" ratings by cycling cards back
 4. Batch submit all ratings on session completion
@@ -136,7 +136,7 @@ open http://localhost:8000
 
 ### Performance
 - SessionManager handles local caching to minimize database calls
-- Batch operations reduce server load
+- 10-card batch operations reduce server load
 - Analytics views are pre-computed for admin dashboard
 
 ### Data Integrity
@@ -178,7 +178,7 @@ Migrations are located in `/migration/` and must be run sequentially (01-12):
 - No framework dependencies - pure vanilla JavaScript
 
 ### State Management
-- Session state stored in `sessionStorage` for 20-card batches
+- Session state stored in `sessionStorage` for 10-card batches
 - FSRS parameters and progress persist in database
 - Real-time subscriptions for live updates
 - Batch operations to minimize database calls
