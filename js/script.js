@@ -1313,6 +1313,9 @@ function restoreCardStructure() {
                 </div>
             </div>
         `;
+        
+        // Re-attach event listeners after restoring HTML structure
+        setupEventListeners();
     }
 }
 
