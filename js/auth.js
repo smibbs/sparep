@@ -193,18 +193,63 @@ class AuthService {
 
     // Redirect to main app
     static redirectToApp() {
-        window.location.href = AuthService.getUrl('index.html');
+        AuthService.performMobileRedirect('index.html');
     }
 
     // Redirect to login page
     static redirectToLogin() {
-        const loginUrl = AuthService.getUrl('login.html');
+        AuthService.performMobileRedirect('login.html');
+    }
+    
+    // Improved mobile redirect with multiple fallback methods
+    static performMobileRedirect(path) {
+        const url = AuthService.getUrl(path);
+        
+        // Method 1: Standard redirect (works on most browsers)
         try {
-            window.location.href = loginUrl;
+            if (typeof window !== 'undefined' && window.location) {
+                window.location.href = url;
+                return;
+            }
         } catch (error) {
-            // Fallback: try direct assignment
-            window.location = loginUrl;
+            console.warn('Standard redirect failed:', error);
         }
+        
+        // Method 2: Direct assignment (Safari fallback)
+        try {
+            if (typeof window !== 'undefined' && window.location) {
+                window.location = url;
+                return;
+            }
+        } catch (error) {
+            console.warn('Direct assignment redirect failed:', error);
+        }
+        
+        // Method 3: Replace method (prevents back button issues on mobile)
+        try {
+            if (typeof window !== 'undefined' && window.location && window.location.replace) {
+                window.location.replace(url);
+                return;
+            }
+        } catch (error) {
+            console.warn('Replace redirect failed:', error);
+        }
+        
+        // Method 4: Force page reload as last resort
+        try {
+            if (typeof window !== 'undefined') {
+                window.open(url, '_self');
+            }
+        } catch (error) {
+            console.error('All redirect methods failed:', error);
+            // Show user a manual navigation option
+            alert(`Please navigate to: ${url}`);
+        }
+    }
+
+    // Instance method wrapper for use in instance context
+    performMobileRedirect(path) {
+        AuthService.performMobileRedirect(path);
     }
 
     // Sign out
@@ -371,29 +416,60 @@ class AuthService {
         e.preventDefault();
         this.clearMessages();
         
+        // Mobile-specific: blur active element to dismiss keyboard
+        if (document.activeElement && document.activeElement.blur && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            document.activeElement.blur();
+        }
+        
         const email = this.loginEmail.value.trim();
         const password = this.loginPassword.value;
+
+        // Mobile-specific: add haptic feedback if available
+        if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(50);
+        }
 
         try {
             this.showLoading(true);
             
+            // Mobile-specific: add timeout for network requests
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timeout')), 15000)
+            );
+            
             const supabase = await this.getSupabase();
-            const { data, error } = await supabase.auth.signInWithPassword({
+            const authPromise = supabase.auth.signInWithPassword({
                 email,
                 password
             });
 
+            const { data, error } = await Promise.race([authPromise, timeoutPromise]);
+
             if (error) throw error;
 
             this.showMessage(this.loginMessage, 'Login successful! Redirecting...', 'success');
-            // Direct redirect for GitHub Pages - use relative path
+            
+            // Mobile-specific: shorter delay for better UX on mobile
+            const redirectDelay = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 500 : 1000;
             setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 1000);
+                this.performMobileRedirect('index.html');
+            }, redirectDelay);
             
         } catch (error) {
-            // Login error
-            this.showMessage(this.loginMessage, error.message || 'Failed to sign in');
+            // Mobile-specific error handling
+            let errorMessage = error.message || 'Failed to sign in';
+            if (error.message === 'Request timeout') {
+                errorMessage = 'Connection timeout. Please check your internet and try again.';
+            } else if (error.message.includes('Invalid login credentials')) {
+                errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+            }
+            
+            this.showMessage(this.loginMessage, errorMessage);
+            
+            // Mobile-specific: vibrate on error if available
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate([100, 50, 100]);
+            }
         } finally {
             this.showLoading(false);
         }
