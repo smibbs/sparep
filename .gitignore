@@ -19,6 +19,7 @@ node_modules/
 
 # Supabase configuration files
 config/supabase-config.js
+SUPABASE_PRODUCTION_CHECKLIST.md
 
 # Local configuration files
 *.local

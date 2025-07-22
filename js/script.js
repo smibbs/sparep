@@ -262,45 +262,72 @@ function clearMobileLoadingTimeout() {
  * Handle mobile loading timeout - show recovery options
  */
 function handleMobileLoadingTimeout() {
-    console.error('Loading timeout detected on mobile device');
+    const isProduction = !window.location.hostname.includes('localhost');
+    const hostname = window.location.hostname;
+    
+    console.error('Loading timeout detected on mobile device', {
+        hostname,
+        isProduction,
+        currentState,
+        loadingDuration: loadingStartTimestamp ? Date.now() - loadingStartTimestamp : 'unknown'
+    });
     
     // Check if we're still in loading state
     if (currentState !== 'loading') {
         return;
     }
     
-    // Show mobile-specific error message with recovery options
-    const timeoutMessage = `
-        Loading is taking longer than expected. This might be due to:
-        • Slow network connection
-        • Mobile browser restrictions
-        • Session storage issues
-        
-        Try refreshing the page or checking your internet connection.
-    `;
+    // Production-specific error messages with more context
+    let timeoutMessage;
+    if (isProduction) {
+        timeoutMessage = `
+            Loading timeout on ${hostname}. This might be due to:
+            • Mobile network connectivity issues
+            • Production server response delays
+            • HTTPS/security policy restrictions
+            • Safari/mobile browser storage limitations
+            
+            Try refreshing the page or switching to a different network.
+        `;
+    } else {
+        timeoutMessage = `
+            Loading is taking longer than expected. This might be due to:
+            • Slow network connection
+            • Mobile browser restrictions
+            • Session storage issues
+            
+            Try refreshing the page or checking your internet connection.
+        `;
+    }
     
     showError(timeoutMessage);
     
     // Clear any stuck session data that might be causing issues
     try {
         if (appState?.sessionManager) {
+            console.log('[Mobile] Clearing session data during timeout recovery');
             appState.sessionManager.clearSession();
         }
     } catch (error) {
         console.warn('Failed to clear session during timeout recovery:', error);
     }
     
-    // Add mobile-specific recovery button
+    // Add mobile-specific recovery button with production context
     setTimeout(() => {
         const errorActions = document.querySelector('.error-actions');
         if (errorActions && !document.getElementById('mobile-recovery-button')) {
             const recoveryButton = document.createElement('button');
             recoveryButton.id = 'mobile-recovery-button';
             recoveryButton.className = 'nav-button';
-            recoveryButton.textContent = 'Force Refresh';
+            recoveryButton.textContent = isProduction ? 'Hard Refresh' : 'Force Refresh';
             recoveryButton.onclick = () => {
-                // Force page reload to reset everything
-                window.location.reload(true);
+                console.log('[Mobile] User initiated force refresh');
+                // Production-specific: force bypass cache
+                if (isProduction) {
+                    window.location.href = window.location.href + '?t=' + Date.now();
+                } else {
+                    window.location.reload(true);
+                }
             };
             errorActions.insertBefore(recoveryButton, errorActions.firstChild);
         }
