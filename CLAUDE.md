@@ -14,6 +14,11 @@ This is a web-based spaced repetition flashcard application built with vanilla J
   - `index.html` - Main flashcard interface
   - `login.html` - Authentication
   - `dashboard.html` - User statistics and progress
+  - `admin.html` - Admin analytics and management
+  - `profile.html` - User profile and settings
+  - `reset-password.html` - Password reset interface
+- **Component system**:
+  - `components/logo.html` - Reusable logo component
 - **Modular JavaScript architecture**:
   - `js/script.js` - Main application logic and session management
   - `js/sessionManager.js` - Handles 10-card batch sessions
@@ -21,6 +26,30 @@ This is a web-based spaced repetition flashcard application built with vanilla J
   - `js/auth.js` - Authentication service
   - `js/fsrs.js` - FSRS algorithm implementation
   - `js/admin.js` - Admin analytics interface
+  - `js/config.js` - Configuration management
+  - `js/dashboard.js` - Dashboard interface logic
+  - `js/fsrsAnalytics.js` - FSRS analytics and insights
+  - `js/fsrsOptimization.js` - Algorithm optimization functions
+  - `js/fsrsParameters.js` - FSRS parameter management
+  - `js/fsrsScheduler.js` - Card scheduling logic
+  - `js/logoLoader.js` - Dynamic logo loading
+  - `js/navigation.js` - Navigation and routing
+  - `js/onboarding.js` - User onboarding flow
+  - `js/profile.js` - User profile management
+  - `js/slideMenu.js` - Slide-out menu functionality
+  - `js/streakService.js` - Streak tracking service
+  - `js/streakUI.js` - Streak display interface
+  - `js/supabase-client.js` - Supabase client configuration
+  - `js/userAvatar.js` - User avatar management
+- **Modular CSS architecture**:
+  - `css/styles.css` - Main application styles
+  - `css/auth.css` - Authentication page styles
+  - `css/dashboard.css` - Dashboard interface styles
+  - `css/admin.css` - Admin panel styles
+  - `css/onboarding.css` - User onboarding styles
+  - `css/profile.css` - Profile page styles
+  - `css/slide-menu.css` - Slide menu component styles
+  - `css/streak-styles.css` - Streak tracking UI styles
 
 ### Backend (Supabase)
 - **PostgreSQL database** with Row Level Security (RLS)
@@ -120,11 +149,23 @@ open http://localhost:8000
 - Difficulty consistency metrics
 - Problem score calculation for card identification
 
+### User Experience Features
+- **Streak System**: Track daily learning streaks with visual feedback and rewards
+- **Onboarding Flow**: Guide new users through application setup and first session
+- **Profile Management**: User settings, preferences, and account management
+- **Navigation System**: Slide-out menu for easy access to different sections
+- **Avatar System**: User profile pictures and visual identity
+
 ## Configuration
 
 ### Required Files
-- `config/supabase-config.js` - Supabase connection (copy from `.example`)
+- `config/supabase-config.js` - Supabase connection (copy from `.example` and configure locally - **DO NOT COMMIT**)
 - Environment variables for production deployment
+
+### Security Notes
+- The `config/supabase-config.js` file contains your Supabase URL and anonymous key
+- This file is in `.gitignore` and should NEVER be committed to the repository
+- Always use the example file as a template and configure your local copy
 
 ### Supabase Setup
 - Enable RLS on all tables
@@ -151,8 +192,9 @@ open http://localhost:8000
 
 ## Database Migration Process
 
-Migrations are located in `/migration/` and must be run sequentially (01-12):
+Migrations are located in `/migration/` and must be run sequentially. Core setup migrations (01-12) establish the basic structure:
 
+**Core Setup Migrations (01-12):**
 1. **01-initial-setup.sql** - Basic database setup and extensions
 2. **02-enums.sql** - Custom enum types
 3. **03-user-profiles.sql** - User authentication and tier system
@@ -165,6 +207,9 @@ Migrations are located in `/migration/` and must be run sequentially (01-12):
 10. **10-functions-and-procedures.sql** - Helper functions
 11. **11-policies-and-security.sql** - RLS policies
 12. **12-sample-data.sql** - Optional sample data (development only)
+
+**Incremental Updates (13-30):**
+Additional migrations (13-30) contain fixes, optimizations, and feature enhancements applied over time. These include analytics improvements, security fixes, performance optimizations, and database cleanup operations.
 
 **Important**: Use Supabase SQL Editor to run each file in order. Check `migration/README.md` for complete ER diagram and troubleshooting.
 

@@ -8,6 +8,14 @@ class DatabaseService {
     constructor() {
         this.supabasePromise = getSupabaseClient();
         this.initialize();
+        
+        // Mobile-specific retry configuration
+        this.retryConfig = {
+            maxRetries: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 3 : 2,
+            baseDelay: 1000, // 1 second
+            maxDelay: 8000,  // 8 seconds max
+            backoffFactor: 2
+        };
     }
 
     async initialize() {
@@ -21,6 +29,74 @@ class DatabaseService {
 
     async getSupabase() {
         return await this.supabasePromise;
+    }
+
+    /**
+     * Mobile-specific retry wrapper for network operations
+     * @param {Function} operation - Async function to retry
+     * @param {string} operationName - Name for logging
+     * @returns {Promise} - Result of the operation
+     */
+    async withMobileRetry(operation, operationName = 'database operation') {
+        let lastError;
+        
+        for (let attempt = 0; attempt <= this.retryConfig.maxRetries; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                lastError = error;
+                
+                // Don't retry for certain types of errors
+                if (this.shouldNotRetry(error)) {
+                    throw error;
+                }
+                
+                // Don't retry on final attempt
+                if (attempt === this.retryConfig.maxRetries) {
+                    break;
+                }
+                
+                // Calculate delay with exponential backoff
+                const delay = Math.min(
+                    this.retryConfig.baseDelay * Math.pow(this.retryConfig.backoffFactor, attempt),
+                    this.retryConfig.maxDelay
+                );
+                
+                console.warn(`${operationName} failed (attempt ${attempt + 1}), retrying in ${delay}ms:`, error.message);
+                
+                // Add jitter to prevent thundering herd
+                const jitter = Math.random() * 200;
+                await new Promise(resolve => setTimeout(resolve, delay + jitter));
+            }
+        }
+        
+        // All retries failed
+        throw new Error(`${operationName} failed after ${this.retryConfig.maxRetries + 1} attempts: ${lastError.message}`);
+    }
+
+    /**
+     * Check if an error should not be retried
+     * @param {Error} error - The error to check
+     * @returns {boolean} - True if should not retry
+     */
+    shouldNotRetry(error) {
+        // Don't retry authentication errors
+        if (error.message?.includes('JWT') || error.message?.includes('auth') || error.message?.includes('unauthorized')) {
+            return true;
+        }
+        
+        // Don't retry permission errors
+        if (error.message?.includes('permission') || error.message?.includes('RLS') || error.code === '42501') {
+            return true;
+        }
+        
+        // Don't retry validation errors
+        if (error.message?.includes('validation') || error.code === '23505') {
+            return true;
+        }
+        
+        // Retry network and temporary errors
+        return false;
     }
 
     async ensureReviewHistorySchema() {
@@ -400,6 +476,12 @@ class DatabaseService {
      */
     async getCardsDue(userId) {
         console.log('📚 getCardsDue called for user:', userId);
+        return await this.withMobileRetry(async () => {
+            return await this._getCardsDueCore(userId);
+        }, 'get due cards');
+    }
+
+    async _getCardsDueCore(userId) {
         try {
             const supabase = await this.getSupabase();
             const now = new Date();
@@ -946,6 +1028,12 @@ class DatabaseService {
      * @returns {Promise<boolean>} Success status
      */
     async submitBatchReviews(sessionData) {
+        return await this.withMobileRetry(async () => {
+            return await this._submitBatchReviewsCore(sessionData);
+        }, 'batch review submission');
+    }
+
+    async _submitBatchReviewsCore(sessionData) {
         try {
             const supabase = await this.getSupabase();
             const user = (await supabase.auth.getUser()).data.user;

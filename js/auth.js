@@ -164,18 +164,33 @@ class AuthService {
 
     // Get base URL for the application
     static getBaseUrl() {
+        const hostname = window.location.hostname;
+        const pathname = window.location.pathname;
+        
         // For GitHub Pages
-        if (window.location.hostname.includes('github.io')) {
+        if (hostname.includes('github.io')) {
             // Extract the repository name from the pathname
-            const pathParts = window.location.pathname.split('/');
+            const pathParts = pathname.split('/');
             const repoName = pathParts[1]; // Second part after the first slash
-            return `/${repoName}/`; // This ensures we include /sparep/ for GitHub Pages
+            const basePath = `/${repoName}/`;
+            console.log(`[Auth] GitHub Pages detected: ${hostname}, base path: ${basePath}`);
+            return basePath;
         }
-        // For custom domain (nanotopic.co.uk)
-        if (window.location.hostname.includes('nanotopic.co.uk')) {
+        
+        // For custom domain (nanotopic.co.uk and www.nanotopic.co.uk)
+        if (hostname.includes('nanotopic.co.uk')) {
+            console.log(`[Auth] Custom domain detected: ${hostname}, using root path`);
             return '/';
         }
+        
         // For local development
+        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('local')) {
+            console.log(`[Auth] Local development detected: ${hostname}`);
+            return '/';
+        }
+        
+        // Default fallback
+        console.log(`[Auth] Unknown hostname: ${hostname}, using root path`);
         return '/';
     }
 
@@ -193,18 +208,84 @@ class AuthService {
 
     // Redirect to main app
     static redirectToApp() {
-        window.location.href = AuthService.getUrl('index.html');
+        AuthService.performMobileRedirect('index.html');
     }
 
     // Redirect to login page
     static redirectToLogin() {
-        const loginUrl = AuthService.getUrl('login.html');
+        AuthService.performMobileRedirect('login.html');
+    }
+    
+    // Improved mobile redirect with multiple fallback methods
+    static performMobileRedirect(path) {
+        const url = AuthService.getUrl(path);
+        const absoluteUrl = AuthService.getAbsoluteUrl(path);
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isProduction = !window.location.hostname.includes('localhost');
+        
+        console.log(`[Auth] Mobile redirect initiated:`, {
+            path,
+            url,
+            absoluteUrl,
+            isMobile,
+            isProduction,
+            currentUrl: window.location.href,
+            hostname: window.location.hostname,
+            userAgent: navigator.userAgent
+        });
+        
+        // Method 1: Standard redirect (works on most browsers)
         try {
-            window.location.href = loginUrl;
+            if (typeof window !== 'undefined' && window.location) {
+                console.log(`[Auth] Attempting standard redirect to: ${url}`);
+                window.location.href = url;
+                return;
+            }
         } catch (error) {
-            // Fallback: try direct assignment
-            window.location = loginUrl;
+            console.warn('[Auth] Standard redirect failed:', error);
         }
+        
+        // Method 2: Direct assignment (Safari fallback)
+        try {
+            if (typeof window !== 'undefined' && window.location) {
+                console.log(`[Auth] Attempting direct assignment redirect to: ${url}`);
+                window.location = url;
+                return;
+            }
+        } catch (error) {
+            console.warn('[Auth] Direct assignment redirect failed:', error);
+        }
+        
+        // Method 3: Replace method (prevents back button issues on mobile)
+        try {
+            if (typeof window !== 'undefined' && window.location && window.location.replace) {
+                console.log(`[Auth] Attempting replace redirect to: ${url}`);
+                window.location.replace(url);
+                return;
+            }
+        } catch (error) {
+            console.warn('[Auth] Replace redirect failed:', error);
+        }
+        
+        // Method 4: Force page reload as last resort
+        try {
+            if (typeof window !== 'undefined') {
+                console.log(`[Auth] Attempting window.open redirect to: ${url}`);
+                window.open(url, '_self');
+            }
+        } catch (error) {
+            console.error('[Auth] All redirect methods failed:', error);
+            // Show user a manual navigation option with more context
+            const message = isProduction ? 
+                `Navigation failed on mobile. Please manually go to: ${url}` :
+                `Please navigate to: ${url}`;
+            alert(message);
+        }
+    }
+
+    // Instance method wrapper for use in instance context
+    performMobileRedirect(path) {
+        AuthService.performMobileRedirect(path);
     }
 
     // Sign out
@@ -371,30 +452,88 @@ class AuthService {
         e.preventDefault();
         this.clearMessages();
         
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isProduction = !window.location.hostname.includes('localhost');
+        
+        console.log(`[Auth] Login attempt started:`, {
+            isMobile,
+            isProduction,
+            hostname: window.location.hostname,
+            currentUrl: window.location.href,
+            userAgent: navigator.userAgent
+        });
+        
+        // Mobile-specific: blur active element to dismiss keyboard
+        if (document.activeElement && document.activeElement.blur && isMobile) {
+            document.activeElement.blur();
+        }
+        
         const email = this.loginEmail.value.trim();
         const password = this.loginPassword.value;
 
+        // Mobile-specific: add haptic feedback if available
+        if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(50);
+        }
+
         try {
+            console.log(`[Auth] Showing loading state`);
             this.showLoading(true);
             
+            // Mobile-specific: add timeout for network requests
+            const timeoutMs = isProduction ? 20000 : 15000; // Longer timeout for production
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+            );
+            
+            console.log(`[Auth] Getting Supabase client...`);
             const supabase = await this.getSupabase();
-            const { data, error } = await supabase.auth.signInWithPassword({
+            
+            console.log(`[Auth] Attempting sign in with email: ${email}`);
+            const authPromise = supabase.auth.signInWithPassword({
                 email,
                 password
             });
 
-            if (error) throw error;
+            const { data, error } = await Promise.race([authPromise, timeoutPromise]);
 
+            if (error) {
+                console.error(`[Auth] Sign in error:`, error);
+                throw error;
+            }
+
+            console.log(`[Auth] Sign in successful, user:`, data.user?.id);
             this.showMessage(this.loginMessage, 'Login successful! Redirecting...', 'success');
-            // Direct redirect for GitHub Pages - use relative path
+            
+            // Mobile-specific: shorter delay for better UX on mobile
+            const redirectDelay = isMobile ? 500 : 1000;
+            console.log(`[Auth] Scheduling redirect in ${redirectDelay}ms`);
             setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 1000);
+                this.performMobileRedirect('index.html');
+            }, redirectDelay);
             
         } catch (error) {
-            // Login error
-            this.showMessage(this.loginMessage, error.message || 'Failed to sign in');
+            console.error(`[Auth] Login failed:`, error);
+            
+            // Mobile-specific error handling
+            let errorMessage = error.message || 'Failed to sign in';
+            if (error.message === 'Request timeout') {
+                errorMessage = isProduction ? 
+                    'Connection timeout on mobile. Please check your internet and try again.' :
+                    'Connection timeout. Please check your internet and try again.';
+            } else if (error.message.includes('Invalid login credentials')) {
+                errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+            }
+            
+            console.log(`[Auth] Showing error message: ${errorMessage}`);
+            this.showMessage(this.loginMessage, errorMessage);
+            
+            // Mobile-specific: vibrate on error if available
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate([100, 50, 100]);
+            }
         } finally {
+            console.log(`[Auth] Hiding loading state`);
             this.showLoading(false);
         }
     }
@@ -617,7 +756,7 @@ class AuthService {
             const supabase = await this.getSupabase();
             
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/reset-password.html`
+                redirectTo: AuthService.getAbsoluteUrl('reset-password.html')
             });
 
             if (error) {

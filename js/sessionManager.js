@@ -8,6 +8,114 @@ class SessionManager {
         this.sessionData = null;
         this.currentCardIndex = 0;
         this.sessionStorageKey = 'flashcard_session';
+        
+        // Initialize storage mechanism based on browser capabilities
+        this.storageMethod = this.detectStorageMethod();
+        this.memoryFallback = new Map(); // Memory-based fallback for storage restrictions
+    }
+
+    /**
+     * Detect the best available storage method for the current browser
+     * @returns {string} Storage method: 'sessionStorage', 'localStorage', or 'memory'
+     */
+    detectStorageMethod() {
+        const isSafari = this.detectSafariPrivateBrowsing();
+        
+        try {
+            // Test sessionStorage first (preferred for sessions)
+            if (typeof window !== 'undefined' && window.sessionStorage) {
+                const testKey = '__storage_test__';
+                window.sessionStorage.setItem(testKey, 'test');
+                window.sessionStorage.removeItem(testKey);
+                
+                if (isSafari.isPrivate) {
+                    console.warn('Safari private browsing detected - sessionStorage may be limited');
+                }
+                
+                return 'sessionStorage';
+            }
+        } catch (e) {
+            console.warn('sessionStorage not available, trying localStorage:', e.message);
+            
+            // Special handling for Safari private browsing errors
+            if (isSafari.isSafari && (e.name === 'QuotaExceededError' || e.code === 22)) {
+                console.warn('Safari private browsing detected via storage quota error');
+            }
+        }
+
+        try {
+            // Fallback to localStorage (Safari private browsing may still block this)
+            if (typeof window !== 'undefined' && window.localStorage) {
+                const testKey = '__storage_test__';
+                window.localStorage.setItem(testKey, 'test');
+                window.localStorage.removeItem(testKey);
+                
+                if (isSafari.isPrivate) {
+                    console.warn('Using localStorage in Safari private mode - limited functionality');
+                }
+                
+                return 'localStorage';
+            }
+        } catch (e) {
+            console.warn('localStorage not available, using memory fallback:', e.message);
+            
+            // Safari private browsing completely blocks storage
+            if (isSafari.isSafari && (e.name === 'QuotaExceededError' || e.code === 22)) {
+                console.warn('Safari private browsing confirmed - using memory-only storage');
+                this.showSafariPrivateBrowsingNotice();
+            }
+        }
+
+        // Ultimate fallback: memory storage (lost on page refresh)
+        return 'memory';
+    }
+
+    /**
+     * Detect Safari private browsing mode
+     * @returns {Object} Detection result with isSafari and isPrivate flags
+     */
+    detectSafariPrivateBrowsing() {
+        // Check if it's Safari
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        
+        if (!isSafari) {
+            return { isSafari: false, isPrivate: false };
+        }
+
+        try {
+            // Try to use localStorage - in private mode this will fail
+            window.localStorage.setItem('__safari_test__', '1');
+            window.localStorage.removeItem('__safari_test__');
+            
+            // If we get here, it's Safari but not private mode
+            return { isSafari: true, isPrivate: false };
+        } catch (e) {
+            // Safari private mode detected
+            return { isSafari: true, isPrivate: true };
+        }
+    }
+
+    /**
+     * Show notice about Safari private browsing limitations
+     */
+    showSafariPrivateBrowsingNotice() {
+        // Only show once per session
+        if (this.hasShownPrivateNotice) return;
+        this.hasShownPrivateNotice = true;
+
+        // Use a subtle console warning rather than intrusive alert
+        console.info(`
+🔒 Safari Private Browsing Detected
+Your study progress will be kept in memory during this session but will be lost if you:
+• Refresh the page
+• Navigate away and return
+• Close/reopen the tab
+
+For the best experience, consider using Safari in normal mode or another browser.
+        `);
+
+        // Optionally, could show a subtle UI notification
+        // This would need to be implemented in the UI layer
     }
 
     /**
@@ -238,7 +346,22 @@ class SessionManager {
     clearSession() {
         this.sessionData = null;
         this.currentCardIndex = 0;
-        sessionStorage.removeItem(this.sessionStorageKey);
+        
+        try {
+            // Clear from all possible storage locations
+            if (this.storageMethod === 'sessionStorage' && typeof window !== 'undefined' && window.sessionStorage) {
+                window.sessionStorage.removeItem(this.sessionStorageKey);
+            } else if (this.storageMethod === 'localStorage' && typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.removeItem(this.sessionStorageKey);
+            } else {
+                // Clear from memory fallback
+                this.memoryFallback.delete(this.sessionStorageKey);
+            }
+        } catch (error) {
+            console.warn('Failed to clear session storage:', error);
+            // Still clear memory fallback as ultimate cleanup
+            this.memoryFallback.delete(this.sessionStorageKey);
+        }
     }
 
     /**
@@ -247,9 +370,20 @@ class SessionManager {
      */
     loadSession() {
         try {
-            const stored = sessionStorage.getItem(this.sessionStorageKey);
+            let stored = null;
+            
+            // Try to get session from the appropriate storage method
+            if (this.storageMethod === 'sessionStorage' && typeof window !== 'undefined' && window.sessionStorage) {
+                stored = window.sessionStorage.getItem(this.sessionStorageKey);
+            } else if (this.storageMethod === 'localStorage' && typeof window !== 'undefined' && window.localStorage) {
+                stored = window.localStorage.getItem(this.sessionStorageKey);
+            } else {
+                // Get from memory fallback
+                stored = this.memoryFallback.get(this.sessionStorageKey) || null;
+            }
+            
             if (stored) {
-                const parsedData = JSON.parse(stored);
+                const parsedData = typeof stored === 'string' ? JSON.parse(stored) : stored;
                 
                 // Validate the loaded data structure
                 if (!parsedData.cards || !Array.isArray(parsedData.cards)) {
@@ -277,10 +411,16 @@ class SessionManager {
                     delete this.sessionData.againCards;
                 }
                 
+                console.log(`Session loaded from ${this.storageMethod}`);
                 return true;
             }
         } catch (error) {
             console.error('Failed to load session from storage:', error);
+            // Try fallback storage methods
+            if (this.storageMethod !== 'memory') {
+                this.storageMethod = this.detectStorageMethod();
+                return this.loadSession(); // Retry with new storage method
+            }
             // Clear corrupted session data
             this.clearSession();
         }
@@ -300,9 +440,25 @@ class SessionManager {
                 completedCards: Array.from(this.sessionData.completedCards)
             };
             
-            sessionStorage.setItem(this.sessionStorageKey, JSON.stringify(dataToStore));
+            // Try to save to the appropriate storage method
+            if (this.storageMethod === 'sessionStorage' && typeof window !== 'undefined' && window.sessionStorage) {
+                window.sessionStorage.setItem(this.sessionStorageKey, JSON.stringify(dataToStore));
+            } else if (this.storageMethod === 'localStorage' && typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.setItem(this.sessionStorageKey, JSON.stringify(dataToStore));
+            } else {
+                // Save to memory fallback
+                this.memoryFallback.set(this.sessionStorageKey, JSON.stringify(dataToStore));
+            }
+            
         } catch (error) {
-            console.error('Failed to save session to storage:', error);
+            console.error(`Failed to save session to ${this.storageMethod}:`, error);
+            
+            // Try fallback storage methods if current method fails
+            if (this.storageMethod !== 'memory') {
+                console.warn('Attempting to switch to fallback storage method');
+                this.storageMethod = this.detectStorageMethod();
+                this.saveSession(); // Retry with new storage method
+            }
         }
     }
 

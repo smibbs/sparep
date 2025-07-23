@@ -98,12 +98,22 @@ let minimumLoadingStartTime = null;
 const MINIMUM_LOADING_TIME = 800; // 800ms
 const TRANSITION_DURATION = 300; // 300ms
 
+// Mobile-specific loading state management
+const MOBILE_MAX_LOADING_TIME = 30000; // 30 seconds max loading on mobile
+let loadingTimeoutId = null;
+let loadingStartTimestamp = null;
+
 async function transitionToState(newState, message = null) {
     if (currentState === newState) return;
     
     const loadingState = document.getElementById('loading-state');
     const errorState = document.getElementById('error-state');
     const content = document.getElementById('content');
+    
+    // Clear mobile loading timeout when leaving loading state
+    if (currentState === 'loading' && newState !== 'loading') {
+        clearMobileLoadingTimeout();
+    }
     
     // Ensure minimum loading time if transitioning away from loading
     if (currentState === 'loading' && minimumLoadingStartTime) {
@@ -140,9 +150,10 @@ async function transitionToState(newState, message = null) {
     
     currentState = newState;
     
-    // Track loading start time
+    // Track loading start time and setup mobile timeout
     if (newState === 'loading') {
         minimumLoadingStartTime = Date.now();
+        setupMobileLoadingTimeout();
     }
 }
 
@@ -216,6 +227,111 @@ function showContent(show) {
 function hideLoading() {
     // Deprecated - use transitionToState() instead
     // Kept for compatibility
+}
+
+/**
+ * Setup mobile-specific loading timeout to prevent stuck states
+ */
+function setupMobileLoadingTimeout() {
+    // Only setup timeout on mobile devices
+    if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        return;
+    }
+    
+    // Clear any existing timeout
+    clearMobileLoadingTimeout();
+    
+    loadingStartTimestamp = Date.now();
+    loadingTimeoutId = setTimeout(() => {
+        handleMobileLoadingTimeout();
+    }, MOBILE_MAX_LOADING_TIME);
+}
+
+/**
+ * Clear mobile loading timeout
+ */
+function clearMobileLoadingTimeout() {
+    if (loadingTimeoutId) {
+        clearTimeout(loadingTimeoutId);
+        loadingTimeoutId = null;
+    }
+    loadingStartTimestamp = null;
+}
+
+/**
+ * Handle mobile loading timeout - show recovery options
+ */
+function handleMobileLoadingTimeout() {
+    const isProduction = !window.location.hostname.includes('localhost');
+    const hostname = window.location.hostname;
+    
+    console.error('Loading timeout detected on mobile device', {
+        hostname,
+        isProduction,
+        currentState,
+        loadingDuration: loadingStartTimestamp ? Date.now() - loadingStartTimestamp : 'unknown'
+    });
+    
+    // Check if we're still in loading state
+    if (currentState !== 'loading') {
+        return;
+    }
+    
+    // Production-specific error messages with more context
+    let timeoutMessage;
+    if (isProduction) {
+        timeoutMessage = `
+            Loading timeout on ${hostname}. This might be due to:
+            • Mobile network connectivity issues
+            • Production server response delays
+            • HTTPS/security policy restrictions
+            • Safari/mobile browser storage limitations
+            
+            Try refreshing the page or switching to a different network.
+        `;
+    } else {
+        timeoutMessage = `
+            Loading is taking longer than expected. This might be due to:
+            • Slow network connection
+            • Mobile browser restrictions
+            • Session storage issues
+            
+            Try refreshing the page or checking your internet connection.
+        `;
+    }
+    
+    showError(timeoutMessage);
+    
+    // Clear any stuck session data that might be causing issues
+    try {
+        if (appState?.sessionManager) {
+            console.log('[Mobile] Clearing session data during timeout recovery');
+            appState.sessionManager.clearSession();
+        }
+    } catch (error) {
+        console.warn('Failed to clear session during timeout recovery:', error);
+    }
+    
+    // Add mobile-specific recovery button with production context
+    setTimeout(() => {
+        const errorActions = document.querySelector('.error-actions');
+        if (errorActions && !document.getElementById('mobile-recovery-button')) {
+            const recoveryButton = document.createElement('button');
+            recoveryButton.id = 'mobile-recovery-button';
+            recoveryButton.className = 'nav-button';
+            recoveryButton.textContent = isProduction ? 'Hard Refresh' : 'Force Refresh';
+            recoveryButton.onclick = () => {
+                console.log('[Mobile] User initiated force refresh');
+                // Production-specific: force bypass cache
+                if (isProduction) {
+                    window.location.href = window.location.href + '?t=' + Date.now();
+                } else {
+                    window.location.reload(true);
+                }
+            };
+            errorActions.insertBefore(recoveryButton, errorActions.firstChild);
+        }
+    }, 100);
 }
 
 /**
@@ -936,7 +1052,31 @@ async function loadSession() {
         
     } catch (error) {
         console.error('Session loading failed:', error);
-        showError(error.message || 'Failed to load your study session');
+        
+        // Mobile-specific error handling
+        let errorMessage = error.message || 'Failed to load your study session';
+        
+        // Add mobile-specific context to error messages
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            if (error.message?.includes('Network') || error.message?.includes('fetch')) {
+                errorMessage = 'Network error on mobile. Please check your connection and try again.';
+            } else if (error.message?.includes('storage') || error.message?.includes('quota')) {
+                errorMessage = 'Mobile browser storage issue. Try clearing browser data or using a different browser.';
+            } else if (error.message?.includes('session')) {
+                errorMessage = 'Session error on mobile. This sometimes happens when switching apps. Please try refreshing.';
+            }
+        }
+        
+        showError(errorMessage);
+        
+        // Clear potentially corrupted data on mobile
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            try {
+                appState.sessionManager.clearSession();
+            } catch (clearError) {
+                console.warn('Failed to clear session on mobile error:', clearError);
+            }
+        }
     } finally {
         // Always clear the loading flag
         appState.isLoadingSession = false;
@@ -1073,6 +1213,149 @@ function setupEventListeners() {
     
     // Set up flag modal event listeners
     setupFlagModalListeners();
+    
+    // Set up mobile browser state management
+    setupMobileBrowserStateManagement();
+}
+
+/**
+ * Setup mobile browser state management for session persistence
+ */
+function setupMobileBrowserStateManagement() {
+    // Only setup on mobile devices
+    if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        return;
+    }
+    
+    // Handle app backgrounding/foregrounding on mobile
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            // App going to background - save current state
+            handleMobileAppBackground();
+        } else {
+            // App returning to foreground - restore/verify state
+            handleMobileAppForeground();
+        }
+    });
+    
+    // Handle page unload (mobile browser switching)
+    window.addEventListener('beforeunload', () => {
+        // Ensure session is saved before leaving
+        if (appState.sessionManager && appState.sessionManager.sessionData) {
+            appState.sessionManager.saveSession();
+        }
+    });
+    
+    // Handle page show (returning from cache)
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            // Page was loaded from browser cache
+            console.log('Page restored from cache on mobile');
+            handleMobilePageRestore();
+        }
+    });
+    
+    // Handle orientation change (mobile specific)
+    window.addEventListener('orientationchange', () => {
+        setTimeout(() => {
+            // Recalculate layout after orientation change
+            if (appState.currentCard) {
+                // Force a redraw to handle layout issues
+                const card = document.querySelector('.card');
+                if (card) {
+                    card.style.display = 'none';
+                    card.offsetHeight; // Force reflow
+                    card.style.display = '';
+                }
+            }
+        }, 100);
+    });
+}
+
+/**
+ * Handle mobile app going to background
+ */
+function handleMobileAppBackground() {
+    console.log('Mobile app going to background');
+    
+    // Save current session state
+    if (appState.sessionManager && appState.sessionManager.sessionData) {
+        try {
+            appState.sessionManager.saveSession();
+            console.log('Session saved on mobile background');
+        } catch (error) {
+            console.warn('Failed to save session on background:', error);
+        }
+    }
+    
+    // Clear any running timeouts to prevent issues when returning
+    clearMobileLoadingTimeout();
+}
+
+/**
+ * Handle mobile app returning to foreground
+ */
+function handleMobileAppForeground() {
+    console.log('Mobile app returning to foreground');
+    
+    // Check if we need to refresh auth state
+    if (appState.authService && typeof appState.authService.getCurrentUser === 'function') {
+        appState.authService.getCurrentUser().then(user => {
+            if (!user && appState.user) {
+                // User session expired while in background
+                console.log('User session expired while in background');
+                appState.authService.redirectToLogin();
+            } else if (user && !appState.user) {
+                // User logged in while in background (shouldn't happen but handle it)
+                appState.user = user;
+            }
+        }).catch(error => {
+            console.warn('Error checking user state on foreground:', error);
+        });
+    }
+    
+    // Check if we're stuck in loading state and recover
+    if (currentState === 'loading') {
+        const loadingDuration = loadingStartTimestamp ? 
+            (Date.now() - loadingStartTimestamp) : 0;
+        
+        if (loadingDuration > 10000) { // 10 seconds
+            console.warn('Detected stuck loading state on mobile foreground');
+            setupMobileLoadingTimeout(); // Restart timeout
+        }
+    }
+}
+
+/**
+ * Handle mobile page restore from browser cache
+ */
+function handleMobilePageRestore() {
+    console.log('Handling mobile page restore from cache');
+    
+    // Verify current state makes sense
+    if (currentState === 'loading') {
+        // We might have been stuck in loading when cached
+        console.log('Restoring from cache while in loading state');
+        
+        // Try to recover by restarting the session load
+        if (appState.user && !appState.isLoadingSession) {
+            setTimeout(() => {
+                console.log('Attempting to restart session after cache restore');
+                loadSession().catch(error => {
+                    console.error('Failed to restart session after cache restore:', error);
+                });
+            }, 1000);
+        }
+    }
+    
+    // Re-initialize storage method in case it changed
+    if (appState.sessionManager && typeof appState.sessionManager.detectStorageMethod === 'function') {
+        const newStorageMethod = appState.sessionManager.detectStorageMethod();
+        if (newStorageMethod !== appState.sessionManager.storageMethod) {
+            console.log(`Storage method changed after restore: ${appState.sessionManager.storageMethod} -> ${newStorageMethod}`);
+            appState.sessionManager.storageMethod = newStorageMethod;
+        }
+    }
 }
 
 function handleFlip() {

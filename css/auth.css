@@ -241,7 +241,47 @@ body {
     }
 
     .form-group input {
-        font-size: 14px;
-        padding: 10px;
+        font-size: 16px; /* Prevent iOS zoom on focus */
+        padding: 12px;
+        -webkit-appearance: none; /* Remove iOS default styling */
+        border-radius: 6px; /* Larger radius for touch */
+    }
+    
+    .auth-button {
+        font-size: 16px; /* Prevent iOS zoom */
+        padding: 14px;
+        -webkit-appearance: none;
+        border-radius: 6px;
+        min-height: 44px; /* iOS touch target minimum */
+    }
+    
+    /* iOS Safari specific fixes */
+    .form-group input:focus {
+        transform: none; /* Prevent zoom jump on focus */
+    }
+}
+
+/* Mobile-specific touch and accessibility improvements */
+@media (pointer: coarse) {
+    .auth-button, .form-group input {
+        min-height: 44px; /* Ensure adequate touch targets */
+    }
+    
+    .tab-btn {
+        min-height: 44px;
+        padding: 10px 16px;
+    }
+}
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+    .form-group input {
+        font-size: 16px !important; /* Force 16px to prevent zoom */
+    }
+    
+    .auth-button {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
     }
 } 

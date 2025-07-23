@@ -21,6 +21,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
+      - name: Create Supabase Config
+        run: |
+          # Create the config directory if it doesn't exist
+          mkdir -p config
+          
+          # Generate supabase-config.js from environment variables
+          cat > config/supabase-config.js << EOF
+          // Supabase configuration - Generated automatically during deployment
+          // DO NOT EDIT - This file is auto-generated from GitHub Secrets
+          
+          const SUPABASE_URL = '${{ secrets.SUPABASE_URL }}';
+          const SUPABASE_ANON_KEY = '${{ secrets.SUPABASE_ANON_KEY }}';
+          
+          // Make config available globally
+          window.supabaseConfig = {
+              SUPABASE_URL,
+              SUPABASE_ANON_KEY
+          };
+          
+          // No export needed - config is available via window.supabaseConfig
+          EOF
+          
+          echo "✅ Supabase config created successfully"
+          echo "📁 Config file size: $(wc -c < config/supabase-config.js) bytes"
+          
+          # Validate that secrets were properly injected
+          if grep -q "undefined" config/supabase-config.js; then
+            echo "❌ Error: Secrets not properly injected - found 'undefined' values"
+            exit 1
+          fi
+          
+          if ! grep -q "fcncyvokyypauanqgaxd.supabase.co" config/supabase-config.js; then
+            echo "❌ Error: SUPABASE_URL not properly injected"
+            exit 1
+          fi
+          
+          echo "✅ Config validation passed - all secrets properly injected"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      
       - name: Setup Pages
         uses: actions/configure-pages@v4
         
