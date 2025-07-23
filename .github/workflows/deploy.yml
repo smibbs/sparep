@@ -40,12 +40,24 @@ jobs:
               SUPABASE_ANON_KEY
           };
           
-          // Export configuration for use in other modules
-          export { SUPABASE_URL, SUPABASE_ANON_KEY };
+          // No export needed - config is available via window.supabaseConfig
           EOF
           
           echo "✅ Supabase config created successfully"
           echo "📁 Config file size: $(wc -c < config/supabase-config.js) bytes"
+          
+          # Validate that secrets were properly injected
+          if grep -q "undefined" config/supabase-config.js; then
+            echo "❌ Error: Secrets not properly injected - found 'undefined' values"
+            exit 1
+          fi
+          
+          if ! grep -q "fcncyvokyypauanqgaxd.supabase.co" config/supabase-config.js; then
+            echo "❌ Error: SUPABASE_URL not properly injected"
+            exit 1
+          fi
+          
+          echo "✅ Config validation passed - all secrets properly injected"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
