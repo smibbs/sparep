@@ -1,5 +1,6 @@
 import { getSupabaseClient } from './supabase-client.js';
 import NavigationController from './navigation.js';
+import auth from './auth.js';
 
 class AdminService {
     constructor(autoInitialize = true) {
@@ -56,6 +57,12 @@ class AdminService {
         });
     }
 
+    /**
+     * Check admin access (CLIENT-SIDE ONLY - FOR UI DISPLAY)
+     * 
+     * ⚠️  SECURITY WARNING: This is a client-side check for UI optimization only.
+     *     For security-sensitive operations, use verifyAdminAccessSecure() instead.
+     */
     async checkAdminAccess() {
         try {
             const supabase = await this.getSupabase();
@@ -73,6 +80,24 @@ class AdminService {
             return profile?.user_tier === 'admin';
         } catch (error) {
             console.error('Error checking admin access:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Verify admin access with server-side validation (SECURE)
+     * 
+     * ✅ SECURE: This method performs server-side verification using database functions
+     *    that enforce proper RLS policies and server-side authentication.
+     * 
+     * Use this for all security-sensitive admin operations.
+     */
+    async verifyAdminAccessSecure() {
+        try {
+            // Use the auth service's secure verification method
+            return await auth.verifyAdminAccess();
+        } catch (error) {
+            console.error('Secure admin verification failed:', error);
             return false;
         }
     }
@@ -583,10 +608,10 @@ class AdminService {
                 html += adminFlagged.map(card => `
                     <div class="flagged-card admin-flagged">
                         <h4>Card ID: ${card.id}</h4>
-                        <p><strong>Question:</strong> ${card.question}</p>
-                        <p><strong>Answer:</strong> ${card.answer}</p>
+                        <p><strong>Question:</strong> ${this.escapeHtml(card.question)}</p>
+                        <p><strong>Answer:</strong> ${this.escapeHtml(card.answer)}</p>
                         <p><strong>Flagged:</strong> ${new Date(card.flagged_at).toLocaleString()}</p>
-                        <p><strong>Reason:</strong> ${card.flagged_reason || 'No reason provided'}</p>
+                        <p><strong>Reason:</strong> ${this.escapeHtml(card.flagged_reason || 'No reason provided')}</p>
                         <div class="card-actions">
                             <button class="btn btn-success" onclick="adminService.unflagCard('${card.id}')">Approve</button>
                             <button class="btn btn-danger" onclick="adminService.deleteCard('${card.id}')">Delete</button>
@@ -601,13 +626,13 @@ class AdminService {
                 html += userFlagged.map(card => `
                     <div class="flagged-card user-flagged">
                         <h4>Card ID: ${card.card_id}</h4>
-                        <p><strong>Question:</strong> ${card.question}</p>
-                        <p><strong>Answer:</strong> ${card.answer}</p>
+                        <p><strong>Question:</strong> ${this.escapeHtml(card.question)}</p>
+                        <p><strong>Answer:</strong> ${this.escapeHtml(card.answer)}</p>
                         <p><strong>Reports:</strong> ${card.flag_count}</p>
                         <p><strong>Latest Report:</strong> ${new Date(card.latest_flag_date).toLocaleString()}</p>
-                        <p><strong>Reasons:</strong> ${card.flag_reasons.join(', ')}</p>
+                        <p><strong>Reasons:</strong> ${card.flag_reasons.map(r => this.escapeHtml(r)).join(', ')}</p>
                         ${card.flag_comments.filter(c => c && c.trim()).length > 0 ? 
-                            `<p><strong>Comments:</strong> ${card.flag_comments.filter(c => c && c.trim()).join('; ')}</p>` : ''
+                            `<p><strong>Comments:</strong> ${card.flag_comments.filter(c => c && c.trim()).map(c => this.escapeHtml(c)).join('; ')}</p>` : ''
                         }
                         <div class="card-actions">
                             <button class="btn btn-secondary" onclick="adminService.resolveUserFlags('${card.card_id}', 'dismissed')">Dismiss Reports</button>
@@ -635,6 +660,13 @@ class AdminService {
 
     async unflagCard(cardId) {
         try {
+            // SECURITY: Verify admin access server-side before critical operation
+            const isAdminVerified = await this.verifyAdminAccessSecure();
+            if (!isAdminVerified) {
+                alert('Admin verification failed. Please refresh the page and try again.');
+                return;
+            }
+
             const supabase = await this.getSupabase();
             const { error } = await supabase
                 .from('cards')
@@ -663,6 +695,13 @@ class AdminService {
         }
 
         try {
+            // SECURITY: Verify admin access server-side before critical operation
+            const isAdminVerified = await this.verifyAdminAccessSecure();
+            if (!isAdminVerified) {
+                alert('Admin verification failed. Please refresh the page and try again.');
+                return;
+            }
+
             const supabase = await this.getSupabase();
             const { error } = await supabase
                 .from('cards')

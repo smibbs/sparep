@@ -217,6 +217,9 @@
                 // Initialize admin functionality
                 adminService.initializeAsStandalone();
                 
+                // SECURITY: Set up periodic admin status validation
+                startPeriodicAdminValidation(auth);
+                
                 // Set up logout functionality (only for access denied button, slide menu handles main logout)
                 const accessLogoutButton = document.getElementById('access-logout-button');
                 if (accessLogoutButton) {
@@ -234,6 +237,59 @@
             }
         }
         
+        /**
+         * Periodic Admin Status Validation
+         * 
+         * ✅ SECURITY: Regularly verifies admin status server-side to detect
+         *    privilege escalation attempts or session hijacking.
+         */
+        function startPeriodicAdminValidation(auth) {
+            let validationFailures = 0;
+            const MAX_FAILURES = 2;
+            const VALIDATION_INTERVAL = 5 * 60 * 1000; // 5 minutes
+            
+            const validateAdminStatus = async () => {
+                try {
+                    console.log('Performing periodic admin status validation...');
+                    
+                    // Use server-side validation function
+                    const isAdminValid = await auth.verifyAdminAccess();
+                    
+                    if (!isAdminValid) {
+                        validationFailures++;
+                        console.warn(`Admin validation failed (${validationFailures}/${MAX_FAILURES})`);
+                        
+                        if (validationFailures >= MAX_FAILURES) {
+                            console.error('Multiple admin validation failures - redirecting to login');
+                            alert('Your admin session has expired. Please log in again.');
+                            window.location.href = 'login.html';
+                            return;
+                        }
+                    } else {
+                        // Reset failure count on successful validation
+                        validationFailures = 0;
+                        console.log('Admin status validated successfully');
+                    }
+                } catch (error) {
+                    console.error('Admin validation error:', error);
+                    validationFailures++;
+                    
+                    if (validationFailures >= MAX_FAILURES) {
+                        alert('Unable to verify admin access. Please log in again.');
+                        window.location.href = 'login.html';
+                    }
+                }
+            };
+            
+            // Run initial validation after a short delay
+            setTimeout(validateAdminStatus, 30000); // 30 seconds
+            
+            // Set up periodic validation
+            setInterval(validateAdminStatus, VALIDATION_INTERVAL);
+            
+            console.log(`Admin status validation started (every ${VALIDATION_INTERVAL / 1000 / 60} minutes)`);
+        }
+
         // Start initialization
         initAdminPage();
     </script>

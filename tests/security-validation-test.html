@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Validation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .test-passed { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .test-failed { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .test-input { width: 100%; padding: 8px; margin: 5px 0; }
+        .test-button { padding: 8px 16px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        .test-results { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Card Flagging Security Validation Test</h1>
+    
+    <div class="test-section">
+        <h2>Flag Reason Validation Tests</h2>
+        <p>Testing validation of flag reasons against enum values.</p>
+        
+        <input type="text" id="reason-test-input" class="test-input" placeholder="Enter flag reason to test" value="<script>alert('xss')</script>">
+        <button class="test-button" onclick="testFlagReason()">Test Reason Validation</button>
+        
+        <div id="reason-test-results" class="test-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Comment Sanitization Tests</h2>
+        <p>Testing comment sanitization for XSS protection.</p>
+        
+        <textarea id="comment-test-input" class="test-input" placeholder="Enter comment to test">This is a normal comment with <script>alert('xss')</script> and some javascript:alert('test') content</textarea>
+        <button class="test-button" onclick="testCommentSanitization()">Test Comment Sanitization</button>
+        
+        <div id="comment-test-results" class="test-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>String Sanitization Tests</h2>
+        <p>Testing enhanced string sanitization against various XSS vectors.</p>
+        
+        <textarea id="sanitization-test-input" class="test-input" placeholder="Enter string to sanitize">
+&lt;script&gt;alert('encoded')&lt;/script&gt;
+javascript:alert('protocol')
+data:text/html,&lt;script&gt;alert('data')&lt;/script&gt;
+onclick="alert('event')"
+style="background:url(javascript:alert('css'))"
+        </textarea>
+        <button class="test-button" onclick="testStringSanitization()">Test String Sanitization</button>
+        
+        <div id="sanitization-test-results" class="test-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>HTML Escaping Tests</h2>
+        <p>Testing HTML escaping functionality.</p>
+        
+        <input type="text" id="escape-test-input" class="test-input" value="<script>alert('escape me')</script> & 'quotes' &quot;test&quot;">
+        <button class="test-button" onclick="testHtmlEscaping()">Test HTML Escaping</button>
+        
+        <div id="escape-test-results" class="test-results"></div>
+    </div>
+
+    <script type="module">
+        // Import validation functions
+        import { validateFlagReason, validateComment, sanitizeString } from '../js/validator.js';
+        
+        // Make functions available globally for onclick handlers
+        window.validateFlagReason = validateFlagReason;
+        window.validateComment = validateComment;
+        window.sanitizeString = sanitizeString;
+        
+        // HTML escaping function
+        window.escapeHtml = function(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        window.testFlagReason = function() {
+            const input = document.getElementById('reason-test-input').value;
+            const resultsDiv = document.getElementById('reason-test-results');
+            
+            const testCases = [
+                { input: 'incorrect', expected: true, description: 'Valid reason: incorrect' },
+                { input: 'spelling', expected: true, description: 'Valid reason: spelling' },
+                { input: 'confusing', expected: true, description: 'Valid reason: confusing' },
+                { input: 'other', expected: true, description: 'Valid reason: other' },
+                { input: 'INCORRECT', expected: true, description: 'Case insensitive: INCORRECT' },
+                { input: '  spelling  ', expected: true, description: 'Whitespace trimmed: spelling' },
+                { input: 'invalid_reason', expected: false, description: 'Invalid reason: invalid_reason' },
+                { input: '<script>alert("xss")</script>', expected: false, description: 'XSS attempt in reason' },
+                { input: '', expected: false, description: 'Empty reason' },
+                { input: null, expected: false, description: 'Null reason' }
+            ];
+            
+            let results = '<h3>Flag Reason Validation Results:</h3>';
+            let allPassed = true;
+            
+            testCases.forEach(testCase => {
+                try {
+                    const result = validateFlagReason(testCase.input, 'test');
+                    const passed = result === testCase.expected;
+                    results += `<p style="color: ${passed ? 'green' : 'red'}">${passed ? '✓' : '✗'} ${testCase.description}: ${passed ? 'PASSED' : 'FAILED'}</p>`;
+                    if (!passed) allPassed = false;
+                } catch (error) {
+                    const passed = !testCase.expected; // Should throw error for invalid inputs
+                    results += `<p style="color: ${passed ? 'green' : 'red'}">${passed ? '✓' : '✗'} ${testCase.description}: ${passed ? 'PASSED' : 'FAILED'} (threw: ${error.message})</p>`;
+                    if (!passed) allPassed = false;
+                }
+            });
+            
+            // Test the specific input
+            try {
+                const result = validateFlagReason(input, 'test');
+                results += `<hr><p><strong>Your input "${input}":</strong> <span style="color: green">✓ Valid reason</span></p>`;
+            } catch (error) {
+                results += `<hr><p><strong>Your input "${input}":</strong> <span style="color: red">✗ ${error.message}</span></p>`;
+            }
+            
+            resultsDiv.innerHTML = results;
+            resultsDiv.parentElement.className = `test-section ${allPassed ? 'test-passed' : 'test-failed'}`;
+        }
+        
+        window.testCommentSanitization = function() {
+            const input = document.getElementById('comment-test-input').value;
+            const resultsDiv = document.getElementById('comment-test-results');
+            
+            const testCases = [
+                { input: 'Normal comment', description: 'Normal comment' },
+                { input: '<script>alert("xss")</script>Normal text', description: 'Script tag removal' },
+                { input: 'javascript:alert("test")', description: 'JavaScript protocol removal' },
+                { input: 'A comment with <b>HTML</b> tags', description: 'HTML tag removal' },
+                { input: 'onclick="alert(\'click\')" onload="bad()"', description: 'Event handler removal' },
+                { input: 'A very long comment that exceeds the maximum length limit of 500 characters. '.repeat(20), description: 'Length limit enforcement' },
+                { input: null, description: 'Null comment (should return null)' },
+                { input: '', description: 'Empty comment' }
+            ];
+            
+            let results = '<h3>Comment Sanitization Results:</h3>';
+            let allPassed = true;
+            
+            testCases.forEach(testCase => {
+                try {
+                    const result = validateComment(testCase.input, 500, 'test');
+                    results += `<p><strong>${testCase.description}:</strong><br>
+                                Input: <code>${JSON.stringify(testCase.input)}</code><br>
+                                Output: <code>${JSON.stringify(result)}</code><br>
+                                <span style="color: green">✓ Processed successfully</span></p>`;
+                } catch (error) {
+                    results += `<p><strong>${testCase.description}:</strong><br>
+                                Input: <code>${JSON.stringify(testCase.input)}</code><br>
+                                <span style="color: red">✗ Error: ${error.message}</span></p>`;
+                }
+            });
+            
+            // Test the specific input
+            try {
+                const result = validateComment(input, 500, 'test');
+                results += `<hr><p><strong>Your input:</strong><br>
+                            Original: <code>${input}</code><br>
+                            Sanitized: <code>${result}</code><br>
+                            <span style="color: green">✓ Sanitized successfully</span></p>`;
+            } catch (error) {
+                results += `<hr><p><strong>Your input:</strong> <span style="color: red">✗ ${error.message}</span></p>`;
+            }
+            
+            resultsDiv.innerHTML = results;
+        }
+        
+        window.testStringSanitization = function() {
+            const input = document.getElementById('sanitization-test-input').value;
+            const resultsDiv = document.getElementById('sanitization-test-results');
+            
+            const testCases = [
+                '<script>alert("xss")</script>',
+                'javascript:alert("protocol")',
+                'data:text/html,<script>alert("data")</script>',
+                'vbscript:msgbox("vbs")',
+                'onclick="alert(\'event\')"',
+                'onload="malicious()"',
+                'style="background:url(javascript:alert(\'css\'))"',
+                'expression(alert("css"))',
+                '&lt;script&gt;alert("encoded")&lt;/script&gt;',
+                '&#x3c;script&#x3e;alert("hex")&#x3c;/script&#x3e;',
+                '&#60;script&#62;alert("decimal")&#60;/script&#62;'
+            ];
+            
+            let results = '<h3>String Sanitization Results:</h3>';
+            
+            testCases.forEach(testCase => {
+                const result = sanitizeString(testCase);
+                const isSafe = !result.includes('<script') && !result.includes('javascript:') && !result.includes('onclick');
+                results += `<p><strong>Test Case:</strong><br>
+                            Input: <code>${escapeHtml(testCase)}</code><br>
+                            Output: <code>${escapeHtml(result)}</code><br>
+                            <span style="color: ${isSafe ? 'green' : 'red'}">${isSafe ? '✓ Safe' : '✗ Potentially unsafe'}</span></p>`;
+            });
+            
+            // Test the specific input
+            const result = sanitizeString(input);
+            results += `<hr><p><strong>Your input:</strong><br>
+                        Original: <code>${escapeHtml(input)}</code><br>
+                        Sanitized: <code>${escapeHtml(result)}</code></p>`;
+            
+            resultsDiv.innerHTML = results;
+        }
+        
+        window.testHtmlEscaping = function() {
+            const input = document.getElementById('escape-test-input').value;
+            const resultsDiv = document.getElementById('escape-test-results');
+            
+            const escaped = escapeHtml(input);
+            
+            const results = `<h3>HTML Escaping Results:</h3>
+                            <p><strong>Original:</strong> <code>${input}</code></p>
+                            <p><strong>Safely escaped:</strong> <code>${escaped}</code></p>
+                            <p><strong>Rendered safely:</strong> ${escaped}</p>`;
+            
+            resultsDiv.innerHTML = results;
+        }
+        
+        // Run initial tests
+        console.log('Security validation test page loaded');
+    </script>
+</body>
+</html>

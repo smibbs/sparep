@@ -1,5 +1,7 @@
 import { getSupabaseClient } from './supabase-client.js';
 import { SESSION_CONFIG } from './config.js';
+import { handleError } from './errorHandler.js';
+import { validateEmail, validatePassword, sanitizeString } from './validator.js';
 
 // Authentication service for handling user registration, login, and session management
 class AuthService {
@@ -108,16 +110,77 @@ class AuthService {
         return profile?.user_tier || 'free';
     }
 
-    // Check if user is admin
+    /**
+     * Check if user is admin (CLIENT-SIDE ONLY - FOR UI DISPLAY)
+     * 
+     * ⚠️  SECURITY WARNING: This is a client-side check for UI optimization only.
+     * ⚠️  DO NOT rely on this for security decisions or access control.
+     * ⚠️  All security enforcement must happen server-side through RLS policies
+     *     and database functions that use the server-side is_admin() function.
+     * 
+     * Use this ONLY for:
+     * - Showing/hiding UI elements (nav links, buttons)
+     * - Client-side user experience optimization
+     * - Reducing unnecessary server requests
+     * 
+     * For actual security verification, use verifyAdminAccess() instead.
+     * 
+     * @returns {Promise<boolean>} True if user appears to be admin (client-side check only)
+     */
     async isAdmin() {
         const profile = await this.getUserProfile();
         return profile?.user_tier === 'admin';
     }
 
-    // Check if user has premium access (paid or admin)
+    /**
+     * Check if user has premium access (CLIENT-SIDE ONLY - FOR UI DISPLAY)
+     * 
+     * ⚠️  SECURITY WARNING: This is a client-side check for UI optimization only.
+     * ⚠️  Server-side access control is enforced through RLS policies and
+     *     database functions that verify user_tier server-side.
+     * 
+     * @returns {Promise<boolean>} True if user appears to have premium access (client-side check only)
+     */
     async hasPremiumAccess() {
         const tier = await this.getUserTier();
         return tier === 'paid' || tier === 'admin';
+    }
+
+    /**
+     * Verify admin access with server-side validation (SECURE)
+     * 
+     * ✅ SECURE: This method performs server-side verification by calling
+     *    a database function that uses auth.uid() and server-side RLS policies.
+     * 
+     * Use this for:
+     * - Actual security verification before sensitive operations
+     * - Double-checking admin status before critical actions
+     * - Validating admin access in admin interfaces
+     * 
+     * @returns {Promise<boolean>} True if user is verified as admin server-side
+     * @throws {Error} If verification fails or user is not authenticated
+     */
+    async verifyAdminAccess() {
+        try {
+            const supabase = await getSupabaseClient();
+            
+            // Use a lightweight database function that calls is_admin() server-side
+            // This function should exist in the database and use SECURITY DEFINER
+            const { data, error } = await supabase.rpc('verify_admin_access');
+            
+            if (error) {
+                if (error.message?.includes('permission') || error.message?.includes('Admin privileges required')) {
+                    return false; // User is not admin
+                }
+                throw new Error(`Admin verification failed: ${error.message}`);
+            }
+            
+            return data === true;
+        } catch (error) {
+            console.error('Admin verification error:', error);
+            // On error, assume not admin for security
+            return false;
+        }
     }
 
     // Get daily review limit for user
@@ -294,9 +357,19 @@ class AuthService {
             const supabase = await this.getSupabase();
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
+            
+            // Clear subject cache on logout to prevent memory leaks
+            if (typeof window !== 'undefined' && window.clearSubjectCache) {
+                window.clearSubjectCache();
+            }
+            
             AuthService.redirectToLogin();
         } catch (error) {
             // Still attempt redirect on error to ensure user gets logged out
+            // Clear cache even on error
+            if (typeof window !== 'undefined' && window.clearSubjectCache) {
+                window.clearSubjectCache();
+            }
             AuthService.redirectToLogin();
         }
     }
@@ -468,8 +541,18 @@ class AuthService {
             document.activeElement.blur();
         }
         
-        const email = this.loginEmail.value.trim();
+        const email = sanitizeString(this.loginEmail.value.trim(), 254);
         const password = this.loginPassword.value;
+        
+        // Validate inputs before proceeding
+        try {
+            validateEmail(email, 'login');
+            validatePassword(password, 'login');
+        } catch (validationError) {
+            this.showMessage(this.loginMessage, validationError.message, 'error');
+            this.showLoading(false);
+            return;
+        }
 
         // Mobile-specific: add haptic feedback if available
         if (window.navigator && window.navigator.vibrate) {
@@ -542,12 +625,28 @@ class AuthService {
         e.preventDefault();
         this.clearMessages();
         
-        const email = this.registerEmail.value.trim();
+        const email = sanitizeString(this.registerEmail.value.trim(), 254);
         const password = this.registerPassword.value;
         const confirmPass = this.confirmPassword.value;
-        const displayName = this.displayName.value.trim();
+        const displayName = sanitizeString(this.displayName.value.trim(), 100);
 
-        // Password validation
+        // Enhanced input validation
+        try {
+            validateEmail(email, 'registration');
+            validatePassword(password, 'registration');
+            
+            if (!displayName || displayName.length < 1) {
+                throw new Error('Display name is required for registration.');
+            }
+            if (displayName.length > 50) {
+                throw new Error('Display name must be 50 characters or less.');
+            }
+        } catch (validationError) {
+            this.showMessage(this.registerMessage, validationError.message, 'error');
+            return;
+        }
+
+        // Password confirmation check
         if (password !== confirmPass) {
             this.showMessage(this.registerMessage, 'Passwords do not match');
             return;
