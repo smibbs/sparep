@@ -3,6 +3,8 @@ import { updateStability, updateDifficulty, calculateNextReview, calculateInitia
 import fsrsParametersService from './fsrsParameters.js';
 import fsrsOptimizationService from './fsrsOptimization.js';
 import { SESSION_CONFIG } from './config.js';
+import { handleError, withErrorHandling } from './errorHandler.js';
+import { validateRating, validateResponseTime, validateUserId, validateCardId, validateFlagReason, validateComment } from './validator.js';
 
 class DatabaseService {
     constructor() {
@@ -245,8 +247,8 @@ class DatabaseService {
             return null;
 
         } catch (error) {
-            // Error in getNextDueCard
-            throw error;
+            const handledError = handleError(error, 'getNextDueCard');
+            throw new Error(handledError.userMessage);
         }
     }
 
@@ -266,6 +268,10 @@ class DatabaseService {
                 // recordReview: Missing or invalid card_id
                 throw new Error('Missing or invalid card_id for review.');
             }
+            
+            // Additional validation for review parameters
+            validateRating(rating, 'review submission');
+            validateResponseTime(responseTime, 'review submission');
 
             // Fetch current progress
             const { data: currentProgress, error: progressError } = await supabase
@@ -388,15 +394,8 @@ class DatabaseService {
             }
 
         } catch (error) {
-            if (error.code === '42501' || /permission denied/i.test(error.message)) {
-                throw new Error('You do not have permission to access this data.');
-            } else if (/network|fetch/i.test(error.message)) {
-                throw new Error('Network error: Please check your internet connection and try again.');
-            } else if (/not logged in|not authenticated/i.test(error.message)) {
-                throw new Error('You are not logged in. Please sign in again.');
-            }
-            // Error in recordReview
-            throw error;
+            const handledError = handleError(error, 'recordReview');
+            throw new Error(handledError.userMessage);
         }
     }
 
@@ -407,6 +406,9 @@ class DatabaseService {
      */
     async getNextDueCard(userId) {
         try {
+            // Validate user ID
+            validateUserId(userId, 'getting next due card');
+            
             const supabase = await this.getSupabase();
             const now = new Date();
             const nowISOString = now.toISOString();
@@ -483,6 +485,9 @@ class DatabaseService {
 
     async _getCardsDueCore(userId) {
         try {
+            // Validate user ID
+            validateUserId(userId, 'getting due cards');
+            
             const supabase = await this.getSupabase();
             const now = new Date();
             const nowISOString = now.toISOString();
@@ -674,8 +679,8 @@ class DatabaseService {
             
             return finalSessionCards;
         } catch (error) {
-            // Error fetching due and new cards
-            throw error;
+            const handledError = handleError(error, 'getCardsDue');
+            throw new Error(handledError.userMessage);
         }
     }
 
@@ -688,6 +693,12 @@ class DatabaseService {
      */
     async getNewCards(userId, limit = SESSION_CONFIG.CARDS_PER_SESSION, userTier = 'free') {
         try {
+            // Validate inputs
+            validateUserId(userId, 'getting new cards');
+            if (typeof limit !== 'number' || limit < 0 || limit > 100) {
+                throw new Error('Invalid limit for getting new cards. Must be between 0 and 100.');
+            }
+            
             // Getting new cards for user
             const supabase = await this.getSupabase();
 
@@ -791,8 +802,8 @@ class DatabaseService {
 
             return newCards || [];
         } catch (error) {
-            // Error in getNewCards
-            throw error;
+            const handledError = handleError(error, 'getNewCards');
+            throw new Error(handledError.userMessage);
         }
     }
 
@@ -834,8 +845,8 @@ class DatabaseService {
             if (error) throw error;
             return data;
         } catch (error) {
-            // Error initializing user progress
-            throw error;
+            const handledError = handleError(error, 'initializeUserProgress');
+            throw new Error(handledError.userMessage);
         }
     }
 
@@ -858,8 +869,8 @@ class DatabaseService {
             if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "not found"
             return data;
         } catch (error) {
-            // Error fetching user progress
-            throw error;
+            const handledError = handleError(error, 'getUserProgress');
+            throw new Error(handledError.userMessage);
         }
     }
 
@@ -872,13 +883,18 @@ class DatabaseService {
      */
     async flagCard(card_id, reason, comment = null) {
         try {
+            // Validate inputs with enhanced security checks
+            validateCardId(card_id, 'flagging card');
+            validateFlagReason(reason, 'flagging card');
+            const sanitizedComment = validateComment(comment, 500, 'flagging card');
+            
             const supabase = await this.getSupabase();
             
-            // Use the database function to flag the card
+            // Use the database function to flag the card with sanitized inputs
             const { data, error } = await supabase.rpc('flag_card_for_review', {
                 p_card_id: card_id,
-                p_reason: reason,
-                p_comment: comment
+                p_reason: reason.trim().toLowerCase(),
+                p_comment: sanitizedComment
             });
 
             if (error) {
@@ -887,11 +903,16 @@ class DatabaseService {
 
             return true;
         } catch (error) {
+            // Handle specific flagging errors first
             if (error.message?.includes('already flagged')) {
                 throw new Error('You have already flagged this card');
             } else if (error.message?.includes('Admin users should use')) {
                 throw new Error('Admin users should use the admin interface for card management');
             }
+            
+            // Use centralized error handling for other errors
+            const handledError = handleError(error, 'flagCard');
+            throw new Error(handledError.userMessage);
             throw error;
         }
     }
@@ -1249,7 +1270,8 @@ class DatabaseService {
             return true;
         } catch (error) {
             console.error('Error submitting batch reviews:', error);
-            throw error;
+            const handledError = handleError(error, 'submitBatchReviews');
+            throw new Error(handledError.userMessage);
         }
     }
 
@@ -1263,7 +1285,8 @@ class DatabaseService {
             return await fsrsParametersService.getUserParameters(userId);
         } catch (error) {
             console.error('Error loading user FSRS parameters:', error);
-            throw error;
+            const handledError = handleError(error, 'loadUserFSRSParameters');
+            throw new Error(handledError.userMessage);
         }
     }
 
@@ -1278,7 +1301,8 @@ class DatabaseService {
             return await fsrsParametersService.updateParameters(userId, parameterUpdates);
         } catch (error) {
             console.error('Error updating user FSRS parameters:', error);
-            throw error;
+            const handledError = handleError(error, 'updateUserFSRSParameters');
+            throw new Error(handledError.userMessage);
         }
     }
 
@@ -1292,7 +1316,8 @@ class DatabaseService {
             return await fsrsParametersService.createDefaultParameters(userId);
         } catch (error) {
             console.error('Error initializing user FSRS parameters:', error);
-            throw error;
+            const handledError = handleError(error, 'initializeUserFSRSParameters');
+            throw new Error(handledError.userMessage);
         }
     }
 
@@ -1576,8 +1601,8 @@ async function initializeUserProgress(userId) {
 
         // Successfully initialized progress for cards
     } catch (error) {
-        // Error in initializeUserProgress
-        throw error;
+        const handledError = handleError(error, 'initializeUserProgress_standalone');
+        throw new Error(handledError.userMessage);
     }
 }
 
@@ -1639,8 +1664,8 @@ async function getDueCards(userId) {
         // Found cards due for review
         return dueCards;
     } catch (error) {
-        // Error in getDueCards
-        throw error;
+        const handledError = handleError(error, 'getDueCards_standalone');
+        throw new Error(handledError.userMessage);
     }
 }
 

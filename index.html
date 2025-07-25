@@ -6,8 +6,13 @@
     <title>nanotopic</title>
     
     <!-- Security headers for production -->
-    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-    <meta http-equiv="Strict-Transport-Security" content="max-age=63072000; includeSubDomains; preload">
+    <script>
+        // Only add security headers in production (not localhost)
+        if (!window.location.hostname.includes('localhost') && window.location.hostname !== '127.0.0.1') {
+            document.write('<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">');
+            document.write('<meta http-equiv="Strict-Transport-Security" content="max-age=63072000; includeSubDomains; preload">');
+        }
+    </script>
     
     <!-- Mobile-specific meta tags for better experience -->
     <meta name="mobile-web-app-capable" content="yes">

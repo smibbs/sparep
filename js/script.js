@@ -6,6 +6,7 @@ import SessionManager from './sessionManager.js';
 import { SESSION_CONFIG } from './config.js';
 import NavigationController from './navigation.js';
 import slideMenu from './slideMenu.js';
+import { handleError } from './errorHandler.js';
 
 // Use global Supabase client
 const supabase = window.supabaseClient;
@@ -35,7 +36,7 @@ async function checkAndShowAdminNav(userId) {
         }
     } catch (error) {
         console.log('Could not check admin status:', error);
-        // Silently fail - admin link stays hidden
+        // Silently fail - admin link stays hidden (no user notification needed)
     }
 }
 
@@ -75,6 +76,7 @@ const appState = {
     totalCards: 0,
     isLoading: true,
     isLoadingSession: false, // Prevent concurrent loadSession calls
+    loadSessionStartTime: null, // Timestamp for race condition detection
     user: null,
     dbService: database,  // Use the default database instance
     authService: auth,    // Use the default auth instance
@@ -373,12 +375,32 @@ async function updateProgress() {
 }
 
 /**
- * Get subject name by ID with caching
+ * Get subject name by ID with caching (LRU cache with 100 entry limit)
  */
 const subjectCache = new Map();
+const SUBJECT_CACHE_MAX_SIZE = 100;
+
+function evictOldestCacheEntry() {
+    if (subjectCache.size >= SUBJECT_CACHE_MAX_SIZE) {
+        const firstKey = subjectCache.keys().next().value;
+        subjectCache.delete(firstKey);
+    }
+}
+
+function clearSubjectCache() {
+    subjectCache.clear();
+}
+
+// Expose to global scope for access from other modules
+window.clearSubjectCache = clearSubjectCache;
+
 async function getSubjectName(subjectId) {
     if (subjectCache.has(subjectId)) {
-        return subjectCache.get(subjectId);
+        // Move to end for LRU behavior
+        const value = subjectCache.get(subjectId);
+        subjectCache.delete(subjectId);
+        subjectCache.set(subjectId, value);
+        return value;
     }
     
     try {
@@ -392,7 +414,11 @@ async function getSubjectName(subjectId) {
         if (error) throw error;
         
         const subjectName = subject?.name || 'Unknown Subject';
+        
+        // Evict oldest entry if cache is full
+        evictOldestCacheEntry();
         subjectCache.set(subjectId, subjectName);
+        
         return subjectName;
     } catch (error) {
         console.warn('Failed to fetch subject:', error);
@@ -544,6 +570,9 @@ async function handleSessionComplete() {
         
         // Clear the session
         appState.sessionManager.clearSession();
+        
+        // Clear subject cache to prevent memory leaks
+        clearSubjectCache();
         
         // Show completion UI with session data
         showContent(true);
@@ -936,13 +965,25 @@ function getProgressInfo(card) {
  * Initialize or load a session
  */
 async function loadSession() {
-    // Prevent concurrent loadSession calls
+    // Simple race condition prevention with timestamp
+    const callTime = Date.now();
+    
+    // Atomic flag setting to prevent race conditions
     if (appState.isLoadingSession) {
         console.log('Session loading already in progress, skipping duplicate call');
         return;
     }
     
+    // Set flag immediately to prevent race condition
     appState.isLoadingSession = true;
+    appState.loadSessionStartTime = callTime;
+    
+    // Double-check after setting flag (in case another call set it simultaneously)
+    if (appState.loadSessionStartTime !== callTime) {
+        appState.isLoadingSession = false;
+        console.log('Concurrent session loading detected, aborting duplicate call');
+        return;
+    }
     
     try {
         if (!appState.user) {
@@ -1078,8 +1119,9 @@ async function loadSession() {
             }
         }
     } finally {
-        // Always clear the loading flag
+        // Always clear the loading flag and timestamp
         appState.isLoadingSession = false;
+        appState.loadSessionStartTime = null;
     }
 }
 

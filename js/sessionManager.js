@@ -1,17 +1,27 @@
 /**
  * SessionManager - Handles batch session loading and local caching
  */
-import { SESSION_CONFIG } from './config.js';
+import { SESSION_CONFIG, CACHE_CONFIG } from './config.js';
 
 class SessionManager {
     constructor() {
         this.sessionData = null;
         this.currentCardIndex = 0;
         this.sessionStorageKey = 'flashcard_session';
+        this.cacheStatsKey = 'flashcard_cache_stats';
         
         // Initialize storage mechanism based on browser capabilities
         this.storageMethod = this.detectStorageMethod();
         this.memoryFallback = new Map(); // Memory-based fallback for storage restrictions
+        this.isMobile = this.detectMobileDevice();
+        
+        // Initialize cache management
+        this.initializeCacheManagement();
+        
+        // Apply mobile-specific optimizations
+        if (this.isMobile) {
+            this.applyMobileOptimizations();
+        }
     }
 
     /**
@@ -348,7 +358,7 @@ For the best experience, consider using Safari in normal mode or another browser
         this.currentCardIndex = 0;
         
         try {
-            // Clear from all possible storage locations
+            // Clear from storage using generic method
             if (this.storageMethod === 'sessionStorage' && typeof window !== 'undefined' && window.sessionStorage) {
                 window.sessionStorage.removeItem(this.sessionStorageKey);
             } else if (this.storageMethod === 'localStorage' && typeof window !== 'undefined' && window.localStorage) {
@@ -363,6 +373,200 @@ For the best experience, consider using Safari in normal mode or another browser
             this.memoryFallback.delete(this.sessionStorageKey);
         }
     }
+    
+    /**
+     * Get cache health information for monitoring
+     * @returns {Object} Cache health metrics
+     */
+    getCacheHealth() {
+        const stats = this.getCacheStats();
+        const currentSize = this.getStorageSize();
+        const maxSize = this.isMobile ? CACHE_CONFIG.MOBILE_MAX_STORAGE_SIZE : CACHE_CONFIG.MAX_STORAGE_SIZE;
+        const memoryEntries = this.memoryFallback.size;
+        const maxMemoryEntries = this.isMobile ? CACHE_CONFIG.MOBILE_MAX_MEMORY_ENTRIES : CACHE_CONFIG.MAX_MEMORY_ENTRIES;
+        
+        return {
+            storageMethod: this.storageMethod,
+            isMobile: this.isMobile,
+            storageUsage: {
+                current: currentSize,
+                max: maxSize,
+                percentage: maxSize > 0 ? (currentSize / maxSize) * 100 : 0
+            },
+            memoryUsage: {
+                current: memoryEntries,
+                max: maxMemoryEntries,
+                percentage: maxMemoryEntries > 0 ? (memoryEntries / maxMemoryEntries) * 100 : 0
+            },
+            statistics: stats,
+            lastCleanup: stats.lastCleanup,
+            cleanupRuns: stats.cleanupRuns || 0
+        };
+    }
+    
+    /**
+     * Manual cache cleanup trigger (for testing/admin)
+     */
+    manualCleanup() {
+        console.log('Running manual cache cleanup...');
+        this.cleanupExpiredSessions();
+        this.enforceCacheSize();
+        console.log('Manual cleanup completed');
+        return this.getCacheHealth();
+    }
+    
+    /**
+     * Apply mobile-specific optimizations
+     */
+    applyMobileOptimizations() {
+        console.log('Applying mobile cache optimizations');
+        
+        // More aggressive cleanup for mobile
+        const mobileCleanupInterval = CACHE_CONFIG.CLEANUP_INTERVAL_MS / 2; // Every 30 minutes
+        
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+        }
+        
+        this.cleanupInterval = setInterval(() => {
+            this.cleanupExpiredSessions();
+            this.enforceCacheSize();
+            this.checkMemoryPressure();
+        }, mobileCleanupInterval);
+        
+        // Monitor for mobile-specific events
+        this.setupMobileEventListeners();
+    }
+    
+    /**
+     * Set up mobile-specific event listeners
+     */
+    setupMobileEventListeners() {
+        // Listen for page visibility changes (app backgrounding)
+        if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    // App is being backgrounded, run cleanup
+                    this.cleanupExpiredSessions();
+                }
+            });
+        }
+        
+        // Listen for memory pressure warnings
+        if ('memory' in performance && performance.memory) {
+            // Chrome-specific memory monitoring
+            this.memoryCheckInterval = setInterval(() => {
+                this.checkMemoryPressure();
+            }, 5 * 60 * 1000); // Every 5 minutes
+        }
+        
+        // Listen for storage quota warnings
+        if ('storage' in navigator && 'estimate' in navigator.storage) {
+            this.quotaCheckInterval = setInterval(() => {
+                this.checkStorageQuota();
+            }, 10 * 60 * 1000); // Every 10 minutes
+        }
+    }
+    
+    /**
+     * Check for memory pressure and cleanup if needed
+     */
+    checkMemoryPressure() {
+        try {
+            if ('memory' in performance && performance.memory) {
+                const memory = performance.memory;
+                const memoryUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
+                
+                // If using more than 80% of available heap, trigger aggressive cleanup
+                if (memoryUsage > 0.8) {
+                    console.warn('High memory usage detected, running aggressive cleanup');
+                    this.aggressiveCleanup();
+                }
+            }
+        } catch (error) {
+            console.warn('Could not check memory pressure:', error);
+        }
+    }
+    
+    /**
+     * Check storage quota and cleanup if approaching limit
+     */
+    async checkStorageQuota() {
+        try {
+            if ('storage' in navigator && 'estimate' in navigator.storage) {
+                const estimate = await navigator.storage.estimate();
+                const usage = estimate.usage || 0;
+                const quota = estimate.quota || 0;
+                
+                if (quota > 0) {
+                    const usagePercentage = usage / quota;
+                    
+                    // If using more than 85% of quota, trigger cleanup
+                    if (usagePercentage > 0.85) {
+                        console.warn('Storage quota approaching limit, running cleanup');
+                        this.aggressiveCleanup();
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('Could not check storage quota:', error);
+        }
+    }
+    
+    /**
+     * Perform aggressive cleanup when under memory/storage pressure
+     */
+    aggressiveCleanup() {
+        // Clean up all expired sessions
+        this.cleanupExpiredSessions();
+        
+        // More aggressive size enforcement (reduce to 60% of normal limit)
+        const normalMaxSize = this.isMobile ? CACHE_CONFIG.MOBILE_MAX_STORAGE_SIZE : CACHE_CONFIG.MAX_STORAGE_SIZE;
+        const aggressiveTargetSize = normalMaxSize * 0.6;
+        
+        if (this.storageMethod === 'memory') {
+            // For memory storage, keep only the current session
+            for (const [key] of this.memoryFallback.entries()) {
+                if (key !== this.sessionStorageKey && key !== this.cacheStatsKey) {
+                    this.memoryFallback.delete(key);
+                }
+            }
+        } else {
+            // For browser storage, reduce to aggressive target
+            this.evictOldestSessions(aggressiveTargetSize);
+        }
+        
+        // Update cache stats
+        this.updateCacheStats({
+            aggressiveCleanupRuns: (this.getCacheStats().aggressiveCleanupRuns || 0) + 1,
+            lastAggressiveCleanup: new Date().toISOString()
+        });
+        
+        console.log('Aggressive cleanup completed');
+    }
+    
+    /**
+     * Cleanup method called when component/page is destroyed
+     */
+    destroy() {
+        // Clear all intervals
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+        }
+        if (this.memoryCheckInterval) {
+            clearInterval(this.memoryCheckInterval);
+        }
+        if (this.quotaCheckInterval) {
+            clearInterval(this.quotaCheckInterval);
+        }
+        
+        // Remove event listeners
+        if (typeof document !== 'undefined') {
+            document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+        }
+        
+        console.log('SessionManager cleanup completed');
+    }
 
     /**
      * Load session from storage (for page refresh handling)
@@ -370,17 +574,8 @@ For the best experience, consider using Safari in normal mode or another browser
      */
     loadSession() {
         try {
-            let stored = null;
-            
-            // Try to get session from the appropriate storage method
-            if (this.storageMethod === 'sessionStorage' && typeof window !== 'undefined' && window.sessionStorage) {
-                stored = window.sessionStorage.getItem(this.sessionStorageKey);
-            } else if (this.storageMethod === 'localStorage' && typeof window !== 'undefined' && window.localStorage) {
-                stored = window.localStorage.getItem(this.sessionStorageKey);
-            } else {
-                // Get from memory fallback
-                stored = this.memoryFallback.get(this.sessionStorageKey) || null;
-            }
+            // Use generic storage method
+            const stored = this.getFromStorage(this.sessionStorageKey);
             
             if (stored) {
                 const parsedData = typeof stored === 'string' ? JSON.parse(stored) : stored;
@@ -440,16 +635,14 @@ For the best experience, consider using Safari in normal mode or another browser
                 completedCards: Array.from(this.sessionData.completedCards)
             };
             
-            // Try to save to the appropriate storage method
-            if (this.storageMethod === 'sessionStorage' && typeof window !== 'undefined' && window.sessionStorage) {
-                window.sessionStorage.setItem(this.sessionStorageKey, JSON.stringify(dataToStore));
-            } else if (this.storageMethod === 'localStorage' && typeof window !== 'undefined' && window.localStorage) {
-                window.localStorage.setItem(this.sessionStorageKey, JSON.stringify(dataToStore));
-            } else {
-                // Save to memory fallback
-                this.memoryFallback.set(this.sessionStorageKey, JSON.stringify(dataToStore));
-            }
+            // Use generic storage method with built-in quota handling
+            this.saveToStorage(this.sessionStorageKey, JSON.stringify(dataToStore));
             
+            // Update cache statistics
+            this.updateCacheStats({ 
+                totalSessions: (this.getCacheStats().totalSessions || 0) + 1,
+                lastSessionSave: new Date().toISOString()
+            });            
         } catch (error) {
             console.error(`Failed to save session to ${this.storageMethod}:`, error);
             
@@ -468,6 +661,332 @@ For the best experience, consider using Safari in normal mode or another browser
      */
     generateSessionId() {
         return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    /**
+     * Detect if running on mobile device
+     * @returns {boolean} True if mobile device
+     */
+    detectMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && /MacIntel/.test(navigator.platform));
+    }
+
+    /**
+     * Initialize cache management system
+     */
+    initializeCacheManagement() {
+        // Set up periodic cleanup
+        this.setupPeriodicCleanup();
+        
+        // Run initial cleanup
+        this.cleanupExpiredSessions();
+        
+        // Initialize cache statistics
+        this.initializeCacheStats();
+    }
+
+    /**
+     * Set up periodic cache cleanup
+     */
+    setupPeriodicCleanup() {
+        // Clear any existing interval
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+        }
+        
+        // Set up new cleanup interval
+        this.cleanupInterval = setInterval(() => {
+            this.cleanupExpiredSessions();
+            this.enforceCacheSize();
+        }, CACHE_CONFIG.CLEANUP_INTERVAL_MS);
+    }
+
+    /**
+     * Initialize cache statistics tracking
+     */
+    initializeCacheStats() {
+        try {
+            const stats = this.getCacheStats();
+            if (!stats.initialized) {
+                this.updateCacheStats({
+                    initialized: true,
+                    createdAt: new Date().toISOString(),
+                    totalSessions: 0,
+                    cleanupRuns: 0,
+                    lastCleanup: null
+                });
+            }
+        } catch (error) {
+            console.warn('Failed to initialize cache stats:', error);
+        }
+    }
+
+    /**
+     * Get current cache statistics
+     * @returns {Object} Cache statistics
+     */
+    getCacheStats() {
+        try {
+            const stored = this.getFromStorage(this.cacheStatsKey);
+            return stored ? JSON.parse(stored) : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    /**
+     * Update cache statistics
+     * @param {Object} updates - Statistics updates
+     */
+    updateCacheStats(updates) {
+        try {
+            const current = this.getCacheStats();
+            const updated = { ...current, ...updates, lastUpdated: new Date().toISOString() };
+            this.saveToStorage(this.cacheStatsKey, JSON.stringify(updated));
+        } catch (error) {
+            console.warn('Failed to update cache stats:', error);
+        }
+    }
+
+    /**
+     * Clean up expired sessions from storage
+     */
+    cleanupExpiredSessions() {
+        try {
+            const expiryTime = Date.now() - (CACHE_CONFIG.SESSION_EXPIRY_HOURS * 60 * 60 * 1000);
+            let cleanedCount = 0;
+            
+            if (this.storageMethod === 'memory') {
+                // Clean memory fallback
+                for (const [key, value] of this.memoryFallback.entries()) {
+                    if (key.startsWith('session_')) {
+                        try {
+                            const data = typeof value === 'string' ? JSON.parse(value) : value;
+                            const sessionTime = new Date(data.sessionStartTime).getTime();
+                            if (sessionTime < expiryTime) {
+                                this.memoryFallback.delete(key);
+                                cleanedCount++;
+                            }
+                        } catch (e) {
+                            // Invalid session data, remove it
+                            this.memoryFallback.delete(key);
+                            cleanedCount++;
+                        }
+                    }
+                }
+            } else {
+                // Clean browser storage
+                const storage = this.storageMethod === 'sessionStorage' ? window.sessionStorage : window.localStorage;
+                const keysToRemove = [];
+                
+                for (let i = 0; i < storage.length; i++) {
+                    const key = storage.key(i);
+                    if (key && key.startsWith('session_')) {
+                        try {
+                            const data = JSON.parse(storage.getItem(key));
+                            const sessionTime = new Date(data.sessionStartTime).getTime();
+                            if (sessionTime < expiryTime) {
+                                keysToRemove.push(key);
+                            }
+                        } catch (e) {
+                            // Invalid session data, mark for removal
+                            keysToRemove.push(key);
+                        }
+                    }
+                }
+                
+                // Remove expired sessions
+                keysToRemove.forEach(key => {
+                    storage.removeItem(key);
+                    cleanedCount++;
+                });
+            }
+            
+            if (cleanedCount > 0) {
+                console.log(`Cleaned up ${cleanedCount} expired sessions`);
+                this.updateCacheStats({ 
+                    cleanupRuns: (this.getCacheStats().cleanupRuns || 0) + 1,
+                    lastCleanup: new Date().toISOString(),
+                    lastCleanupCount: cleanedCount
+                });
+            }
+        } catch (error) {
+            console.error('Failed to clean up expired sessions:', error);
+        }
+    }
+
+    /**
+     * Enforce cache size limits using LRU eviction
+     */
+    enforceCacheSize() {
+        try {
+            const maxSize = this.isMobile ? CACHE_CONFIG.MOBILE_MAX_STORAGE_SIZE : CACHE_CONFIG.MAX_STORAGE_SIZE;
+            const maxEntries = this.isMobile ? CACHE_CONFIG.MOBILE_MAX_MEMORY_ENTRIES : CACHE_CONFIG.MAX_MEMORY_ENTRIES;
+            
+            if (this.storageMethod === 'memory') {
+                // Enforce memory entry limit
+                if (this.memoryFallback.size > maxEntries) {
+                    const entriesToRemove = this.memoryFallback.size - maxEntries;
+                    const iterator = this.memoryFallback.keys();
+                    
+                    for (let i = 0; i < entriesToRemove; i++) {
+                        const key = iterator.next().value;
+                        if (key && key !== this.sessionStorageKey) { // Don't remove current session
+                            this.memoryFallback.delete(key);
+                        }
+                    }
+                }
+            } else {
+                // Enforce storage size limit
+                const currentSize = this.getStorageSize();
+                if (currentSize > maxSize * (1 - CACHE_CONFIG.QUOTA_BUFFER_PERCENTAGE)) {
+                    this.evictOldestSessions(maxSize * 0.8); // Reduce to 80% of max size
+                }
+            }
+        } catch (error) {
+            console.error('Failed to enforce cache size:', error);
+        }
+    }
+
+    /**
+     * Get approximate storage size usage
+     * @returns {number} Storage size in bytes
+     */
+    getStorageSize() {
+        try {
+            const storage = this.storageMethod === 'sessionStorage' ? window.sessionStorage : window.localStorage;
+            let totalSize = 0;
+            
+            for (let i = 0; i < storage.length; i++) {
+                const key = storage.key(i);
+                if (key) {
+                    const value = storage.getItem(key);
+                    totalSize += key.length + (value ? value.length : 0);
+                }
+            }
+            
+            return totalSize * 2; // Approximate UTF-16 encoding
+        } catch (error) {
+            return 0;
+        }
+    }
+
+    /**
+     * Evict oldest sessions to reduce storage size
+     * @param {number} targetSize - Target size in bytes
+     */
+    evictOldestSessions(targetSize) {
+        try {
+            const storage = this.storageMethod === 'sessionStorage' ? window.sessionStorage : window.localStorage;
+            const sessions = [];
+            
+            // Collect all session keys with timestamps
+            for (let i = 0; i < storage.length; i++) {
+                const key = storage.key(i);
+                if (key && key.startsWith('session_') && key !== this.sessionStorageKey) {
+                    try {
+                        const data = JSON.parse(storage.getItem(key));
+                        sessions.push({
+                            key: key,
+                            timestamp: new Date(data.sessionStartTime).getTime()
+                        });
+                    } catch (e) {
+                        // Invalid session, add to removal list
+                        sessions.push({ key: key, timestamp: 0 });
+                    }
+                }
+            }
+            
+            // Sort by timestamp (oldest first)
+            sessions.sort((a, b) => a.timestamp - b.timestamp);
+            
+            // Remove sessions until we reach target size
+            for (const session of sessions) {
+                storage.removeItem(session.key);
+                if (this.getStorageSize() <= targetSize) {
+                    break;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to evict old sessions:', error);
+        }
+    }
+
+    /**
+     * Generic method to get data from storage
+     * @param {string} key - Storage key
+     * @returns {string|null} Stored value
+     */
+    getFromStorage(key) {
+        try {
+            if (this.storageMethod === 'sessionStorage' && typeof window !== 'undefined' && window.sessionStorage) {
+                return window.sessionStorage.getItem(key);
+            } else if (this.storageMethod === 'localStorage' && typeof window !== 'undefined' && window.localStorage) {
+                return window.localStorage.getItem(key);
+            } else {
+                return this.memoryFallback.get(key) || null;
+            }
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /**
+     * Generic method to save data to storage
+     * @param {string} key - Storage key
+     * @param {string} value - Value to store
+     */
+    saveToStorage(key, value) {
+        try {
+            // Check storage quota before saving
+            if (this.storageMethod !== 'memory') {
+                const currentSize = this.getStorageSize();
+                const valueSize = (key.length + value.length) * 2;
+                const maxSize = this.isMobile ? CACHE_CONFIG.MOBILE_MAX_STORAGE_SIZE : CACHE_CONFIG.MAX_STORAGE_SIZE;
+                
+                if (currentSize + valueSize > maxSize) {
+                    console.warn('Storage quota approaching limit, running cleanup');
+                    this.enforceCacheSize();
+                }
+            }
+            
+            if (this.storageMethod === 'sessionStorage' && typeof window !== 'undefined' && window.sessionStorage) {
+                window.sessionStorage.setItem(key, value);
+            } else if (this.storageMethod === 'localStorage' && typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.setItem(key, value);
+            } else {
+                // Enforce memory limit
+                if (this.memoryFallback.size >= (this.isMobile ? CACHE_CONFIG.MOBILE_MAX_MEMORY_ENTRIES : CACHE_CONFIG.MAX_MEMORY_ENTRIES)) {
+                    // Remove oldest entry (first in Map)
+                    const firstKey = this.memoryFallback.keys().next().value;
+                    if (firstKey && firstKey !== this.sessionStorageKey) {
+                        this.memoryFallback.delete(firstKey);
+                    }
+                }
+                this.memoryFallback.set(key, value);
+            }
+        } catch (error) {
+            if (error.name === 'QuotaExceededError') {
+                console.warn('Storage quota exceeded, attempting cleanup and retry');
+                this.enforceCacheSize();
+                // Retry once after cleanup
+                try {
+                    if (this.storageMethod === 'sessionStorage' && typeof window !== 'undefined' && window.sessionStorage) {
+                        window.sessionStorage.setItem(key, value);
+                    } else if (this.storageMethod === 'localStorage' && typeof window !== 'undefined' && window.localStorage) {
+                        window.localStorage.setItem(key, value);
+                    } else {
+                        this.memoryFallback.set(key, value);
+                    }
+                } catch (retryError) {
+                    console.error('Failed to save after cleanup:', retryError);
+                    throw retryError;
+                }
+            } else {
+                throw error;
+            }
+        }
     }
 }
 
