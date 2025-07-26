@@ -68,4 +68,7 @@ schema.sql
 # Lock files (optional - some prefer to commit these)
 # Uncomment if you don't want to track lock files:
 # package-lock.json
-# yarn.lock 
+# yarn.lock
+
+# Claude Code documentation file
+CLAUDE.md 
