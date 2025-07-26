@@ -1,6 +1,6 @@
 -- Migration 02: Custom Enum Types (Current Schema)
 -- Description: Creates all custom enum types used throughout the database
--- Dependencies: 01-initial-setup-current.sql
+-- Dependencies: 01-initial-setup.sql
 
 -- User tier enum for subscription and access levels
 CREATE TYPE user_tier AS ENUM ('free', 'paid', 'admin');

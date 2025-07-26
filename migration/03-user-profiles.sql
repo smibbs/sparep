@@ -1,6 +1,6 @@
 -- Migration 03: User Profiles Table (Current Schema)
 -- Description: Creates user profiles table with streak tracking and tier system
--- Dependencies: 01-initial-setup-current.sql, 02-enums-current.sql
+-- Dependencies: 01-initial-setup.sql, 02-enums.sql
 
 -- Create user profiles table
 CREATE TABLE public.user_profiles (

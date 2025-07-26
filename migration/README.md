@@ -4,24 +4,44 @@ This directory contains SQL migration files that can recreate the entire Supabas
 
 ## Migration Files (Sequential Order)
 
+### Core Schema Migrations (01-12)
+Run these migrations sequentially for a fresh database setup:
+
 1. **01-initial-setup.sql** - Basic database setup, extensions, and helper functions
+   - Dependencies: None - must be run first
 2. **02-enums.sql** - All custom enum types (user_tier, card_state, flag_reason)
+   - Dependencies: 01-initial-setup.sql
 3. **03-user-profiles.sql** - User profiles table with authentication and tier system
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql
 4. **04-subjects.sql** - Subjects table for organizing flashcards with hierarchical structure
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql
 5. **05-cards.sql** - Cards table for flashcard content with multimedia and flagging support
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 04-subjects.sql
 6. **06-user-card-progress.sql** - User progress tracking with complete FSRS implementation
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 05-cards.sql
 7. **07-review-history.sql** - Detailed review history for FSRS calculations and analytics
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 05-cards.sql
 8. **08-fsrs-parameters.sql** - Personalized FSRS algorithm parameters per user
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql
 9. **09-user-card-flags.sql** - User flagging system for reporting card issues
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 05-cards.sql
 10. **10-functions-and-procedures.sql** - Helper functions and stored procedures
+    - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql
 11. **11-policies-and-security.sql** - Additional RLS policies and security enhancements
+    - Dependencies: All previous migrations
 12. **12-sample-data.sql** - Optional sample data for development environments
-13. **13-advanced-analytics-schema.sql** - Advanced analytics views and functions (difficulty consistency only)
-14. **15-fix-admin-function.sql** - Admin function fixes
-15. **16-fix-function-return-types.sql** - Function return type fixes
-16. **17-fix-analytics-return-types.sql** - Analytics function return type fixes (difficulty only)
-17. **19-remove-hesitation-error-analytics.sql** - Remove hesitation and error pattern analytics
-18. **20-failed-attempts-before-good-rating.sql** - Add function to calculate failed attempts before first good rating
+    - Dependencies: All previous migrations
+
+### Incremental Updates (Archive Directory)
+Historical migration fixes and enhancements located in `archive/` and `backup/` directories:
+
+**Note:** Migration 14 references `streak_rewards_schema.sql` which is located in the project root, not in the migration directory. This file contains the streak tracking system schema that was developed separately.
+
+### Current Status
+- ✅ Core migrations (01-12) have correct dependency references
+- ✅ All "-current" suffix references have been removed from migration 02 and 03
+- ⚠️ Archive migrations (13+) reference historical schema files that may require manual review
+- ⚠️ `streak_rewards_schema.sql` is in project root, not migration directory
 
 ## Key Features Implemented
 
