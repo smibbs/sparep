@@ -10,5 +10,4 @@ window.supabaseConfig = {
     SUPABASE_ANON_KEY
 };
 
-// Export configuration for use in other modules
-export { SUPABASE_URL, SUPABASE_ANON_KEY }; 
+// No export needed - config is available via window.supabaseConfig 

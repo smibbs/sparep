@@ -41,7 +41,7 @@ async function initializeSupabase() {
             throw new Error('Supabase configuration not found');
         }
 
-        const { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY } = window.supabaseConfig;
+        const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.supabaseConfig;
 
         if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
             throw new Error('Missing Supabase configuration values');
