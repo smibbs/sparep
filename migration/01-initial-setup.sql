@@ -1,35 +1,19 @@
--- Migration: 01-initial-setup.sql
--- Description: Initial database setup with extensions and helper functions
--- This migration sets up the basic database structure and helper functions
+-- Migration 01: Initial Database Setup (Current Schema)
+-- Description: Creates extensions and basic database setup functions
+-- Dependencies: None - must be run first
 
--- Enable necessary extensions
+-- Enable required PostgreSQL extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Set up storage for user avatars
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('avatars', 'avatars', true)
-ON CONFLICT DO NOTHING;
-
--- Create updated_at trigger function (used by multiple tables)
+-- Create function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
--- Create is_admin helper function
-CREATE OR REPLACE FUNCTION is_admin(user_id UUID)
-RETURNS BOOLEAN AS $$
-BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM public.user_profiles
-        WHERE id = user_id AND is_admin = true
-    );
-END;
-$$ language 'plpgsql' SECURITY DEFINER;
-
--- Comments
-COMMENT ON FUNCTION update_updated_at_column IS 'Trigger function to update updated_at timestamp';
-COMMENT ON FUNCTION is_admin IS 'Helper function to check if a user has admin privileges'; 
+-- Enable Row Level Security by default for all tables
+-- Individual table policies are defined in later migrations

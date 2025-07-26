@@ -4,24 +4,44 @@ This directory contains SQL migration files that can recreate the entire Supabas
 
 ## Migration Files (Sequential Order)
 
+### Core Schema Migrations (01-12)
+Run these migrations sequentially for a fresh database setup:
+
 1. **01-initial-setup.sql** - Basic database setup, extensions, and helper functions
+   - Dependencies: None - must be run first
 2. **02-enums.sql** - All custom enum types (user_tier, card_state, flag_reason)
+   - Dependencies: 01-initial-setup.sql
 3. **03-user-profiles.sql** - User profiles table with authentication and tier system
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql
 4. **04-subjects.sql** - Subjects table for organizing flashcards with hierarchical structure
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql
 5. **05-cards.sql** - Cards table for flashcard content with multimedia and flagging support
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 04-subjects.sql
 6. **06-user-card-progress.sql** - User progress tracking with complete FSRS implementation
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 05-cards.sql
 7. **07-review-history.sql** - Detailed review history for FSRS calculations and analytics
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 05-cards.sql
 8. **08-fsrs-parameters.sql** - Personalized FSRS algorithm parameters per user
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql
 9. **09-user-card-flags.sql** - User flagging system for reporting card issues
+   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 05-cards.sql
 10. **10-functions-and-procedures.sql** - Helper functions and stored procedures
+    - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql
 11. **11-policies-and-security.sql** - Additional RLS policies and security enhancements
+    - Dependencies: All previous migrations
 12. **12-sample-data.sql** - Optional sample data for development environments
-13. **13-advanced-analytics-schema.sql** - Advanced analytics views and functions (difficulty consistency only)
-14. **15-fix-admin-function.sql** - Admin function fixes
-15. **16-fix-function-return-types.sql** - Function return type fixes
-16. **17-fix-analytics-return-types.sql** - Analytics function return type fixes (difficulty only)
-17. **19-remove-hesitation-error-analytics.sql** - Remove hesitation and error pattern analytics
-18. **20-failed-attempts-before-good-rating.sql** - Add function to calculate failed attempts before first good rating
+    - Dependencies: All previous migrations
+
+### Incremental Updates (Archive Directory)
+Historical migration fixes and enhancements located in `archive/` and `backup/` directories:
+
+**Note:** Migration 14 references `streak_rewards_schema.sql` which is located in the project root, not in the migration directory. This file contains the streak tracking system schema that was developed separately.
+
+### Current Status
+- ✅ Core migrations (01-12) have correct dependency references
+- ✅ All "-current" suffix references have been removed from migration 02 and 03
+- ⚠️ Archive migrations (13+) reference historical schema files that may require manual review
+- ⚠️ `streak_rewards_schema.sql` is in project root, not migration directory
 
 ## Key Features Implemented
 
@@ -75,19 +95,29 @@ Skip file 12 (sample data) for production deployments.
 
 ## Schema Alignment
 
-✅ **These migrations are the single source of truth** - they exactly match the current Supabase production schema including:
-- All column names, data types, and constraints
-- All enum types and their values
-- All relationships and foreign keys
-- All indexes and performance optimizations
-- All RLS policies and security settings
-- All functions and stored procedures
+⚠️ **Migration Status Update (2025-01-26)**
 
-No functionality will be lost when using these migrations.
+**Recent Changes:**
+- ✅ **Migration 31 Enhanced Security Applied**: Fixed and applied enhanced card flagging security with proper column references (`user_flag_count`)
+- ✅ **Historical Migrations Archived**: Migrations 13-32 moved to `migration/archive/` for reference
+- ✅ **Original Migrations Backed Up**: All original files preserved in `migration/backup/`
+- 🔄 **Schema Alignment In Progress**: Core migrations (01-12) need updating to match current database state
+
+**Current Migration Status:**
+- Core migrations (01-12) reflect the **original** database design but are **outdated**
+- Current database includes additional features: streak tracking, enhanced security, additional tables
+- Use `migration/backup/` files for historical reference
+- Use `migration/archive/` for incremental updates that were applied to the live database
 
 ## Migration History
 
-### Refactoring (June 2024)
+### January 2025 Cleanup
+- **Applied Missing Security**: Migration 31 enhanced flagging security successfully applied
+- **Directory Organization**: Created `backup/` and `archive/` directories for better organization
+- **Fixed Column References**: Corrected `flag_count` → `user_flag_count` in Migration 31
+- **Schema Documentation**: Generated complete TypeScript types reflecting current database state
+
+### June 2024 Refactoring  
 - Consolidated duplicate migration files
 - Aligned all schemas with production database
 - Created clean sequential numbering (01-12)
@@ -103,16 +133,19 @@ No functionality will be lost when using these migrations.
 ## File Structure
 
 ### Current Files (01-12)
-Clean, sequential migration files aligned with production schema.
+Original migration files that reflect the **initial** database design. **Note**: These are outdated and don't match the current database state.
 
-### Backup Files (*.OLD)
-Previous migration versions backed up with `.OLD` extensions. These can be safely removed after confirming the new migrations work correctly.
+### Backup Directory (`backup/`)
+Complete backup of all migration files as they existed before cleanup. Use these for historical reference.
 
-### Removed Files
-Duplicate and obsolete migration files have been removed:
-- Multiple 04, 07, 08, 09 numbered files
-- Superseded user-tiers and flagging migrations
-- Outdated function definitions
+### Archive Directory (`archive/`)
+Contains migrations 13-32 that were incrementally applied to the live database:
+- **Migration 31**: Enhanced card flagging security (corrected and applied)
+- **Migration 32**: Additional admin verification functions
+- **Migrations 13-30**: Various fixes, optimizations, and feature additions
+
+### New Schema Files (*-current.sql)
+Partial work toward updated migrations that match the current database state (work in progress).
 
 ## Security Features
 
