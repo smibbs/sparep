@@ -5,6 +5,7 @@ import fsrsOptimizationService from './fsrsOptimization.js';
 import { SESSION_CONFIG } from './config.js';
 import { handleError, withErrorHandling } from './errorHandler.js';
 import { validateRating, validateResponseTime, validateUserId, validateCardId, validateFlagReason, validateComment } from './validator.js';
+import loadingMessagesService from './loadingMessages.js';
 
 class DatabaseService {
     constructor() {
@@ -1523,6 +1524,33 @@ class DatabaseService {
             
         } catch (error) {
             console.error('Error in ensureUserProfileExists:', error);
+        }
+    }
+
+    /**
+     * Get a random loading message for loading states
+     * @param {boolean} forceRefresh - Force cache refresh
+     * @returns {Promise<string>} - Random loading message
+     */
+    async getRandomLoadingMessage(forceRefresh = false) {
+        try {
+            return await loadingMessagesService.getRandomMessage(forceRefresh);
+        } catch (error) {
+            console.error('Error getting random loading message:', error);
+            return 'Generating your flashcards...'; // Fallback
+        }
+    }
+
+    /**
+     * Get a random loading message synchronously (from cache only)
+     * @returns {string} - Random loading message
+     */
+    getRandomLoadingMessageSync() {
+        try {
+            return loadingMessagesService.getRandomMessageSync();
+        } catch (error) {
+            console.error('Error getting random loading message sync:', error);
+            return 'Generating your flashcards...'; // Fallback
         }
     }
 }

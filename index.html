@@ -27,13 +27,9 @@
 <body>
     <div id="app-container">
         <div id="loading-state" class="loading-state">
-            <div class="loading-spinner"></div>
-            <p class="loading-text">Loading flashcards...</p>
-            <!-- Skeleton loading preview -->
-            <div class="skeleton-card">
-                <div class="skeleton skeleton-text long"></div>
-                <div class="skeleton skeleton-text short"></div>
-                <div class="skeleton skeleton-text long"></div>
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <p class="loading-text"></p>
             </div>
         </div>
         <div id="error-state" class="error-state hidden">
@@ -43,6 +39,12 @@
                     <button id="retry-button" class="nav-button">Try Again</button>
                     <button id="error-logout-button" class="nav-button">Sign Out</button>
                 </div>
+            </div>
+        </div>
+        <div id="saving-state" class="saving-state hidden">
+            <div class="saving-content">
+                <div class="saving-spinner"></div>
+                <p class="saving-text">Saving your progress...</p>
             </div>
         </div>
         <div id="content" class="content hidden">

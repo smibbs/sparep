@@ -47,14 +47,24 @@ function insertLogoInLoginPage(logoHTML) {
         const logoContainer = document.createElement('div');
         logoContainer.innerHTML = logoHTML;
         
-        // Extract style and logo div
+        // Extract style, header, and logo link
         const style = logoContainer.querySelector('style');
-        const logoDivOriginal = logoContainer.querySelector('.app-logo');
+        const headerOriginal = logoContainer.querySelector('.site-header');
+        const logoLinkOriginal = logoContainer.querySelector('.app-logo');
         
-        if (style && logoDivOriginal) {
-            // Clone the logo div and modify for login page
-            const logoDiv = logoDivOriginal.cloneNode(true);
-            logoDiv.classList.add('login-logo');
+        if (style && logoLinkOriginal) {
+            // Clone the logo link and modify for login page
+            const logoLink = logoLinkOriginal.cloneNode(true);
+            logoLink.classList.add('login-logo');
+            
+            // On login page, clicking logo should refresh the page instead of redirecting
+            logoLink.href = 'login.html';
+            
+            // Also insert header background for login page
+            if (headerOriginal) {
+                const header = headerOriginal.cloneNode(true);
+                document.body.appendChild(header);
+            }
             
             // Add login-specific styling (styles from logo component will handle positioning)
             const loginStyle = document.createElement('style');
@@ -64,14 +74,14 @@ function insertLogoInLoginPage(logoHTML) {
             document.head.appendChild(loginStyle);
             
             // Replace h1 with logo
-            authHeader.parentNode.replaceChild(logoDiv, authHeader);
+            authHeader.parentNode.replaceChild(logoLink, authHeader);
         }
     }
 }
 
 function insertLogoInMainPages(logoHTML) {
-    // Always insert logo in page content for main pages (since we removed the old header nav)
-    insertLogoInPageContent(logoHTML);
+    // Use truly fixed positioning for main pages to ensure logo is at top of viewport
+    insertLogoAtTopFixed(logoHTML);
 }
 
 function insertLogoInPageContent(logoHTML) {
@@ -89,14 +99,14 @@ function insertLogoInPageContent(logoHTML) {
         const logoContainer = document.createElement('div');
         logoContainer.innerHTML = logoHTML;
         
-        // Extract style and logo div
+        // Extract style and logo link
         const style = logoContainer.querySelector('style');
-        const logoDivOriginal = logoContainer.querySelector('.app-logo');
+        const logoLinkOriginal = logoContainer.querySelector('.app-logo');
         
-        if (style && logoDivOriginal) {
-            // Clone the logo div and modify for page content placement
-            const logoDiv = logoDivOriginal.cloneNode(true);
-            logoDiv.classList.add('page-content-logo');
+        if (style && logoLinkOriginal) {
+            // Clone the logo link and modify for page content placement
+            const logoLink = logoLinkOriginal.cloneNode(true);
+            logoLink.classList.add('page-content-logo');
             
             // Add page content specific styling
             const pageStyle = document.createElement('style');
@@ -148,8 +158,34 @@ function insertLogoInPageContent(logoHTML) {
             document.head.appendChild(pageStyle);
             
             // Insert logo as first child of content container
-            targetContainer.insertBefore(logoDiv, targetContainer.firstChild);
+            targetContainer.insertBefore(logoLink, targetContainer.firstChild);
         }
+    }
+}
+
+function insertLogoAtTopFixed(logoHTML) {
+    // Insert header background and logo with true fixed positioning at top of viewport
+    const logoContainer = document.createElement('div');
+    logoContainer.innerHTML = logoHTML;
+    
+    // Extract style, header background, and logo link
+    const style = logoContainer.querySelector('style');
+    const headerOriginal = logoContainer.querySelector('.site-header');
+    const logoLinkOriginal = logoContainer.querySelector('.app-logo');
+    
+    if (style && headerOriginal && logoLinkOriginal) {
+        // Clone the elements
+        const header = headerOriginal.cloneNode(true);
+        const logoLink = logoLinkOriginal.cloneNode(true);
+        
+        // Add the style to head
+        document.head.appendChild(style);
+        
+        // Insert header background first (lower z-index)
+        document.body.appendChild(header);
+        
+        // Insert logo on top of header (higher z-index)
+        document.body.appendChild(logoLink);
     }
 }
 

@@ -95,9 +95,10 @@ const appState = {
 let currentState = 'loading';
 let stateChangePromise = null;
 let minimumLoadingStartTime = null;
+let loadingStartTime = null;
 
-// Minimum loading duration to prevent flashes
-const MINIMUM_LOADING_TIME = 800; // 800ms
+// Minimum loading duration to ensure users can read the loading message
+const MINIMUM_LOADING_TIME = 1000; // 1 second
 const TRANSITION_DURATION = 300; // 300ms
 
 // Mobile-specific loading state management
@@ -110,6 +111,7 @@ async function transitionToState(newState, message = null) {
     
     const loadingState = document.getElementById('loading-state');
     const errorState = document.getElementById('error-state');
+    const savingState = document.getElementById('saving-state');
     const content = document.getElementById('content');
     
     // Clear mobile loading timeout when leaving loading state
@@ -141,6 +143,42 @@ async function transitionToState(newState, message = null) {
             errorMessage.textContent = getUserFriendlyMessage(message);
         }
     }
+    if (message && newState === 'saving') {
+        const savingMessage = document.querySelector('.saving-text');
+        if (savingMessage) {
+            savingMessage.textContent = message;
+        }
+    }
+    if (newState === 'loading') {
+        // Set dynamic loading message
+        const loadingMessage = document.querySelector('.loading-text');
+        if (loadingMessage) {
+            if (message) {
+                // Use provided message
+                console.log('Using provided loading message:', message);
+                loadingMessage.textContent = message;
+            } else {
+                // Use dynamic message from database
+                console.log('Attempting to get dynamic loading message...');
+                try {
+                    if (!appState.dbService) {
+                        console.warn('dbService not available yet');
+                        loadingMessage.textContent = 'Generating your flashcards...';
+                        return;
+                    }
+                    
+                    const dynamicMessage = appState.dbService.getRandomLoadingMessageSync();
+                    console.log('✅ Successfully set dynamic loading message:', dynamicMessage);
+                    loadingMessage.textContent = dynamicMessage;
+                } catch (error) {
+                    console.warn('❌ Failed to get dynamic loading message:', error);
+                    loadingMessage.textContent = 'Generating your flashcards...';
+                }
+            }
+        } else {
+            console.warn('Loading message element not found');
+        }
+    }
     
     // Show new state
     const newElement = getElementForState(newState);
@@ -148,6 +186,15 @@ async function transitionToState(newState, message = null) {
         newElement.classList.remove('hidden');
         newElement.classList.add('fade-in');
         setTimeout(() => newElement.classList.remove('fade-in'), TRANSITION_DURATION);
+    }
+    
+    // Ensure error state is explicitly hidden when showing content
+    if (newState === 'content') {
+        const errorState = document.getElementById('error-state');
+        if (errorState && !errorState.classList.contains('hidden')) {
+            errorState.classList.add('hidden');
+            console.log('✅ Explicitly hid error state when showing content');
+        }
     }
     
     currentState = newState;
@@ -163,6 +210,7 @@ function getCurrentStateElement() {
     switch (currentState) {
         case 'loading': return document.getElementById('loading-state');
         case 'error': return document.getElementById('error-state');
+        case 'saving': return document.getElementById('saving-state');
         case 'content': return document.getElementById('content');
         default: return null;
     }
@@ -172,6 +220,7 @@ function getElementForState(state) {
     switch (state) {
         case 'loading': return document.getElementById('loading-state');
         case 'error': return document.getElementById('error-state');
+        case 'saving': return document.getElementById('saving-state');
         case 'content': return document.getElementById('content');
         default: return null;
     }
@@ -554,13 +603,8 @@ async function displayCurrentCard() {
  */
 async function handleSessionComplete() {
     try {
-        // Start loading state for batch submission
-        await transitionToState('loading');
-        
-        const loadingText = document.querySelector('.loading-text');
-        if (loadingText) {
-            loadingText.textContent = 'Saving your progress...';
-        }
+        // Start saving state for batch submission
+        await transitionToState('saving', 'Saving your progress...');
 
         // Get session data BEFORE clearing for completion statistics
         const sessionData = appState.sessionManager.getSessionData();
@@ -992,12 +1036,6 @@ async function loadSession() {
 
         // Start loading state
         await transitionToState('loading');
-        
-        // Update loading message
-        const loadingText = document.querySelector('.loading-text');
-        if (loadingText) {
-            loadingText.textContent = 'Preparing your study session...';
-        }
 
         // Try to load existing session from storage first (only if not explicitly starting new)
         if (!appState.forceNewSession && appState.sessionManager.loadSession()) {
@@ -1005,7 +1043,23 @@ async function loadSession() {
             appState.currentCard = appState.sessionManager.getCurrentCard();
             
             if (appState.currentCard) {
+                // Ensure minimum loading duration FIRST, before showing any content
+                if (loadingStartTime) {
+                    const elapsed = Date.now() - loadingStartTime;
+                    const minimumDuration = 1000; // 1 second
+                    if (elapsed < minimumDuration) {
+                        const remainingTime = minimumDuration - elapsed;
+                        console.log(`⏳ Waiting ${remainingTime}ms more for minimum loading duration`);
+                        await new Promise(resolve => setTimeout(resolve, remainingTime));
+                    }
+                } else {
+                    console.warn('loadingStartTime not set, using default 1s delay');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
+                // Now prepare and display content after timer completes
                 await displayCurrentCard();
+                console.log('🏁 Transitioning to content after minimum loading duration');
                 await transitionToState('content');
                 return;
             }
@@ -1053,9 +1107,6 @@ async function loadSession() {
         }
 
         // Initialize new session with configured number of cards
-        if (loadingText) {
-            loadingText.textContent = 'Loading your flashcards...';
-        }
         
         try {
             await appState.sessionManager.initializeSession(appState.user.id, appState.dbService);
@@ -1085,10 +1136,25 @@ async function loadSession() {
         // Restore card structure first (in case completion screen overwrote it)
         restoreCardStructure();
         
-        // Display the card
+        // Ensure minimum loading duration before showing any content
+        if (loadingStartTime) {
+            const elapsed = Date.now() - loadingStartTime;
+            const minimumDuration = 1000; // 1 second
+            if (elapsed < minimumDuration) {
+                const remainingTime = minimumDuration - elapsed;
+                console.log(`⏳ Waiting ${remainingTime}ms more for minimum loading duration (new session)`);
+                await new Promise(resolve => setTimeout(resolve, remainingTime));
+            }
+        } else {
+            console.warn('loadingStartTime not set, using default 1s delay (new session)');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // Now display the card after timer completes
         await displayCurrentCard();
         
         // Transition to content
+        console.log('🏁 Transitioning to content after minimum loading duration (new session)');
         await transitionToState('content');
         
     } catch (error) {
@@ -1139,14 +1205,36 @@ const errorState = document.getElementById('error-state');
 // Initialize the app
 async function initializeApp() {
     try {
-        // Start with loading state
+        // Initialize loading messages service FIRST so it's ready for dynamic messages
+        try {
+            const { default: loadingMessagesService } = await import('./loadingMessages.js');
+            await loadingMessagesService.forceRefresh();
+            console.log('Loading messages service initialized and ready');
+            
+            // Set dynamic loading message immediately
+            const loadingText = document.querySelector('.loading-text');
+            if (loadingText && appState.dbService) {
+                try {
+                    const dynamicMessage = appState.dbService.getRandomLoadingMessageSync();
+                    loadingText.textContent = dynamicMessage;
+                    console.log('🎯 Set initial dynamic loading message:', dynamicMessage);
+                } catch (error) {
+                    console.warn('Failed to set initial dynamic loading message:', error);
+                }
+            } else {
+                console.warn('Loading text element or dbService not available for initial message');
+            }
+        } catch (error) {
+            console.error('Error initializing loading messages service:', error);
+            // Continue even if loading messages initialization fails
+        }
+        
+        // Start with loading state (loading messages service is now ready)
         await transitionToState('loading');
         
-        // Update loading message
-        const loadingText = document.querySelector('.loading-text');
-        if (loadingText) {
-            loadingText.textContent = 'Initializing your study session...';
-        }
+        // Record start time to ensure minimum loading duration
+        loadingStartTime = Date.now();
+        console.log('🕐 Loading state started at:', new Date().toISOString());
         
         // Check authentication
         const user = await auth.getCurrentUser();
@@ -1186,6 +1274,7 @@ async function initializeApp() {
             console.error('Error initializing streak UI:', error);
             // Continue even if streak UI initialization fails
         }
+
 
         // Set up auth state change listener
         auth.onAuthStateChange((user) => {

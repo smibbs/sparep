@@ -277,10 +277,17 @@ async function updateDashboard() {
     // Start loading state
     await transitionDashboardToState('loading');
     
-    // Update loading message
+    // Update loading message with dynamic content
     const loadingText = document.querySelector('#dashboard-loading .loading-text');
     if (loadingText) {
-        loadingText.textContent = 'Loading your study statistics...';
+        try {
+            // Try to get a dynamic loading message
+            const dynamicMessage = database.getRandomLoadingMessageSync();
+            loadingText.textContent = dynamicMessage;
+        } catch (error) {
+            console.warn('Failed to get dynamic loading message for dashboard:', error);
+            loadingText.textContent = 'Loading your study statistics...';
+        }
     }
     try {
         // Get user
