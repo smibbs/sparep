@@ -1,24 +1,55 @@
 <style>
+/* Header background bar */
+.site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .app-logo {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   color: white;
   margin: 0;
   position: fixed;
-  top: 35px;
+  top: 20px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, color 0.2s ease;
   font-family: "Times New Roman", "Georgia", "Playfair Display", "Crimson Text", serif;
-  font-size: 3rem;
+  font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 500;
+  text-decoration: none;
+  will-change: transform;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .app-logo:hover {
   transform: translateX(-50%) scale(1.05);
+  color: white;
+}
+
+.app-logo:focus {
+  outline: 2px solid #4a90e2;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.app-logo:visited {
+  color: white;
 }
 
 /* Sketch underline effect */
@@ -51,10 +82,17 @@
 }
 
 /* Responsive adjustments */
+@media (max-width: 1024px) {
+  .app-logo {
+    top: 20px;
+    font-size: clamp(2.25rem, 4.5vw, 2.75rem);
+  }
+}
+
 @media (max-width: 768px) {
   .app-logo {
-    top: 28px;
-    font-size: 2.5rem;
+    top: 20px;
+    font-size: clamp(2rem, 4vw, 2.5rem);
   }
   
   .sketch-underline::after {
@@ -71,18 +109,20 @@
     left: auto !important;
     transform: none !important;
     margin: 0 0 15px 0;
+    font-size: clamp(1.875rem, 3.5vw, 2.25rem) !important;
   }
 }
 
 @media (max-width: 480px) {
   .app-logo {
-    top: 24px;
-    font-size: 2.25rem;
+    top: 20px;
+    font-size: clamp(1.75rem, 3.5vw, 2.25rem);
+    padding: 4px 8px;
   }
   
   .sketch-underline::after {
     height: 8px;
-    background-size: 50px 8px;
+    background-size: 45px 8px;
     bottom: -2px;
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 8'%3E%3Cpath d='M1,5 Q15,2 30,4 Q45,6 60,3 Q75,5 90,4 Q95,2 99,5' stroke='%234a90e2' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
   }
@@ -90,10 +130,31 @@
   /* Mobile login page adjustments */
   .login-logo {
     margin: 0 0 10px 0;
+    font-size: clamp(1.625rem, 3vw, 2rem) !important;
+    padding: 2px 4px !important;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 320px) {
+  .app-logo {
+    top: 20px;
+    font-size: clamp(1.5rem, 4vw, 1.875rem);
+  }
+  
+  .sketch-underline::after {
+    height: 6px;
+    background-size: 35px 6px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 6'%3E%3Cpath d='M1,4 Q15,1 30,3 Q45,5 60,2 Q75,4 90,3 Q95,1 99,4' stroke='%234a90e2' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
+  }
+  
+  .login-logo {
+    font-size: clamp(1.375rem, 3.5vw, 1.75rem) !important;
   }
 }
 </style>
 
-<div class="app-logo">
+<div class="site-header" aria-hidden="true"></div>
+<a href="index.html" class="app-logo" aria-label="nanotopic home" role="banner">
   <span class="sketch-underline">nanotopic</span>
-</div>
+</a>

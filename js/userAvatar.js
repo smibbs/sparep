@@ -16,12 +16,10 @@ export class UserAvatar {
      */
     async initialize(onClickCallback = null) {
         try {
-            console.log('Initializing user avatar...');
             this.onClickCallback = onClickCallback;
             
             // Get user profile data
             this.userProfile = await auth.getUserProfile();
-            console.log('Avatar user profile:', this.userProfile);
             
             if (!this.userProfile) {
                 console.error('Could not load user profile for avatar');
@@ -30,19 +28,15 @@ export class UserAvatar {
 
             // Generate initials
             this.initials = this.generateInitials(this.userProfile.display_name || this.userProfile.email);
-            console.log('Generated initials:', this.initials);
             
             // Create avatar element
             this.createAvatarElement();
-            console.log('Avatar element created');
             
             // Insert into DOM
             this.insertIntoDom();
-            console.log('Avatar inserted into DOM');
             
             // Set up event listeners
             this.setupEventListeners();
-            console.log('Avatar event listeners set up');
             
             return true;
         } catch (error) {
