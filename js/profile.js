@@ -464,7 +464,6 @@ class ProfileManager {
      */
     showPasswordModal() {
         // Implementation for password change modal
-        console.log('Password change modal - not implemented yet');
     }
 
     /**
@@ -472,7 +471,6 @@ class ProfileManager {
      */
     showDeleteModal() {
         // Implementation for account deletion modal
-        console.log('Delete account modal - not implemented yet');
     }
 
     /**

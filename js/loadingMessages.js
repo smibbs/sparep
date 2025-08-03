@@ -21,7 +21,6 @@ class LoadingMessagesService {
     async initializeCache() {
         try {
             await this.refreshCache();
-            console.log('Loading messages cache initialized');
         } catch (error) {
             console.warn('Failed to initialize loading messages cache:', error);
             // Continue with fallback message
@@ -33,7 +32,6 @@ class LoadingMessagesService {
      */
     async refreshCache() {
         try {
-            console.log('Refreshing loading messages cache...');
             const supabase = await getSupabaseClient();
             
             const { data: messages, error } = await supabase
@@ -51,7 +49,6 @@ class LoadingMessagesService {
             this.cache.messages = messages || [];
             this.cache.lastFetched = Date.now();
             
-            console.log(`Loaded ${this.cache.messages.length} loading messages into cache`);
             
         } catch (error) {
             console.error('Failed to refresh loading messages cache:', error);

@@ -45,13 +45,11 @@ class FSRSSchedulerService {
                 progress: { processed: 0, total: 0, optimized: 0, skipped: 0, errors: 0 }
             };
 
-            console.log('🚀 Starting scheduled FSRS optimization...');
 
             // Get users who might need optimization
             const candidateUsers = await this.getCandidateUsers(options);
             this.currentJob.progress.total = candidateUsers.length;
 
-            console.log(`📊 Found ${candidateUsers.length} candidate users for optimization`);
 
             const results = {
                 success: true,
@@ -84,7 +82,6 @@ class FSRSSchedulerService {
                 this.currentJob.progress.skipped = results.skippedUsers;
                 this.currentJob.progress.errors = results.errorUsers;
 
-                console.log(`📈 Batch ${Math.floor(i / this.batchSize) + 1} complete: ${batch.length} users processed`);
 
                 // Small delay between batches to avoid overwhelming the system
                 if (i + this.batchSize < candidateUsers.length) {
@@ -95,7 +92,6 @@ class FSRSSchedulerService {
             results.endTime = new Date();
             results.duration = results.endTime - results.startTime;
 
-            console.log(`✅ Scheduled optimization complete: ${results.optimizedUsers}/${results.totalUsers} users optimized in ${(results.duration / 1000).toFixed(1)}s`);
 
             // Log summary
             await this.logScheduledOptimization(results);
@@ -182,7 +178,6 @@ class FSRSSchedulerService {
 
         const batchPromises = batch.map(async (userInfo) => {
             try {
-                console.log(`🔄 Processing user ${userInfo.userId} (${userInfo.totalReviews} reviews, ${userInfo.reason})`);
                 
                 const optimizationResult = await fsrsOptimizationService.optimizeUserParameters(
                     userInfo.userId, 
@@ -198,7 +193,6 @@ class FSRSSchedulerService {
                         confidence: optimizationResult.confidence,
                         improvements: optimizationResult.improvements
                     });
-                    console.log(`✅ User ${userInfo.userId} optimized (${optimizationResult.reviewsAnalyzed} reviews, ${(optimizationResult.confidence * 100).toFixed(1)}% confidence)`);
                 } else {
                     results.skipped++;
                     results.details.push({
@@ -206,7 +200,6 @@ class FSRSSchedulerService {
                         status: 'skipped',
                         reason: optimizationResult.reason
                     });
-                    console.log(`⏭️ User ${userInfo.userId} skipped: ${optimizationResult.reason}`);
                 }
             } catch (error) {
                 results.errors++;
@@ -230,7 +223,6 @@ class FSRSSchedulerService {
      */
     async generateSystemAnalytics(options = {}) {
         try {
-            console.log('📊 Generating system-wide FSRS analytics...');
             
             const supabase = await this.getSupabase();
             
@@ -252,7 +244,6 @@ class FSRSSchedulerService {
             };
 
             // Generate reports for each user (in batches)
-            console.log(`📈 Analyzing ${users.length} users...`);
             
             for (let i = 0; i < users.length; i += this.batchSize) {
                 const batch = users.slice(i, i + this.batchSize);
@@ -271,7 +262,6 @@ class FSRSSchedulerService {
                     }
                 });
 
-                console.log(`📊 Batch ${Math.floor(i / this.batchSize) + 1} analyzed`);
             }
 
             // Calculate aggregate metrics
@@ -283,7 +273,6 @@ class FSRSSchedulerService {
             // Analyze trends
             systemReport.trends = this.analyzeSystemTrends(systemReport.userReports);
 
-            console.log(`✅ System analytics complete: ${systemReport.userReports.length} user reports generated`);
             
             return systemReport;
         } catch (error) {
@@ -297,9 +286,6 @@ class FSRSSchedulerService {
      * @param {Object} config - Scheduler configuration
      */
     initializeScheduler(config = {}) {
-        console.log('📅 FSRS Scheduler initialized');
-        console.log('Note: Automatic scheduling requires server-side cron jobs or cloud functions');
-        console.log('For now, use runScheduledOptimization() manually or via admin interface');
         
         // In a production environment, this would set up:
         // - Cron jobs for regular optimization checks
@@ -426,15 +412,6 @@ class FSRSSchedulerService {
 
     async logScheduledOptimization(results) {
         // Log optimization results for tracking and analysis
-        console.log('📝 Scheduled Optimization Summary:', {
-            timestamp: results.endTime,
-            duration: `${(results.duration / 1000).toFixed(1)}s`,
-            totalUsers: results.totalUsers,
-            optimized: results.optimizedUsers,
-            skipped: results.skippedUsers,
-            errors: results.errorUsers,
-            successRate: `${((results.optimizedUsers / results.totalUsers) * 100).toFixed(1)}%`
-        });
 
         // In production, store this in a dedicated logging table
         // for historical tracking and optimization effectiveness analysis

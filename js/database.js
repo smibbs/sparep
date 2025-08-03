@@ -24,9 +24,7 @@ class DatabaseService {
     async initialize() {
         try {
             await this.ensureReviewHistorySchema();
-            // Database service initialized successfully
-        } catch (error) {
-            // Failed to initialize database service
+            } catch (error) {
         }
     }
 
@@ -112,7 +110,7 @@ class DatabaseService {
             .limit(1);
 
         if (error) {
-            // Review history table check failed
+            // Table check failed, continuing with default behavior
         }
     }
 
@@ -120,7 +118,6 @@ class DatabaseService {
         try {
             const supabase = await this.getSupabase();
             const user = (await supabase.auth.getUser()).data.user;
-            // Getting next due card for user
 
             // Get user's profile with tier information
             const { data: userProfile, error: profileError } = await supabase
@@ -130,7 +127,7 @@ class DatabaseService {
                 .single();
 
             if (profileError) {
-                // No user profile found, using default limit
+                // Profile error will use default values
             }
 
             const userTier = userProfile?.user_tier || 'free';
@@ -151,7 +148,6 @@ class DatabaseService {
                     return { limitReached: true, tier: 'free', reviewsToday, limit: SESSION_CONFIG.FREE_USER_DAILY_LIMIT };
                 }
             }
-            // User tier and limits checked
 
             // Get the next card for review (closest next_review_date first)
             // Build card filter based on user tier
@@ -183,16 +179,13 @@ class DatabaseService {
                 .limit(1);
 
             if (dueError) {
-                // Error fetching due cards
-                throw dueError;
+                    throw dueError;
             }
 
-            // Due cards found
 
             // If we found a card, return it
             if (dueCards && dueCards.length > 0) {
                 const card = dueCards[0];
-                // Returning card with closest next_review_date
                 return {
                     id: card.card_id,
                     question: card.cards.question,
@@ -219,16 +212,12 @@ class DatabaseService {
                 throw countError;
             }
 
-            // New cards studied today
 
             // If we haven't reached the daily limit, get a new card
             if (!newCardsToday || newCardsToday.length < newCardsLimit) {
-                // Under daily limit, fetching new card
                 const newCards = await this.getNewCards(user.id, 1, userTier);
-                // New cards fetched
                 if (newCards && newCards.length > 0) {
                     const newCard = newCards[0];
-                    // Returning new card
                     return {
                         id: newCard.id,
                         question: newCard.question,
@@ -236,14 +225,9 @@ class DatabaseService {
                         stability: 1.0,
                         difficulty: 5.0
                     };
-                } else {
-                    // No new cards available
                 }
-            } else {
-                // Daily new cards limit reached
             }
 
-            // No cards available
             // No cards available to return
             return null;
 
@@ -262,11 +246,9 @@ class DatabaseService {
 
             // Defensive checks for user_id and card_id
             if (!user || !user.id) {
-                // recordReview: Missing or invalid user
                 throw new Error('User not authenticated or missing user ID.');
             }
             if (!card_id || typeof card_id !== 'string' || card_id === 'undefined') {
-                // recordReview: Missing or invalid card_id
                 throw new Error('Missing or invalid card_id for review.');
             }
             
@@ -283,7 +265,6 @@ class DatabaseService {
                 .single();
 
             if (progressError && progressError.code !== 'PGRST116') {
-                // Error fetching current progress
                 throw new Error(progressError.message || 'Failed to fetch card progress. Please try again.');
             }
 
@@ -353,7 +334,6 @@ class DatabaseService {
                 });
 
             if (updateError) {
-                // Error updating progress
                 throw updateError;
             }
 
@@ -378,7 +358,6 @@ class DatabaseService {
                 });
 
             if (reviewError) {
-                // Error recording review history
                 throw reviewError;
             }
 
@@ -478,7 +457,6 @@ class DatabaseService {
      * @returns {Promise<Array>} Array of cards due for review
      */
     async getCardsDue(userId) {
-        console.log('📚 getCardsDue called for user:', userId);
         return await this.withMobileRetry(async () => {
             return await this._getCardsDueCore(userId);
         }, 'get due cards');
@@ -494,7 +472,6 @@ class DatabaseService {
             const nowISOString = now.toISOString();
 
             // Get user tier to determine card filtering
-            console.log('🔍 Fetching user profile...');
             const { data: userProfile, error: profileError } = await supabase
                 .from('user_profiles')
                 .select('user_tier')
@@ -507,7 +484,6 @@ class DatabaseService {
             }
 
             const userTier = userProfile?.user_tier || 'free';
-            console.log('👤 User tier:', userTier);
 
             // Build select query with card filtering based on user tier
             let cardSelect = `
@@ -528,7 +504,6 @@ class DatabaseService {
             `;
 
             // 1. Get cards that are actually due for review (next_review_date <= NOW) or are new
-            console.log('🔄 Building due cards query...');
             let dueQuery = supabase
                 .from('user_card_progress')
                 .select(cardSelect)
@@ -543,7 +518,6 @@ class DatabaseService {
                     .eq('cards.subjects.is_public', true);
             }
 
-            console.log('📡 Executing due cards query...');
             const { data: dueCards, error: dueError } = await dueQuery
                 .order('next_review_date', { ascending: true });
             
@@ -551,26 +525,7 @@ class DatabaseService {
                 console.error('❌ Error in due cards query:', dueError);
                 throw dueError;
             }
-            
-            console.log('✅ Due cards query successful, found:', dueCards?.length || 0, 'cards');
 
-            // Debug: Log due cards to check if filtering is working
-            console.log('Due cards loaded:', dueCards?.length, 'for user tier:', userTier);
-            console.log('Due cards filtered by date <= NOW or state = new');
-            
-            // Check for Portuguese cards specifically
-            const portugueseCards = dueCards?.filter(card => card.cards?.subjects?.name === 'Portuguese') || [];
-            console.log('Portuguese cards found in due cards:', portugueseCards.length);
-            
-            if (dueCards && dueCards.length > 0) {
-                console.log('Sample due card subjects:', dueCards.slice(0, 3).map(card => ({
-                    cardId: card.cards?.id,
-                    subject: card.cards?.subjects?.name,
-                    state: card.state,
-                    nextReviewDate: card.next_review_date,
-                    isDue: new Date(card.next_review_date) <= now
-                })));
-            }
 
             // 2. Get ALL new cards (no limit)
             let newQuery = supabase
@@ -591,15 +546,6 @@ class DatabaseService {
                 .order('created_at', { ascending: true });
             if (newCardsError) throw newCardsError;
 
-            // Debug: Log new cards to check if filtering is working
-            console.log('New cards (from progress) loaded:', newCards?.length, 'for user tier:', userTier);
-            if (newCards && newCards.length > 0) {
-                console.log('Sample new card subjects:', newCards.slice(0, 3).map(card => ({
-                    cardId: card.cards?.id,
-                    subject: card.cards?.subjects?.name,
-                    subjectActive: card.cards?.subjects?.is_active
-                })));
-            }
 
             // 3. Separate due cards by state and combine strategically
             const reviewCards = (dueCards || []).filter(card => card.state === 'review');
@@ -661,22 +607,6 @@ class DatabaseService {
                 }
             }
             
-            // Debug: Log session composition
-            console.log('Session composition:');
-            console.log('Available cards:', {
-                review: reviewCards.length,
-                learning: learningCards.length, 
-                new: allNewCards.length,
-                total: finalSessionCards.length
-            });
-            console.log('Cards selected for session:', finalSessionCards.length);
-            
-            // Show first few cards with due date info
-            finalSessionCards.slice(0, 5).forEach((card, index) => {
-                const nextReview = new Date(card.next_review_date);
-                const isDue = nextReview <= now;
-                console.log(`${index + 1}. Subject: ${card.cards?.subjects?.name}, State: ${card.state}, Due: ${isDue ? 'Yes' : 'No'} (${nextReview.toDateString()})`);
-            });
             
             return finalSessionCards;
         } catch (error) {
@@ -700,7 +630,6 @@ class DatabaseService {
                 throw new Error('Invalid limit for getting new cards. Must be between 0 and 100.');
             }
             
-            // Getting new cards for user
             const supabase = await this.getSupabase();
 
             // First get all seen card IDs
@@ -710,12 +639,10 @@ class DatabaseService {
                 .eq('user_id', userId);
 
             if (seenError) {
-                // Error fetching seen cards
                 throw seenError;
             }
 
             const seenCardIds = seenCards?.map(p => p.card_id).filter(Boolean) || [];
-            // Number of seen cards tracked
 
             // Then get new cards
             let newCardsQuery = supabase
@@ -744,24 +671,12 @@ class DatabaseService {
             const { data: newCards, error: newError } = await newCardsQuery;
 
             if (newError) {
-                // Error fetching new cards
                 throw newError;
             }
 
-            // Debug: Log new cards to check if filtering is working
-            console.log('New cards (direct) loaded:', newCards?.length, 'for user tier:', userTier);
-            if (newCards && newCards.length > 0) {
-                console.log('Sample direct new card subjects:', newCards.slice(0, 3).map(card => ({
-                    cardId: card.id,
-                    subject: card.subjects?.name,
-                    subjectActive: card.subjects?.is_active
-                })));
-            }
 
-            // Found new cards
             // Initialize progress for the new card
             if (newCards && newCards.length > 0) {
-                // Initializing progress for new cards
                 const now = new Date().toISOString();
                 const progressRecords = newCards
                     .filter(card => card && card.id)
@@ -783,7 +698,6 @@ class DatabaseService {
                         elapsed_days: 0,
                         scheduled_days: 0
                     }));
-                // Progress records to insert
                 if (progressRecords.length > 0) {
                     const { error: insertError } = await supabase
                         .from('user_card_progress')
@@ -792,12 +706,8 @@ class DatabaseService {
                         });
 
                     if (insertError) {
-                        // Error initializing progress for new cards
                         throw insertError;
                     }
-                    // Successfully initialized progress for new cards
-                } else {
-                    // No valid new cards to initialize progress for
                 }
             }
 
@@ -817,7 +727,6 @@ class DatabaseService {
     async initializeUserProgress(user_id, card_id) {
         try {
             if (!card_id) {
-                // initializeUserProgress called with invalid card_id
                 return null;
             }
             const supabase = await this.getSupabase();
@@ -836,7 +745,6 @@ class DatabaseService {
                 next_review_date: now,
                 due_date: now
             };
-            // Inserting initial progress record
             const { data, error } = await supabase
                 .from('user_card_progress')
                 .insert([initialProgress])
@@ -1224,7 +1132,6 @@ class DatabaseService {
                     //         };
                     //     }
                     // }
-                    console.log('Streak update temporarily disabled to fix session completion');
                 } catch (streakError) {
                     console.warn('Failed to update streak:', streakError);
                     // Don't fail the session if streak update fails
@@ -1235,14 +1142,10 @@ class DatabaseService {
                     const optimizationStatus = await fsrsOptimizationService.checkOptimizationNeeded(user.id);
                     
                     if (optimizationStatus.shouldOptimize) {
-                        console.log(`🧠 FSRS parameter optimization recommended: ${optimizationStatus.reason}`);
-                        
                         // Trigger optimization in background (don't wait for completion)
                         fsrsOptimizationService.optimizeUserParameters(user.id, { conservative: true })
                             .then(result => {
                                 if (result.success) {
-                                    console.log(`✅ FSRS parameters optimized! Analyzed ${result.reviewsAnalyzed} reviews with ${(result.confidence * 100).toFixed(1)}% confidence`);
-                                    
                                     // Store optimization result for potential UI notification
                                     if (typeof window !== 'undefined') {
                                         window.fsrsOptimizationResult = {
@@ -1252,15 +1155,11 @@ class DatabaseService {
                                             reviewsAnalyzed: result.reviewsAnalyzed
                                         };
                                     }
-                                } else {
-                                    console.log(`⚠️ FSRS optimization skipped: ${result.reason}`);
                                 }
                             })
                             .catch(optimizationError => {
                                 console.warn('FSRS optimization failed:', optimizationError);
                             });
-                    } else {
-                        console.log(`📊 FSRS optimization status: ${optimizationStatus.reason} (${optimizationStatus.totalReviews} reviews)`);
                     }
                 } catch (optimizationError) {
                     console.warn('Failed to check FSRS optimization:', optimizationError);
@@ -1335,7 +1234,6 @@ class DatabaseService {
         try {
             const supabase = await this.getSupabase();
             
-            console.log('=== DEBUG: Portuguese Cards Analysis ===');
             
             // Check Portuguese subject
             const { data: subject, error: subjectError } = await supabase
@@ -1349,7 +1247,6 @@ class DatabaseService {
                 return;
             }
             
-            console.log('Portuguese subject:', subject);
             
             // Check Portuguese cards
             const { data: cards, error: cardsError } = await supabase
@@ -1362,8 +1259,6 @@ class DatabaseService {
                 return;
             }
             
-            console.log('Portuguese cards total:', cards?.length);
-            console.log('Portuguese cards flagged:', cards?.filter(c => c.flagged_for_review).length);
             
             // Check user progress for Portuguese cards
             const { data: progress, error: progressError } = await supabase
@@ -1377,12 +1272,6 @@ class DatabaseService {
                 return;
             }
             
-            console.log('Portuguese cards with progress:', progress?.length);
-            console.log('Portuguese cards by state:', {
-                new: progress?.filter(p => p.state === 'new').length,
-                learning: progress?.filter(p => p.state === 'learning').length,
-                review: progress?.filter(p => p.state === 'review').length
-            });
             
             // Test the actual query used in getCardsDue
             const { data: dueTest, error: dueTestError } = await supabase
@@ -1414,7 +1303,6 @@ class DatabaseService {
                 return;
             }
             
-            console.log('Portuguese cards returned by due query:', dueTest?.length);
             
             return {
                 subject,
@@ -1492,7 +1380,6 @@ class DatabaseService {
                 return;
             }
             
-            console.log('⚠️ User profile missing for user:', userId, 'Creating now...');
             
             // Get user email from current auth session (safer than admin API)
             const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -1518,8 +1405,6 @@ class DatabaseService {
                 
             if (insertError) {
                 console.error('❌ Error creating user profile:', insertError);
-            } else {
-                console.log('✅ Created missing user profile for:', userId);
             }
             
         } catch (error) {
@@ -1564,9 +1449,7 @@ export default database;
 function initDatabaseService() {
     try {
         window.dbService = database; // Use the same instance
-        // Database service initialized successfully
     } catch (error) {
-        // Failed to initialize database service
         // Try again in 100ms if Supabase client isn't ready
         setTimeout(initDatabaseService, 100);
     }
@@ -1581,7 +1464,6 @@ document.addEventListener('DOMContentLoaded', initDatabaseService);
  */
 async function initializeUserProgress(userId) {
     try {
-        // Initializing progress for user
         
         // Get all cards that don't have progress records for this user
         const { data: cards, error: cardsError } = await supabase
@@ -1595,16 +1477,13 @@ async function initializeUserProgress(userId) {
             ));
 
         if (cardsError) {
-            // Error fetching cards for initialization
             throw cardsError;
         }
 
         if (!cards || cards.length === 0) {
-            // No new cards to initialize for user
             return;
         }
 
-        // Initializing cards for user
 
         // Create progress records for each card
         const progressRecords = cards.map(card => ({
@@ -1623,11 +1502,9 @@ async function initializeUserProgress(userId) {
             .insert(progressRecords);
 
         if (insertError) {
-            // Error initializing user progress
             throw insertError;
         }
 
-        // Successfully initialized progress for cards
     } catch (error) {
         const handledError = handleError(error, 'initializeUserProgress_standalone');
         throw new Error(handledError.userMessage);
@@ -1641,7 +1518,6 @@ async function initializeUserProgress(userId) {
  */
 async function getDueCards(userId) {
     try {
-        // Fetching due cards for user
         
         const now = new Date().toISOString();
         
@@ -1664,12 +1540,10 @@ async function getDueCards(userId) {
             .order('next_review_date', { ascending: true });
 
         if (error) {
-            // Error fetching due cards
             throw error;
         }
 
         if (!data || data.length === 0) {
-            // No cards due for review
             return [];
         }
 
@@ -1689,7 +1563,6 @@ async function getDueCards(userId) {
             }
         }));
 
-        // Found cards due for review
         return dueCards;
     } catch (error) {
         const handledError = handleError(error, 'getDueCards_standalone');

@@ -35,7 +35,6 @@ async function checkAndShowAdminNav(userId) {
             }
         }
     } catch (error) {
-        console.log('Could not check admin status:', error);
         // Silently fail - admin link stays hidden (no user notification needed)
     }
 }
@@ -155,11 +154,9 @@ async function transitionToState(newState, message = null) {
         if (loadingMessage) {
             if (message) {
                 // Use provided message
-                console.log('Using provided loading message:', message);
                 loadingMessage.textContent = message;
             } else {
                 // Use dynamic message from database
-                console.log('Attempting to get dynamic loading message...');
                 try {
                     if (!appState.dbService) {
                         console.warn('dbService not available yet');
@@ -168,7 +165,6 @@ async function transitionToState(newState, message = null) {
                     }
                     
                     const dynamicMessage = appState.dbService.getRandomLoadingMessageSync();
-                    console.log('✅ Successfully set dynamic loading message:', dynamicMessage);
                     loadingMessage.textContent = dynamicMessage;
                 } catch (error) {
                     console.warn('❌ Failed to get dynamic loading message:', error);
@@ -193,7 +189,6 @@ async function transitionToState(newState, message = null) {
         const errorState = document.getElementById('error-state');
         if (errorState && !errorState.classList.contains('hidden')) {
             errorState.classList.add('hidden');
-            console.log('✅ Explicitly hid error state when showing content');
         }
     }
     
@@ -356,7 +351,6 @@ function handleMobileLoadingTimeout() {
     // Clear any stuck session data that might be causing issues
     try {
         if (appState?.sessionManager) {
-            console.log('[Mobile] Clearing session data during timeout recovery');
             appState.sessionManager.clearSession();
         }
     } catch (error) {
@@ -372,7 +366,6 @@ function handleMobileLoadingTimeout() {
             recoveryButton.className = 'nav-button';
             recoveryButton.textContent = isProduction ? 'Hard Refresh' : 'Force Refresh';
             recoveryButton.onclick = () => {
-                console.log('[Mobile] User initiated force refresh');
                 // Production-specific: force bypass cache
                 if (isProduction) {
                     window.location.href = window.location.href + '?t=' + Date.now();
@@ -935,7 +928,6 @@ async function showSessionCompleteMessage(sessionData) {
                         
                         // Prevent double-clicks and concurrent calls
                         if (appState.isLoadingSession) {
-                            console.log('Session already loading, ignoring new session button click');
                             return;
                         }
                         
@@ -1014,7 +1006,6 @@ async function loadSession() {
     
     // Atomic flag setting to prevent race conditions
     if (appState.isLoadingSession) {
-        console.log('Session loading already in progress, skipping duplicate call');
         return;
     }
     
@@ -1025,7 +1016,6 @@ async function loadSession() {
     // Double-check after setting flag (in case another call set it simultaneously)
     if (appState.loadSessionStartTime !== callTime) {
         appState.isLoadingSession = false;
-        console.log('Concurrent session loading detected, aborting duplicate call');
         return;
     }
     
@@ -1049,7 +1039,6 @@ async function loadSession() {
                     const minimumDuration = 1000; // 1 second
                     if (elapsed < minimumDuration) {
                         const remainingTime = minimumDuration - elapsed;
-                        console.log(`⏳ Waiting ${remainingTime}ms more for minimum loading duration`);
                         await new Promise(resolve => setTimeout(resolve, remainingTime));
                     }
                 } else {
@@ -1059,7 +1048,6 @@ async function loadSession() {
                 
                 // Now prepare and display content after timer completes
                 await displayCurrentCard();
-                console.log('🏁 Transitioning to content after minimum loading duration');
                 await transitionToState('content');
                 return;
             }
@@ -1142,7 +1130,6 @@ async function loadSession() {
             const minimumDuration = 1000; // 1 second
             if (elapsed < minimumDuration) {
                 const remainingTime = minimumDuration - elapsed;
-                console.log(`⏳ Waiting ${remainingTime}ms more for minimum loading duration (new session)`);
                 await new Promise(resolve => setTimeout(resolve, remainingTime));
             }
         } else {
@@ -1154,7 +1141,6 @@ async function loadSession() {
         await displayCurrentCard();
         
         // Transition to content
-        console.log('🏁 Transitioning to content after minimum loading duration (new session)');
         await transitionToState('content');
         
     } catch (error) {
@@ -1209,7 +1195,6 @@ async function initializeApp() {
         try {
             const { default: loadingMessagesService } = await import('./loadingMessages.js');
             await loadingMessagesService.forceRefresh();
-            console.log('Loading messages service initialized and ready');
             
             // Set dynamic loading message immediately
             const loadingText = document.querySelector('.loading-text');
@@ -1217,7 +1202,6 @@ async function initializeApp() {
                 try {
                     const dynamicMessage = appState.dbService.getRandomLoadingMessageSync();
                     loadingText.textContent = dynamicMessage;
-                    console.log('🎯 Set initial dynamic loading message:', dynamicMessage);
                 } catch (error) {
                     console.warn('Failed to set initial dynamic loading message:', error);
                 }
@@ -1234,7 +1218,6 @@ async function initializeApp() {
         
         // Record start time to ensure minimum loading duration
         loadingStartTime = Date.now();
-        console.log('🕐 Loading state started at:', new Date().toISOString());
         
         // Check authentication
         const user = await auth.getCurrentUser();
@@ -1258,7 +1241,6 @@ async function initializeApp() {
         // Initialize FSRS parameters for the user
         try {
             await database.getUserFSRSParameters(user.id);
-            console.log('FSRS parameters initialized for user');
         } catch (error) {
             console.error('Error initializing FSRS parameters:', error);
             // Continue even if FSRS parameter initialization fails
@@ -1269,7 +1251,6 @@ async function initializeApp() {
             const { default: streakUI } = await import('./streakUI.js');
             await streakUI.initialize(appState.user.id);
             window.streakUI = streakUI; // Make globally available
-            console.log('Streak UI initialized');
         } catch (error) {
             console.error('Error initializing streak UI:', error);
             // Continue even if streak UI initialization fails
@@ -1381,7 +1362,6 @@ function setupMobileBrowserStateManagement() {
     window.addEventListener('pageshow', (event) => {
         if (event.persisted) {
             // Page was loaded from browser cache
-            console.log('Page restored from cache on mobile');
             handleMobilePageRestore();
         }
     });
@@ -1407,13 +1387,11 @@ function setupMobileBrowserStateManagement() {
  * Handle mobile app going to background
  */
 function handleMobileAppBackground() {
-    console.log('Mobile app going to background');
     
     // Save current session state
     if (appState.sessionManager && appState.sessionManager.sessionData) {
         try {
             appState.sessionManager.saveSession();
-            console.log('Session saved on mobile background');
         } catch (error) {
             console.warn('Failed to save session on background:', error);
         }
@@ -1427,14 +1405,12 @@ function handleMobileAppBackground() {
  * Handle mobile app returning to foreground
  */
 function handleMobileAppForeground() {
-    console.log('Mobile app returning to foreground');
     
     // Check if we need to refresh auth state
     if (appState.authService && typeof appState.authService.getCurrentUser === 'function') {
         appState.authService.getCurrentUser().then(user => {
             if (!user && appState.user) {
                 // User session expired while in background
-                console.log('User session expired while in background');
                 appState.authService.redirectToLogin();
             } else if (user && !appState.user) {
                 // User logged in while in background (shouldn't happen but handle it)
@@ -1461,17 +1437,14 @@ function handleMobileAppForeground() {
  * Handle mobile page restore from browser cache
  */
 function handleMobilePageRestore() {
-    console.log('Handling mobile page restore from cache');
     
     // Verify current state makes sense
     if (currentState === 'loading') {
         // We might have been stuck in loading when cached
-        console.log('Restoring from cache while in loading state');
         
         // Try to recover by restarting the session load
         if (appState.user && !appState.isLoadingSession) {
             setTimeout(() => {
-                console.log('Attempting to restart session after cache restore');
                 loadSession().catch(error => {
                     console.error('Failed to restart session after cache restore:', error);
                 });
@@ -1483,7 +1456,6 @@ function handleMobilePageRestore() {
     if (appState.sessionManager && typeof appState.sessionManager.detectStorageMethod === 'function') {
         const newStorageMethod = appState.sessionManager.detectStorageMethod();
         if (newStorageMethod !== appState.sessionManager.storageMethod) {
-            console.log(`Storage method changed after restore: ${appState.sessionManager.storageMethod} -> ${newStorageMethod}`);
             appState.sessionManager.storageMethod = newStorageMethod;
         }
     }

@@ -408,10 +408,8 @@ For the best experience, consider using Safari in normal mode or another browser
      * Manual cache cleanup trigger (for testing/admin)
      */
     manualCleanup() {
-        console.log('Running manual cache cleanup...');
         this.cleanupExpiredSessions();
         this.enforceCacheSize();
-        console.log('Manual cleanup completed');
         return this.getCacheHealth();
     }
     
@@ -419,7 +417,6 @@ For the best experience, consider using Safari in normal mode or another browser
      * Apply mobile-specific optimizations
      */
     applyMobileOptimizations() {
-        console.log('Applying mobile cache optimizations');
         
         // More aggressive cleanup for mobile
         const mobileCleanupInterval = CACHE_CONFIG.CLEANUP_INTERVAL_MS / 2; // Every 30 minutes
@@ -541,8 +538,6 @@ For the best experience, consider using Safari in normal mode or another browser
             aggressiveCleanupRuns: (this.getCacheStats().aggressiveCleanupRuns || 0) + 1,
             lastAggressiveCleanup: new Date().toISOString()
         });
-        
-        console.log('Aggressive cleanup completed');
     }
     
     /**
@@ -564,8 +559,6 @@ For the best experience, consider using Safari in normal mode or another browser
         if (typeof document !== 'undefined') {
             document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
         }
-        
-        console.log('SessionManager cleanup completed');
     }
 
     /**
@@ -606,7 +599,6 @@ For the best experience, consider using Safari in normal mode or another browser
                     delete this.sessionData.againCards;
                 }
                 
-                console.log(`Session loaded from ${this.storageMethod}`);
                 return true;
             }
         } catch (error) {
@@ -804,7 +796,6 @@ For the best experience, consider using Safari in normal mode or another browser
             }
             
             if (cleanedCount > 0) {
-                console.log(`Cleaned up ${cleanedCount} expired sessions`);
                 this.updateCacheStats({ 
                     cleanupRuns: (this.getCacheStats().cleanupRuns || 0) + 1,
                     lastCleanup: new Date().toISOString(),

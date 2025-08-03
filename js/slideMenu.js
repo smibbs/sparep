@@ -18,11 +18,9 @@ export class SlideMenu {
      */
     async initialize() {
         try {
-            console.log('Initializing slide menu...');
             
             // Get user profile data
             this.userProfile = await auth.getUserProfile();
-            console.log('User profile loaded:', this.userProfile);
             
             if (!this.userProfile) {
                 console.error('Could not load user profile for slide menu');
@@ -31,19 +29,15 @@ export class SlideMenu {
 
             // Create menu elements
             this.createMenuElements();
-            console.log('Menu elements created');
             
             // Insert into DOM
             this.insertIntoDom();
-            console.log('Menu inserted into DOM');
             
             // Set up event listeners
             this.setupEventListeners();
-            console.log('Event listeners set up');
             
             // Initialize avatar with menu toggle callback
             await userAvatar.initialize(() => this.toggle());
-            console.log('User avatar initialized');
             
             return true;
         } catch (error) {

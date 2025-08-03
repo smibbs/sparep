@@ -918,7 +918,6 @@ class AdminService {
             const supabase = await this.getSupabase();
             const subjectId = document.getElementById('subject-filter')?.value || null;
 
-            console.log('Loading combined analytics...', { subjectId });
 
             // Load basic cards data with review statistics
             let basicQuery = supabase
@@ -1181,7 +1180,6 @@ class AdminService {
                 throw new Error('Admin access required');
             }
 
-            console.log('Attempting to update subject:', { subjectId, newStatus, userId: user.id });
             
             // First, let's verify the subject exists
             const { data: existingSubject, error: selectError } = await supabase
@@ -1195,7 +1193,6 @@ class AdminService {
                 throw new Error(`Subject not found: ${selectError.message}`);
             }
 
-            console.log('Found subject:', existingSubject);
 
             // Use the admin function to update subject status
             const { data, error } = await supabase
@@ -1209,7 +1206,6 @@ class AdminService {
                 throw new Error(`Database error: ${error.message}`);
             }
 
-            console.log('Update result:', data);
 
             if (!data) {
                 throw new Error('No data returned from update operation');
@@ -1251,7 +1247,6 @@ class AdminService {
                 throw error;
             }
 
-            console.log('Bulk update result:', data);
             
             const updatedCount = data?.updated_count || 0;
             this.showSuccess(`${updatedCount} subject(s) ${action}d successfully`);
@@ -1322,7 +1317,6 @@ class AdminService {
                 localStorage.removeItem(key); // Also clear localStorage just in case
             });
             
-            console.log('User sessions cleared due to subject status change');
             
             // Show a notification that users should refresh their study sessions
             this.showInfo('Subject changes applied. Users should refresh their study sessions to see changes.');
@@ -1363,7 +1357,6 @@ class AdminService {
                 return false;
             }
             
-            console.log('Migration applied successfully:', data);
             return true;
         } catch (error) {
             console.error('Failed to apply migration:', error);
@@ -1683,7 +1676,6 @@ class AdminService {
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
             
-            console.log(`Exported ${data.length} cards to CSV`);
             
         } catch (error) {
             console.error('Error exporting data:', error);

@@ -435,14 +435,6 @@ class FSRSOptimizationService {
     async logOptimizationHistory(userId, oldParams, newParams, analysis) {
         try {
             // For now, just log to console. In future, store in database table
-            console.log('FSRS Optimization Applied:', {
-                userId,
-                timestamp: new Date().toISOString(),
-                reviewsAnalyzed: analysis.totalReviews,
-                confidence: analysis.confidence,
-                keyChanges: this.summarizeKeyChanges(oldParams, newParams),
-                expectedImprovements: analysis.suggestions.expectedImprovements
-            });
         } catch (error) {
             console.error('Error logging optimization history:', error);
         }

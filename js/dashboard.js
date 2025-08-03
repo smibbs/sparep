@@ -28,7 +28,7 @@ async function checkAndShowAdminNav(userId) {
             }
         }
     } catch (error) {
-        console.log('Could not check admin status:', error);
+        console.warn('Could not check admin status:', error);
         // Silently fail - admin link stays hidden
     }
 }
