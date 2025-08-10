@@ -218,8 +218,9 @@ export default {
 
 // Export all configurations for named imports
 export {
+    SESSION_CONFIG,
     FSRS_RATINGS,
-    CARD_STATES, 
+    CARD_STATES,
     FLAG_REASONS,
     USER_TIERS,
     DAILY_LIMITS,
