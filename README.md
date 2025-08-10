@@ -99,3 +99,5 @@ Use this import pattern in examples and guides to ensure caching settings are av
 ## Contact & Support
 - For issues, open a GitHub issue or contact the development team.
 - See `migration/README.md` for more troubleshooting tips.
+
+*Updated: Testing GitHub Pages deployment automation*
