@@ -1750,14 +1750,22 @@ class DatabaseService {
             const newCards = await this.getNewCards(userId, 10);
             console.log(`🃏 Found ${newCards ? newCards.length : 0} new cards`);
             if (newCards && newCards.length > 0) {
-                console.log('🔍 Sample new card structure:', newCards[0]);
+                const sanitizedCard = {
+                    id: newCards[0].card_template_id ?? newCards[0].id,
+                    questionPreview: newCards[0].question ? newCards[0].question.substring(0, 30) : undefined
+                };
+                console.log('🔍 Sample new card (sanitized):', sanitizedCard);
             }
             
             // Try to get due cards
             const dueCards = await this.getCardsDue(userId);
             console.log(`⏰ Found ${dueCards ? dueCards.length : 0} due cards`);
             if (dueCards && dueCards.length > 0) {
-                console.log('🔍 Sample due card structure:', dueCards[0]);
+                const sanitizedCard = {
+                    id: dueCards[0].card_template_id ?? dueCards[0].id,
+                    dueAt: dueCards[0].due_at
+                };
+                console.log('🔍 Sample due card (sanitized):', sanitizedCard);
             }
             
             return {
