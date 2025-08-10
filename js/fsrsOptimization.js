@@ -83,7 +83,7 @@ class FSRSOptimizationService {
                 .from('reviews')
                 .select('*')
                 .eq('user_id', userId)
-                .order('review_date', { ascending: false })
+                .order('reviewed_at', { ascending: false })
                 .limit(500);
 
             if (reviewError) throw reviewError;
@@ -190,7 +190,7 @@ class FSRSOptimizationService {
             averageResponseTime: 0,
             stabilityTrend: 0,
             difficultyTrend: 0,
-            ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0 },
+            ratingDistribution: { 0: 0, 1: 0, 2: 0, 3: 0 },
             retentionRate: 0,
             learningEfficiency: 0
         };
@@ -198,14 +198,16 @@ class FSRSOptimizationService {
         if (reviews.length === 0) return metrics;
 
         // Calculate basic metrics
-        const correctReviews = reviews.filter(r => r.rating >= 3).length;
+        const correctReviews = reviews.filter(r => r.rating >= 2).length;
         metrics.correctRate = correctReviews / reviews.length;
         
         metrics.averageResponseTime = reviews.reduce((sum, r) => sum + (r.response_time_ms || 0), 0) / reviews.length;
 
         // Rating distribution
         reviews.forEach(review => {
-            metrics.ratingDistribution[review.rating]++;
+            if (metrics.ratingDistribution.hasOwnProperty(review.rating)) {
+                metrics.ratingDistribution[review.rating]++;
+            }
         });
 
         // Calculate trends (comparing first half vs second half of reviews)
@@ -226,7 +228,7 @@ class FSRSOptimizationService {
         // Calculate retention rate (successful reviews after predicted intervals)
         const retentionSamples = reviews.filter(r => r.elapsed_days > 0 && r.scheduled_days > 0);
         if (retentionSamples.length > 0) {
-            const successfulRetentions = retentionSamples.filter(r => r.rating >= 3).length;
+            const successfulRetentions = retentionSamples.filter(r => r.rating >= 2).length;
             metrics.retentionRate = successfulRetentions / retentionSamples.length;
         }
 
@@ -269,7 +271,7 @@ class FSRSOptimizationService {
         predictableReviews.forEach(review => {
             // Calculate predicted retrievability using FSRS formula
             const predictedRetrievability = calculateRetrievability(review.elapsed_days, review.stability_before);
-            const actualSuccess = review.rating >= 3 ? 1 : 0;
+            const actualSuccess = review.rating >= 2 ? 1 : 0;
             
             predictions.push(predictedRetrievability);
             actuals.push(actualSuccess);
