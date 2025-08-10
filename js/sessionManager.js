@@ -4,6 +4,8 @@
 import { SESSION_CONFIG, CACHE_CONFIG } from './config.js';
 import Validator from './validator.js';
 
+const DEBUG = false;
+
 class SessionManager {
     constructor() {
         this.sessionData = null;
@@ -176,7 +178,7 @@ For the best experience, consider using Safari in normal mode or another browser
             // Get up to configured session size due cards
             const dueCards = await dbService.getCardsDue(userId);
             console.log(`📋 SessionManager: Found ${dueCards.length} due cards`);
-            if (dueCards.length > 0) {
+            if (DEBUG && dueCards.length > 0) {
                 console.log('🔍 Sample due card from service:', dueCards[0]);
             }
             
@@ -190,7 +192,7 @@ For the best experience, consider using Safari in normal mode or another browser
                 const newCardsNeeded = SESSION_CONFIG.CARDS_PER_SESSION - dueCards.length;
                 const newCards = await dbService.getNewCards(userId, newCardsNeeded);
                 console.log(`🆕 SessionManager: Found ${newCards.length} new cards`);
-                if (newCards.length > 0) {
+                if (DEBUG && newCards.length > 0) {
                     console.log('🔍 Sample new card from service:', newCards[0]);
                 }
 
@@ -211,7 +213,9 @@ For the best experience, consider using Safari in normal mode or another browser
                     due_at: card.due_at || new Date().toISOString()
                 }));
 
-                console.log('🔧 After transformation - sample new card:', formattedNewCards[0]);
+                if (DEBUG && formattedNewCards.length > 0) {
+                    console.log('🔧 After transformation - sample new card:', formattedNewCards[0]);
+                }
             }
 
 
@@ -233,13 +237,13 @@ For the best experience, consider using Safari in normal mode or another browser
                 last_reviewed_at: card.last_reviewed_at
             }));
 
-            if (formattedDueCards.length > 0) {
+            if (DEBUG && formattedDueCards.length > 0) {
                 console.log('🔧 After transformation - sample due card:', formattedDueCards[0]);
             }
 
             const allCards = [...formattedDueCards, ...formattedNewCards];
             console.log(`🎯 Final combined cards: ${allCards.length} total`);
-            if (allCards.length > 0) {
+            if (DEBUG && allCards.length > 0) {
                 console.log('🔍 Sample final card:', allCards[0]);
             }
             
@@ -256,7 +260,9 @@ For the best experience, consider using Safari in normal mode or another browser
                 return true; // Keep this unique card
             });
             
-            console.log('🔍 Unique cards after deduplication:', uniqueCards);
+            if (DEBUG) {
+                console.log('🔍 Unique cards after deduplication:', uniqueCards);
+            }
             console.log('🔍 Removed duplicates:', allCards.length - uniqueCards.length);
             
             // If we still don't have enough cards, that's okay for now
