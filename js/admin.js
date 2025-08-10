@@ -1451,6 +1451,14 @@ class AdminService {
 
             // Get card counts for each deck
             const deckIds = decks?.map(d => d.id) || [];
+
+            // If there are no decks, display an empty list and exit early
+            if (deckIds.length === 0) {
+                this.displayDecks([], 'All Active Decks');
+                this.showInfo('No decks found');
+                return;
+            }
+
             const { data: cardCounts, error: countError } = await supabase
                 .from('user_cards')
                 .select('deck_id')

@@ -159,20 +159,14 @@
                     return;
                 }
                 
-                // Get user profile to check admin status
+                // Validate admin access
                 const userProfile = await auth.getUserProfile();
+                const isAdmin = await auth.verifyAdminAccess();
                 console.log('User profile:', userProfile);
-                console.log('Current user tier:', userProfile?.user_tier);
-                
-                if (!userProfile) {
-                    console.log('No user profile found');
-                    document.getElementById('access-loading').classList.add('hidden');
-                    document.getElementById('access-denied').classList.remove('hidden');
-                    return;
-                }
-                
-                if (userProfile.user_tier !== 'admin') {
-                    console.log(`User is not admin. Current tier: ${userProfile.user_tier}`);
+                console.log('Admin verification:', isAdmin);
+
+                if (!userProfile || !isAdmin) {
+                    console.log(`Admin access denied. is_admin: ${userProfile?.is_admin}`);
                     document.getElementById('access-loading').classList.add('hidden');
                     document.getElementById('access-denied').classList.remove('hidden');
                     return;
