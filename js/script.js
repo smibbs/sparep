@@ -484,6 +484,7 @@ async function displayCurrentCard() {
     
     try {
         if (!appState.currentCard) {
+            console.warn('displayCurrentCard called without a current card', appState);
             showError('No card available for review.');
             return;
         }
@@ -491,9 +492,10 @@ async function displayCurrentCard() {
     const currentCard = appState.currentCard;
     // Displaying card
     appState.cardStartTime = Date.now(); // Track when the card was shown
-    
+
     // Robust check for card data
     if (!currentCard || typeof currentCard.cards?.question !== 'string' || typeof currentCard.cards?.answer !== 'string') {
+        console.error('Card data is missing or invalid:', currentCard);
         showError('Card data is missing or invalid. Please refresh or contact support.');
         return;
     }
@@ -501,9 +503,10 @@ async function displayCurrentCard() {
     const cardFront = document.querySelector('.card-front');
     const cardBack = document.querySelector('.card-back');
     const card = document.querySelector('.card');
-    
+
     if (!cardFront || !cardBack || !card) {
-        // Card elements not found
+        console.error('Card display elements not found', { cardFront, cardBack, card });
+        showError('Card display elements not found.');
         return;
     }
 
