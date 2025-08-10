@@ -725,8 +725,7 @@ class DatabaseService {
             // Initialize progress for the new card (already handled by the view)
             // The v_new_user_cards view only returns cards that are already in user_cards
             // so no need to initialize progress here
-                // Progress records are already handled by the database views
-            }
+            // Progress records are already handled by the database views
 
             return newCards || [];
         } catch (error) {
