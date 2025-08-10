@@ -19,6 +19,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
+      - name: Create Supabase configuration
+        run: |
+          cat > config/supabase-config.js << 'EOF'
+          const SUPABASE_URL = '${{ secrets.SUPABASE_URL }}';
+          const SUPABASE_ANON_KEY = '${{ secrets.SUPABASE_ANON_KEY }}';
+
+          window.supabaseConfig = {
+              SUPABASE_URL,
+              SUPABASE_ANON_KEY
+          };
+          EOF
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
