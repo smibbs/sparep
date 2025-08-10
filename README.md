@@ -69,6 +69,13 @@ A modern, database-backed spaced repetition flashcard app with user authenticati
 - Manual testing: login, study cards, check dashboard, logout.
 - See `/tests/database-test.html` for database connectivity tests.
 
+
+## Import Audit
+Run a static check to ensure JavaScript imports reference existing exports:
+
+```sh
+npm run audit-imports
+```
 ## Database Schema
 - See `migration/README.md` for full schema, migration order, and ER diagram.
 
