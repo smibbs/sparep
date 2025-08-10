@@ -105,6 +105,11 @@ const MOBILE_MAX_LOADING_TIME = 30000; // 30 seconds max loading on mobile
 let loadingTimeoutId = null;
 let loadingStartTimestamp = null;
 
+// Desktop-specific loading state management
+const DESKTOP_MAX_LOADING_TIME = 30000; // 30 seconds max loading on desktop
+let desktopLoadingTimeoutId = null;
+let desktopLoadingStartTimestamp = null;
+
 async function transitionToState(newState, message = null) {
     if (currentState === newState) return;
     
@@ -113,9 +118,10 @@ async function transitionToState(newState, message = null) {
     const savingState = document.getElementById('saving-state');
     const content = document.getElementById('content');
     
-    // Clear mobile loading timeout when leaving loading state
+    // Clear loading timeouts when leaving loading state
     if (currentState === 'loading' && newState !== 'loading') {
         clearMobileLoadingTimeout();
+        clearDesktopLoadingTimeout();
     }
     
     // Ensure minimum loading time if transitioning away from loading
@@ -194,10 +200,11 @@ async function transitionToState(newState, message = null) {
     
     currentState = newState;
     
-    // Track loading start time and setup mobile timeout
+    // Track loading start time and setup loading timeouts
     if (newState === 'loading') {
         minimumLoadingStartTime = Date.now();
         setupMobileLoadingTimeout();
+        setupDesktopLoadingTimeout();
     }
 }
 
@@ -374,6 +381,74 @@ function handleMobileLoadingTimeout() {
                 }
             };
             errorActions.insertBefore(recoveryButton, errorActions.firstChild);
+        }
+    }, 100);
+}
+
+/**
+ * Setup desktop loading timeout to prevent stuck states
+ */
+function setupDesktopLoadingTimeout() {
+    // Only setup timeout on desktop devices
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        return;
+    }
+
+    // Clear any existing timeout
+    clearDesktopLoadingTimeout();
+
+    desktopLoadingStartTimestamp = Date.now();
+    desktopLoadingTimeoutId = setTimeout(() => {
+        handleDesktopLoadingTimeout();
+    }, DESKTOP_MAX_LOADING_TIME);
+}
+
+/**
+ * Clear desktop loading timeout
+ */
+function clearDesktopLoadingTimeout() {
+    if (desktopLoadingTimeoutId) {
+        clearTimeout(desktopLoadingTimeoutId);
+        desktopLoadingTimeoutId = null;
+    }
+    desktopLoadingStartTimestamp = null;
+}
+
+/**
+ * Handle desktop loading timeout - show retry option
+ */
+function handleDesktopLoadingTimeout() {
+    const hostname = window.location.hostname;
+    console.error('Loading timeout detected on desktop', {
+        hostname,
+        currentState,
+        loadingDuration: desktopLoadingStartTimestamp ? Date.now() - desktopLoadingStartTimestamp : 'unknown'
+    });
+
+    if (currentState !== 'loading') {
+        return;
+    }
+
+    showError('Loading is taking longer than expected. Please check your internet connection and try again.');
+
+    // Clear any stuck session data that might be causing issues
+    try {
+        if (appState?.sessionManager) {
+            appState.sessionManager.clearSession();
+        }
+    } catch (error) {
+        console.warn('Failed to clear session during timeout recovery:', error);
+    }
+
+    setTimeout(() => {
+        const errorActions = document.querySelector('.error-actions');
+        if (errorActions && !document.getElementById('desktop-retry-button')) {
+            const retryButton = document.createElement('button');
+            retryButton.id = 'desktop-retry-button';
+            retryButton.className = 'nav-button';
+            retryButton.textContent = 'Retry';
+            retryButton.onclick = () => window.location.reload();
+            errorActions.insertBefore(retryButton, errorActions.firstChild);
         }
     }, 100);
 }
