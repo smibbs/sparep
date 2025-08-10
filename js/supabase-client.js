@@ -57,10 +57,17 @@ async function initializeSupabase() {
         return supabase;
     } catch (error) {
         // Failed to initialize Supabase client
-        
+
         // Clear the failed client
         supabase = null;
-        
+
+        if (typeof window !== 'undefined') {
+            window.supabaseClientError = error.message;
+            if (typeof window.showError === 'function') {
+                window.showError(error.message || 'Failed to initialize Supabase client.');
+            }
+        }
+
         // Retry initialization if under max retries
         if (initializationRetries < MAX_RETRIES) {
             initializationRetries++;
@@ -68,7 +75,7 @@ async function initializeSupabase() {
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
             return initializeSupabase();
         }
-        
+
         throw error;
     }
 }

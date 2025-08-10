@@ -10,6 +10,7 @@ import { handleError } from './errorHandler.js';
 
 // Use global Supabase client
 const supabase = window.supabaseClient;
+const supabaseInitializationError = window.supabaseClientError || window.supabaseConfigError || null;
 
 /**
  * Check if user is admin and show admin navigation link
@@ -262,6 +263,16 @@ function showLoading(show) {
 
 function showError(message) {
     transitionToState('error', message);
+}
+
+// Make showError available globally for early error handling
+window.showError = showError;
+
+// If Supabase failed to initialize, show error and stop further execution
+if (!supabase) {
+    const message = supabaseInitializationError || 'Supabase client failed to initialize. Please check your configuration.';
+    showError(message);
+    throw new Error(message);
 }
 
 function showContent(show) {
