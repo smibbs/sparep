@@ -70,14 +70,14 @@ class AdminService {
             if (error || !user) return false;
 
             const { data: profile, error: profileError } = await supabase
-                .from('user_profiles')
-                .select('user_tier')
+                .from('profiles')
+                .select('user_tier, is_admin')
                 .eq('id', user.id)
                 .single();
 
             if (profileError) return false;
 
-            return profile?.user_tier === 'admin';
+            return profile?.is_admin === true;
         } catch (error) {
             console.error('Error checking admin access:', error);
             return false;
@@ -170,6 +170,15 @@ class AdminService {
                             <h3>Flagged Cards</h3>
                             <div id="flagged-cards-list"></div>
                             <button id="refresh-flagged" class="btn btn-primary">Refresh</button>
+                        </div>
+                        <div class="admin-section">
+                            <h3>Deck Management</h3>
+                            <div class="form-group">
+                                <input type="text" id="deck-search" placeholder="Search decks..." class="form-input">
+                                <button id="search-decks" class="btn btn-primary">Search</button>
+                                <button id="view-all-decks" class="btn btn-secondary">View All</button>
+                            </div>
+                            <div id="deck-list" class="deck-list-container"></div>
                         </div>
                         <div class="admin-section">
                             <h3>Card Management</h3>
@@ -553,6 +562,15 @@ class AdminService {
             this.updateUserTier();
         });
 
+        // Deck management actions
+        document.getElementById('search-decks')?.addEventListener('click', () => {
+            this.searchDecks();
+        });
+
+        document.getElementById('view-all-decks')?.addEventListener('click', () => {
+            this.loadAllDecks();
+        });
+
         // Subject management actions
         document.getElementById('refresh-subjects')?.addEventListener('click', () => {
             this.loadSubjectsForManagement();
@@ -571,27 +589,44 @@ class AdminService {
         });
 
 
-        // Initialize analytics
+        // Initialize analytics and deck management
         this.loadSubjects();
         this.loadAnalytics();
+        this.loadAllDecks(); // Initialize deck overview
     }
 
     async loadFlaggedCards() {
         try {
             const supabase = await this.getSupabase();
             
-            // Get admin-flagged cards
+            // Get admin-flagged cards with new fields
             const { data: adminFlagged, error: adminError } = await supabase
-                .from('cards')
-                .select('id, question, answer, flagged_reason, flagged_at, flagged_by')
+                .from('card_templates')
+                .select('id, question, answer, subsection, tags, flagged_reason, flagged_at, flagged_by, total_reviews, correct_reviews, incorrect_reviews')
                 .eq('flagged_for_review', true)
                 .order('flagged_at', { ascending: false });
 
             if (adminError) throw adminError;
 
-            // Get user-flagged cards
+            // Get user-flagged cards with detailed information
             const { data: userFlagged, error: userError } = await supabase
-                .rpc('get_flagged_cards_for_admin');
+                .from('user_card_flags')
+                .select(`
+                    id,
+                    card_template_id,
+                    reason,
+                    comment,
+                    created_at,
+                    card_templates!inner (
+                        id,
+                        question,
+                        answer,
+                        subsection,
+                        tags
+                    )
+                `)
+                .is('resolved_at', null)
+                .order('created_at', { ascending: false });
 
             if (userError) {
                 console.warn('Could not load user-flagged cards:', userError);
@@ -610,6 +645,9 @@ class AdminService {
                         <h4>Card ID: ${card.id}</h4>
                         <p><strong>Question:</strong> ${this.escapeHtml(card.question)}</p>
                         <p><strong>Answer:</strong> ${this.escapeHtml(card.answer)}</p>
+                        ${card.subsection ? `<p><strong>Section:</strong> ${this.escapeHtml(card.subsection)}</p>` : ''}
+                        ${card.tags && card.tags.length > 0 ? `<p><strong>Tags:</strong> ${card.tags.map(t => this.escapeHtml(t)).join(', ')}</p>` : ''}
+                        <p><strong>Reviews:</strong> Total: ${card.total_reviews || 0}, Correct: ${card.correct_reviews || 0}, Incorrect: ${card.incorrect_reviews || 0}</p>
                         <p><strong>Flagged:</strong> ${new Date(card.flagged_at).toLocaleString()}</p>
                         <p><strong>Reason:</strong> ${this.escapeHtml(card.flagged_reason || 'No reason provided')}</p>
                         <div class="card-actions">
@@ -620,27 +658,50 @@ class AdminService {
                 `).join('');
             }
 
-            // User flagged section
+            // User flagged section - group by card template
             if (userFlagged && userFlagged.length > 0) {
+                // Group flags by card template ID
+                const groupedFlags = userFlagged.reduce((acc, flag) => {
+                    const cardId = flag.card_template_id;
+                    if (!acc[cardId]) {
+                        acc[cardId] = {
+                            card: flag.card_templates,
+                            flags: []
+                        };
+                    }
+                    acc[cardId].flags.push(flag);
+                    return acc;
+                }, {});
+
                 html += '<h3>User Reported Cards</h3>';
-                html += userFlagged.map(card => `
-                    <div class="flagged-card user-flagged">
-                        <h4>Card ID: ${card.card_id}</h4>
-                        <p><strong>Question:</strong> ${this.escapeHtml(card.question)}</p>
-                        <p><strong>Answer:</strong> ${this.escapeHtml(card.answer)}</p>
-                        <p><strong>Reports:</strong> ${card.flag_count}</p>
-                        <p><strong>Latest Report:</strong> ${new Date(card.latest_flag_date).toLocaleString()}</p>
-                        <p><strong>Reasons:</strong> ${card.flag_reasons.map(r => this.escapeHtml(r)).join(', ')}</p>
-                        ${card.flag_comments.filter(c => c && c.trim()).length > 0 ? 
-                            `<p><strong>Comments:</strong> ${card.flag_comments.filter(c => c && c.trim()).map(c => this.escapeHtml(c)).join('; ')}</p>` : ''
-                        }
-                        <div class="card-actions">
-                            <button class="btn btn-secondary" onclick="adminService.resolveUserFlags('${card.card_id}', 'dismissed')">Dismiss Reports</button>
-                            <button class="btn btn-warning" onclick="adminService.resolveUserFlags('${card.card_id}', 'card_updated')">Mark as Fixed</button>
-                            <button class="btn btn-danger" onclick="adminService.resolveUserFlags('${card.card_id}', 'card_removed')">Remove Card</button>
+                Object.entries(groupedFlags).forEach(([cardId, data]) => {
+                    const card = data.card;
+                    const flags = data.flags;
+                    const reasons = [...new Set(flags.map(f => f.reason))];
+                    const comments = flags.filter(f => f.comment && f.comment.trim()).map(f => f.comment);
+                    const latestFlag = flags.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+                    
+                    html += `
+                        <div class="flagged-card user-flagged">
+                            <h4>Card ID: ${cardId}</h4>
+                            <p><strong>Question:</strong> ${this.escapeHtml(card.question)}</p>
+                            <p><strong>Answer:</strong> ${this.escapeHtml(card.answer)}</p>
+                            ${card.subsection ? `<p><strong>Section:</strong> ${this.escapeHtml(card.subsection)}</p>` : ''}
+                            ${card.tags && card.tags.length > 0 ? `<p><strong>Tags:</strong> ${card.tags.map(t => this.escapeHtml(t)).join(', ')}</p>` : ''}
+                            <p><strong>Reports:</strong> ${flags.length}</p>
+                            <p><strong>Latest Report:</strong> ${new Date(latestFlag.created_at).toLocaleString()}</p>
+                            <p><strong>Reasons:</strong> ${reasons.map(r => this.escapeHtml(r)).join(', ')}</p>
+                            ${comments.length > 0 ? 
+                                `<p><strong>Comments:</strong> ${comments.map(c => this.escapeHtml(c)).join('; ')}</p>` : ''
+                            }
+                            <div class="card-actions">
+                                <button class="btn btn-secondary" onclick="adminService.resolveUserFlags('${cardId}', 'dismissed')">Dismiss Reports</button>
+                                <button class="btn btn-warning" onclick="adminService.resolveUserFlags('${cardId}', 'card_updated')">Mark as Fixed</button>
+                                <button class="btn btn-danger" onclick="adminService.resolveUserFlags('${cardId}', 'card_removed')">Remove Card</button>
+                            </div>
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                });
             }
 
             if (!html) {
@@ -669,7 +730,7 @@ class AdminService {
 
             const supabase = await this.getSupabase();
             const { error } = await supabase
-                .from('cards')
+                .from('card_templates')
                 .update({
                     flagged_for_review: false,
                     flagged_by: null,
@@ -704,7 +765,7 @@ class AdminService {
 
             const supabase = await this.getSupabase();
             const { error } = await supabase
-                .from('cards')
+                .from('card_templates')
                 .delete()
                 .eq('id', cardId);
 
@@ -723,11 +784,11 @@ class AdminService {
         try {
             const supabase = await this.getSupabase();
             
-            // Get all unresolved flags for this card
+            // Get all unresolved flags for this card with user info
             const { data: flags, error: flagsError } = await supabase
                 .from('user_card_flags')
-                .select('id')
-                .eq('card_id', cardId)
+                .select('id, user_id, reason, comment, created_at')
+                .eq('card_template_id', cardId)
                 .is('resolved_at', null);
 
             if (flagsError) throw flagsError;
@@ -737,11 +798,17 @@ class AdminService {
                 return;
             }
 
-            // Resolve all flags
+            // Get current user for resolution tracking
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError || !user) throw new Error('Authentication failed');
+
+            // Resolve all flags using the new user flag resolution function
             const resolvePromises = flags.map(flag => 
-                supabase.rpc('resolve_card_flag', {
+                supabase.rpc('resolve_user_card_flag', {
                     p_flag_id: flag.id,
-                    p_resolution_action: resolutionAction
+                    p_admin_id: user.id,
+                    p_resolution_action: resolutionAction,
+                    p_resolution_comment: `Admin resolved via bulk action: ${resolutionAction}`
                 })
             );
 
@@ -756,7 +823,7 @@ class AdminService {
             // If action is to remove card, delete it
             if (resolutionAction === 'card_removed') {
                 const { error: deleteError } = await supabase
-                    .from('cards')
+                    .from('card_templates')
                     .delete()
                     .eq('id', cardId);
 
@@ -783,7 +850,7 @@ class AdminService {
             if (userError || !user) throw new Error('Not authenticated');
 
             const { error } = await supabase
-                .from('cards')
+                .from('card_templates')
                 .update({
                     flagged_for_review: true,
                     flagged_by: user.id,
@@ -808,9 +875,9 @@ class AdminService {
         try {
             const supabase = await this.getSupabase();
             const { data: cards, error } = await supabase
-                .from('cards')
-                .select('id, question, answer, flagged_for_review')
-                .or(`question.ilike.%${searchTerm}%,answer.ilike.%${searchTerm}%`)
+                .from('card_templates')
+                .select('id, question, answer, subsection, tags, flagged_for_review, total_reviews, correct_reviews, incorrect_reviews, user_flag_count')
+                .or(`question.ilike.%${searchTerm}%,answer.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`)
                 .limit(10);
 
             if (error) throw error;
@@ -826,8 +893,11 @@ class AdminService {
             container.innerHTML = cards.map(card => `
                 <div class="flagged-card">
                     <h4>Card ID: ${card.id}</h4>
-                    <p><strong>Question:</strong> ${card.question}</p>
-                    <p><strong>Answer:</strong> ${card.answer}</p>
+                    <p><strong>Question:</strong> ${this.escapeHtml(card.question)}</p>
+                    <p><strong>Answer:</strong> ${this.escapeHtml(card.answer)}</p>
+                    ${card.subsection ? `<p><strong>Section:</strong> ${this.escapeHtml(card.subsection)}</p>` : ''}
+                    ${card.tags && card.tags.length > 0 ? `<p><strong>Tags:</strong> ${card.tags.map(t => this.escapeHtml(t)).join(', ')}</p>` : ''}
+                    <p><strong>Reviews:</strong> Total: ${card.total_reviews || 0}, User Flags: ${card.user_flag_count || 0}</p>
                     <p><strong>Status:</strong> ${card.flagged_for_review ? 'Flagged' : 'Active'}</p>
                     <div class="card-actions">
                         ${!card.flagged_for_review ? 
@@ -872,8 +942,11 @@ class AdminService {
         try {
             const supabase = await this.getSupabase();
             const { error } = await supabase
-                .from('user_profiles')
-                .update({ user_tier: tier })
+                .from('profiles')
+                .update({ 
+                    user_tier: tier,
+                    is_admin: tier === 'admin'
+                })
                 .eq('email', email);
 
             if (error) throw error;
@@ -919,14 +992,14 @@ class AdminService {
             const subjectId = document.getElementById('subject-filter')?.value || null;
 
 
-            // Load basic cards data with review statistics
+            // Load basic cards data with review statistics using new schema
             let basicQuery = supabase
-                .from('cards')
+                .from('card_templates')
                 .select(`
-                    id, question, answer, subject_id, correct_reviews, incorrect_reviews, 
+                    id, question, answer, subject_id, subsection, tags,
+                    total_reviews, correct_reviews, incorrect_reviews, 
                     average_response_time_ms, user_flag_count, flagged_for_review,
-                    subjects:subject_id(name),
-                    review_history(rating)
+                    subjects:subject_id(name)
                 `);
 
             if (subjectId) {
@@ -945,14 +1018,19 @@ class AdminService {
                 return;
             }
 
-            // Process the data
+            // Process the data with new structure
             const processedData = this.processAnalyticsData(basicCards);
             
-            // Load failed attempts data
-            const { data: failedAttemptsData } = await supabase
-                .rpc('get_failed_attempts_before_good_rating');
+            // Get review statistics from reviews table
+            const { data: reviewStats } = await supabase
+                .from('reviews')
+                .select('card_template_id, rating')
+                .in('card_template_id', basicCards.map(c => c.id));
             
-            const avgFailedAttempts = failedAttemptsData?.[0]?.avg_failed_attempts_before_good || 0;
+            // Calculate failed attempts (ratings of 0 = Again in new 0-3 scale)
+            const failedAttempts = reviewStats?.filter(r => r.rating === 0).length || 0;
+            const totalAttempts = reviewStats?.length || 0;
+            const avgFailedAttempts = totalAttempts > 0 ? Math.round((failedAttempts / totalAttempts) * 100) / 100 : 0;
             
             // Update the interface
             this.updateSummaryStats(processedData, avgFailedAttempts);
@@ -1012,7 +1090,7 @@ class AdminService {
 
             // Get card counts for each subject
             const { data: cardCounts, error: countError } = await supabase
-                .from('cards')
+                .from('card_templates')
                 .select('subject_id')
                 .not('subject_id', 'is', null);
 
@@ -1194,12 +1272,12 @@ class AdminService {
             }
 
 
-            // Use the admin function to update subject status
+            // Update subject status directly (admin has access via RLS)
             const { data, error } = await supabase
-                .rpc('admin_toggle_subject_status', {
-                    subject_id: subjectId,
-                    new_status: newStatus
-                });
+                .from('subjects')
+                .update({ is_active: newStatus })
+                .eq('id', subjectId)
+                .select();
 
             if (error) {
                 console.error('Supabase RPC error:', error);
@@ -1237,10 +1315,10 @@ class AdminService {
             const supabase = await this.getSupabase();
             
             const { data, error } = await supabase
-                .rpc('admin_bulk_toggle_subjects', {
-                    subject_ids: subjectIds,
-                    new_status: newStatus
-                });
+                .from('subjects')
+                .update({ is_active: newStatus })
+                .in('id', subjectIds)
+                .select();
 
             if (error) {
                 console.error('Bulk update error:', error);
@@ -1346,22 +1424,461 @@ class AdminService {
     }
 
 
-    // Helper method to apply migration (for testing purposes)
-    async applyMigration(migrationSql) {
+    // Deck Management Functions
+    async loadAllDecks() {
         try {
             const supabase = await this.getSupabase();
-            const { data, error } = await supabase.rpc('exec_sql', { sql: migrationSql });
             
-            if (error) {
-                console.error('Migration error:', error);
-                return false;
-            }
-            
-            return true;
+            // Get all decks with user information and card counts
+            const { data: decks, error: decksError } = await supabase
+                .from('decks')
+                .select(`
+                    id,
+                    name,
+                    description,
+                    user_id,
+                    daily_new_cards_limit,
+                    daily_review_limit,
+                    desired_retention,
+                    is_active,
+                    created_at,
+                    profiles!inner(email, display_name)
+                `)
+                .order('created_at', { ascending: false })
+                .limit(50);
+
+            if (decksError) throw decksError;
+
+            // Get card counts for each deck
+            const deckIds = decks?.map(d => d.id) || [];
+            const { data: cardCounts, error: countError } = await supabase
+                .from('user_cards')
+                .select('deck_id')
+                .in('deck_id', deckIds);
+
+            if (countError) throw countError;
+
+            // Count cards per deck
+            const cardCountMap = {};
+            cardCounts?.forEach(card => {
+                cardCountMap[card.deck_id] = (cardCountMap[card.deck_id] || 0) + 1;
+            });
+
+            // Add card counts to decks
+            const decksWithCounts = decks?.map(deck => ({
+                ...deck,
+                card_count: cardCountMap[deck.id] || 0
+            }));
+
+            this.displayDecks(decksWithCounts || [], 'All Active Decks');
         } catch (error) {
-            console.error('Failed to apply migration:', error);
-            return false;
+            console.error('Error loading all decks:', error);
+            this.showError('Failed to load decks');
         }
+    }
+
+    async searchDecks() {
+        const searchTerm = document.getElementById('deck-search')?.value?.trim();
+        if (!searchTerm) {
+            this.loadAllDecks();
+            return;
+        }
+
+        try {
+            const supabase = await this.getSupabase();
+            
+            // Search decks by name or description
+            const { data: decks, error: decksError } = await supabase
+                .from('decks')
+                .select(`
+                    id,
+                    name,
+                    description,
+                    user_id,
+                    daily_new_cards_limit,
+                    daily_review_limit,
+                    desired_retention,
+                    is_active,
+                    created_at,
+                    profiles!inner(email, display_name)
+                `)
+                .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (decksError) throw decksError;
+
+            // Get card counts for filtered decks
+            const deckIds = decks?.map(d => d.id) || [];
+            let cardCountMap = {};
+            
+            if (deckIds.length > 0) {
+                const { data: cardCounts, error: countError } = await supabase
+                    .from('user_cards')
+                    .select('deck_id')
+                    .in('deck_id', deckIds);
+
+                if (countError) throw countError;
+
+                cardCounts?.forEach(card => {
+                    cardCountMap[card.deck_id] = (cardCountMap[card.deck_id] || 0) + 1;
+                });
+            }
+
+            // Add card counts to decks
+            const decksWithCounts = decks?.map(deck => ({
+                ...deck,
+                card_count: cardCountMap[deck.id] || 0
+            }));
+
+            this.displayDecks(decksWithCounts || [], `Search Results for "${searchTerm}"`);
+        } catch (error) {
+            console.error('Error searching decks:', error);
+            this.showError('Failed to search decks');
+        }
+    }
+
+    displayDecks(decks, title = 'Decks') {
+        const container = document.getElementById('deck-list');
+        if (!container) return;
+
+        if (decks.length === 0) {
+            container.innerHTML = `<p class="text-muted">No decks found.</p>`;
+            return;
+        }
+
+        let html = `<h4>${title} (${decks.length})</h4>`;
+        html += '<div class="deck-grid">';
+        
+        decks.forEach(deck => {
+            const retentionDisplay = deck.desired_retention ? 
+                `${Math.round(deck.desired_retention * 100)}%` : 'Default';
+            
+            html += `
+                <div class="deck-card ${!deck.is_active ? 'inactive' : ''}">
+                    <div class="deck-header">
+                        <h5>${this.escapeHtml(deck.name)}</h5>
+                        <span class="deck-status ${deck.is_active ? 'active' : 'inactive'}">
+                            ${deck.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                    </div>
+                    ${deck.description ? `<p class="deck-description">${this.escapeHtml(deck.description)}</p>` : ''}
+                    <div class="deck-stats">
+                        <div class="stat-item">
+                            <label>Cards:</label>
+                            <span>${deck.card_count}</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Owner:</label>
+                            <span>${this.escapeHtml(deck.profiles.display_name || deck.profiles.email)}</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Retention Goal:</label>
+                            <span>${retentionDisplay}</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>New Cards/Day:</label>
+                            <span>${deck.daily_new_cards_limit || 'Default'}</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Reviews/Day:</label>
+                            <span>${deck.daily_review_limit || 'Default'}</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Created:</label>
+                            <span>${new Date(deck.created_at).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                    <div class="deck-actions">
+                        <button class="btn btn-sm ${deck.is_active ? 'btn-warning' : 'btn-success'}" 
+                                onclick="adminService.toggleDeckStatus('${deck.id}', ${!deck.is_active})">
+                            ${deck.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button class="btn btn-sm btn-info" 
+                                onclick="adminService.viewDeckDetails('${deck.id}')">
+                            View Details
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    async toggleDeckStatus(deckId, newStatus) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            // Verify admin access
+            const isAdmin = await this.verifyAdminAccessSecure();
+            if (!isAdmin) {
+                this.showError('Admin access required');
+                return;
+            }
+
+            const { error } = await supabase
+                .from('decks')
+                .update({ is_active: newStatus })
+                .eq('id', deckId);
+
+            if (error) throw error;
+
+            this.showSuccess(`Deck ${newStatus ? 'activated' : 'deactivated'} successfully`);
+            
+            // Refresh the deck list
+            const searchTerm = document.getElementById('deck-search')?.value?.trim();
+            if (searchTerm) {
+                this.searchDecks();
+            } else {
+                this.loadAllDecks();
+            }
+        } catch (error) {
+            console.error('Error toggling deck status:', error);
+            this.showError(`Failed to update deck: ${error.message}`);
+        }
+    }
+
+    async viewDeckDetails(deckId) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            // Get detailed deck information
+            const { data: deck, error: deckError } = await supabase
+                .from('decks')
+                .select(`
+                    *,
+                    profiles!inner(email, display_name, user_tier)
+                `)
+                .eq('id', deckId)
+                .single();
+
+            if (deckError) throw deckError;
+
+            // Get card counts by state using optimized view
+            const { data: cardStats, error: statsError } = await supabase
+                .from('v_due_counts_by_deck')
+                .select('*')
+                .eq('deck_id', deckId)
+                .single();
+
+            if (statsError) {
+                console.warn('Could not load card stats:', statsError);
+            }
+
+            // Display deck details in a modal-like overlay
+            this.showDeckDetailsModal(deck, cardStats);
+        } catch (error) {
+            console.error('Error loading deck details:', error);
+            this.showError('Failed to load deck details');
+        }
+    }
+
+    showDeckDetailsModal(deck, cardStats) {
+        // Create modal overlay
+        const modal = document.createElement('div');
+        modal.className = 'deck-details-modal';
+        modal.innerHTML = `
+            <div class="modal-backdrop" onclick="this.parentElement.remove()"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>${this.escapeHtml(deck.name)} - Deck Details</h3>
+                    <button class="modal-close" onclick="this.closest('.deck-details-modal').remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="deck-info-grid">
+                        <div class="info-section">
+                            <h4>Basic Information</h4>
+                            <p><strong>Owner:</strong> ${this.escapeHtml(deck.profiles.display_name || deck.profiles.email)}</p>
+                            <p><strong>Owner Tier:</strong> ${deck.profiles.user_tier}</p>
+                            <p><strong>Status:</strong> ${deck.is_active ? 'Active' : 'Inactive'}</p>
+                            <p><strong>Created:</strong> ${new Date(deck.created_at).toLocaleString()}</p>
+                            ${deck.description ? `<p><strong>Description:</strong> ${this.escapeHtml(deck.description)}</p>` : ''}
+                        </div>
+                        
+                        <div class="info-section">
+                            <h4>FSRS Settings</h4>
+                            <p><strong>Desired Retention:</strong> ${deck.desired_retention ? `${Math.round(deck.desired_retention * 100)}%` : 'Default'}</p>
+                            <p><strong>Daily New Cards Limit:</strong> ${deck.daily_new_cards_limit || 'Default'}</p>
+                            <p><strong>Daily Review Limit:</strong> ${deck.daily_review_limit || 'Default'}</p>
+                            <p><strong>Learning Steps:</strong> ${deck.learning_steps_minutes ? deck.learning_steps_minutes.join(', ') + ' minutes' : 'Default'}</p>
+                            <p><strong>Graduating Interval:</strong> ${deck.graduating_interval_days ? deck.graduating_interval_days + ' days' : 'Default'}</p>
+                            <p><strong>Easy Interval:</strong> ${deck.easy_interval_days ? deck.easy_interval_days + ' days' : 'Default'}</p>
+                        </div>
+                        
+                        ${cardStats ? `
+                        <div class="info-section">
+                            <h4>Card Statistics</h4>
+                            <p><strong>Total Cards:</strong> ${cardStats.total_cards}</p>
+                            <p><strong>New Cards:</strong> ${cardStats.new_count}</p>
+                            <p><strong>Learning:</strong> ${cardStats.learning_count}</p>
+                            <p><strong>Review:</strong> ${cardStats.review_count}</p>
+                            <p><strong>Due Today:</strong> ${cardStats.total_due_count}</p>
+                            <p><strong>Suspended:</strong> ${cardStats.suspended_count}</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal styles if not already present
+        if (!document.getElementById('deck-modal-styles')) {
+            const styles = document.createElement('style');
+            styles.id = 'deck-modal-styles';
+            styles.textContent = `
+                .deck-details-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    z-index: 10000;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .modal-backdrop {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.5);
+                    cursor: pointer;
+                }
+                .modal-content {
+                    position: relative;
+                    background: white;
+                    border-radius: 8px;
+                    max-width: 800px;
+                    width: 90%;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                }
+                .modal-header {
+                    padding: 20px;
+                    border-bottom: 1px solid #e9ecef;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .modal-header h3 {
+                    margin: 0;
+                    color: #007bff;
+                }
+                .modal-close {
+                    background: none;
+                    border: none;
+                    font-size: 24px;
+                    cursor: pointer;
+                    color: #6c757d;
+                    padding: 0;
+                    line-height: 1;
+                }
+                .modal-body {
+                    padding: 20px;
+                }
+                .deck-info-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 20px;
+                }
+                .info-section h4 {
+                    margin-bottom: 10px;
+                    color: #495057;
+                    border-bottom: 1px solid #e9ecef;
+                    padding-bottom: 5px;
+                }
+                .info-section p {
+                    margin: 5px 0;
+                }
+                .deck-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                    gap: 15px;
+                    margin-top: 15px;
+                }
+                .deck-card {
+                    border: 1px solid #e9ecef;
+                    border-radius: 8px;
+                    padding: 15px;
+                    background: white;
+                    transition: box-shadow 0.2s;
+                }
+                .deck-card:hover {
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                }
+                .deck-card.inactive {
+                    opacity: 0.7;
+                    background: #f8f9fa;
+                }
+                .deck-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 10px;
+                }
+                .deck-header h5 {
+                    margin: 0;
+                    color: #495057;
+                }
+                .deck-status {
+                    padding: 4px 8px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                    font-weight: bold;
+                }
+                .deck-status.active {
+                    background: #d4edda;
+                    color: #155724;
+                }
+                .deck-status.inactive {
+                    background: #f8d7da;
+                    color: #721c24;
+                }
+                .deck-description {
+                    margin: 10px 0;
+                    color: #6c757d;
+                    font-size: 14px;
+                }
+                .deck-stats {
+                    margin: 15px 0;
+                }
+                .stat-item {
+                    display: flex;
+                    justify-content: space-between;
+                    margin: 5px 0;
+                    font-size: 13px;
+                }
+                .stat-item label {
+                    font-weight: 500;
+                    color: #495057;
+                }
+                .deck-actions {
+                    display: flex;
+                    gap: 10px;
+                    margin-top: 15px;
+                }
+                .btn-sm {
+                    padding: 4px 8px;
+                    font-size: 12px;
+                }
+            `;
+            document.head.appendChild(styles);
+        }
+
+        document.body.appendChild(modal);
+    }
+
+    // Migration functionality removed for security
+    // Use proper migration tools instead of exec_sql
+    async applyMigration(migrationSql) {
+        console.warn('Migration functionality disabled for security reasons');
+        console.info('Use Supabase CLI or dashboard to apply migrations');
+        return false;
     }
 
     async searchSubjects() {
@@ -1397,7 +1914,7 @@ class AdminService {
             
             if (subjectIds.length > 0) {
                 const { data: cardCounts, error: countError } = await supabase
-                    .from('cards')
+                    .from('card_templates')
                     .select('subject_id')
                     .in('subject_id', subjectIds);
 
@@ -1426,22 +1943,25 @@ class AdminService {
         return this.loadAnalytics();
     }
 
-    // Process analytics data with simplified scoring
+    // Process analytics data with new database structure
     processAnalyticsData(cards) {
         return cards.map(card => {
-            const actualReviewCount = card.review_history?.length || 0;
-            const againCount = card.review_history?.filter(review => review.rating === 1).length || 0;
-            const againPercentage = actualReviewCount > 0 ? Math.round((againCount / actualReviewCount) * 100) : 0;
+            // Use total_reviews from card_templates (aggregated stats)
+            const totalReviews = card.total_reviews || 0;
+            const incorrectReviews = card.incorrect_reviews || 0;
+            const againPercentage = totalReviews > 0 ? Math.round((incorrectReviews / totalReviews) * 100) : 0;
             
             // Simplified problem score: flag count * 10 + again percentage + (flagged ? 50 : 0)
             const problemScore = (card.user_flag_count || 0) * 10 + againPercentage + (card.flagged_for_review ? 50 : 0);
             
             return {
-                card_id: card.id,
+                card_template_id: card.id,
                 question: card.question,
                 answer: card.answer,
+                subsection: card.subsection,
+                tags: card.tags || [],
                 subject_name: card.subjects?.name || 'Unknown',
-                total_reviews: actualReviewCount,
+                total_reviews: totalReviews,
                 again_percentage: againPercentage,
                 average_response_time_ms: card.average_response_time_ms || 0,
                 user_flag_count: card.user_flag_count || 0,
@@ -1469,13 +1989,15 @@ class AdminService {
         document.getElementById('avg-failed-attempts').textContent = avgFailedAttempts || '0';
     }
 
-    // Display analytics table with simplified columns
+    // Display analytics table with enhanced columns for new database structure
     displayAnalyticsTable(data) {
         const columns = [
             { key: 'question', label: 'Question', className: 'card-question' },
             { key: 'subject_name', label: 'Subject' },
+            { key: 'subsection', label: 'Section', formatter: (val) => val || '-' },
+            { key: 'tags', label: 'Tags', formatter: (val) => Array.isArray(val) && val.length > 0 ? val.join(', ') : '-' },
             { key: 'total_reviews', label: 'Reviews' },
-            { key: 'again_percentage', label: 'Again %', formatter: (val) => val ? `${val}%` : '-' },
+            { key: 'again_percentage', label: 'Failed %', formatter: (val) => val ? `${val}%` : '-' },
             { key: 'average_response_time_ms', label: 'Avg Time', formatter: (val) => val ? `${val}ms` : '-' },
             { key: 'user_flag_count', label: 'User Flags' },
             { key: 'problem_score', label: 'Problem Score', className: 'problem-score', formatter: this.formatProblemScore }
@@ -1624,7 +2146,7 @@ class AdminService {
             
             // Get current analytics data
             let query = supabase
-                .from('cards')
+                .from('card_templates')
                 .select(`
                     id, question, answer, 
                     subjects:subject_id(name),

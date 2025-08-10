@@ -35,11 +35,11 @@ class FSRSAnalyticsService {
             
             // Get review history for analysis period
             const { data: reviews, error: reviewError } = await supabase
-                .from('review_history')
+                .from('reviews')
                 .select('*')
                 .eq('user_id', userId)
-                .gte('review_date', startDate.toISOString())
-                .order('review_date', { ascending: true });
+                .gte('reviewed_at', startDate.toISOString())
+                .order('reviewed_at', { ascending: true });
 
             if (reviewError) throw reviewError;
 
@@ -114,24 +114,24 @@ class FSRSAnalyticsService {
             predictionAccuracy: 0
         };
 
-        // Calculate success rates
-        const successfulReviews = reviews.filter(r => r.rating >= 3);
+        // Calculate success rates - rating >= 2 means Good or Easy (success)
+        const successfulReviews = reviews.filter(r => r.rating >= 2);
         metrics.overallSuccessRate = successfulReviews.length / reviews.length;
 
-        // First-time success (cards reviewed only once with rating >= 3)
+        // First-time success (cards reviewed only once with rating >= 2)
         const cardReviewCounts = {};
         reviews.forEach(r => {
-            cardReviewCounts[r.card_id] = (cardReviewCounts[r.card_id] || 0) + 1;
+            cardReviewCounts[r.card_template_id] = (cardReviewCounts[r.card_template_id] || 0) + 1;
         });
         
-        const firstTimeReviews = reviews.filter(r => cardReviewCounts[r.card_id] === 1);
-        const firstTimeSuccesses = firstTimeReviews.filter(r => r.rating >= 3);
+        const firstTimeReviews = reviews.filter(r => cardReviewCounts[r.card_template_id] === 1);
+        const firstTimeSuccesses = firstTimeReviews.filter(r => r.rating >= 2);
         metrics.firstTimeSuccessRate = firstTimeReviews.length > 0 ? 
             firstTimeSuccesses.length / firstTimeReviews.length : 0;
 
         // Retention rate (success on scheduled reviews)
         const scheduledReviews = reviews.filter(r => r.elapsed_days > 0 && r.scheduled_days > 0);
-        const retentionSuccesses = scheduledReviews.filter(r => r.rating >= 3);
+        const retentionSuccesses = scheduledReviews.filter(r => r.rating >= 2);
         metrics.retentionRate = scheduledReviews.length > 0 ? 
             retentionSuccesses.length / scheduledReviews.length : 0;
 
@@ -143,7 +143,7 @@ class FSRSAnalyticsService {
 
         // Learning velocity (stability gain per day)
         const totalDays = reviews.length > 0 ? 
-            (new Date(reviews[reviews.length - 1].review_date) - new Date(reviews[0].review_date)) / (1000 * 60 * 60 * 24) : 1;
+            (new Date(reviews[reviews.length - 1].reviewed_at) - new Date(reviews[0].reviewed_at)) / (1000 * 60 * 60 * 24) : 1;
         metrics.learningVelocity = metrics.averageStabilityGain * reviews.length / Math.max(totalDays, 1);
 
         // Average interval between reviews
@@ -181,26 +181,26 @@ class FSRSAnalyticsService {
 
         // Analyze stability-related parameters (w0, w1, w2, w6, w8, w9, w10)
         analysis.stabilityParameters = {
-            w0: this.analyzeInitialStabilityParameter(reviews, currentParams.w0),
-            w1: this.analyzeGoodRatingParameter(reviews, currentParams.w1),
-            w2: this.analyzeEasyRatingParameter(reviews, currentParams.w2),
-            w6: this.analyzeStabilityFactorParameter(reviews, currentParams.w6),
-            w8: this.analyzeEasyBonusParameter(reviews, currentParams.w8)
+            w0: this.analyzeInitialStabilityParameter(reviews, currentParams.weights?.w0),
+            w1: this.analyzeGoodRatingParameter(reviews, currentParams.weights?.w1),
+            w2: this.analyzeEasyRatingParameter(reviews, currentParams.weights?.w2),
+            w6: this.analyzeStabilityFactorParameter(reviews, currentParams.weights?.w6),
+            w8: this.analyzeEasyBonusParameter(reviews, currentParams.weights?.w8)
         };
 
         // Analyze difficulty-related parameters (w5, w11, w16)
         analysis.difficultyParameters = {
-            w5: this.analyzeDifficultyImpactParameter(reviews, currentParams.w5),
-            w11: this.analyzeDifficultyDecayParameter(reviews, currentParams.w11),
-            w16: this.analyzeSpeedFactorParameter(reviews, currentParams.w16)
+            w5: this.analyzeDifficultyImpactParameter(reviews, currentParams.weights?.w5),
+            w11: this.analyzeDifficultyDecayParameter(reviews, currentParams.weights?.w11),
+            w16: this.analyzeSpeedFactorParameter(reviews, currentParams.weights?.w16)
         };
 
         // Analyze boundary parameters (w12, w13, w14, w15)
         analysis.boundaryParameters = {
-            w12: this.analyzeMinStabilityParameter(reviews, currentParams.w12),
-            w13: this.analyzeMaxStabilityParameter(reviews, currentParams.w13),
-            w14: this.analyzeMinDifficultyParameter(reviews, currentParams.w14),
-            w15: this.analyzeMaxDifficultyParameter(reviews, currentParams.w15)
+            w12: this.analyzeMinStabilityParameter(reviews, currentParams.weights?.w12),
+            w13: this.analyzeMaxStabilityParameter(reviews, currentParams.weights?.w13),
+            w14: this.analyzeMinDifficultyParameter(reviews, currentParams.weights?.w14),
+            w15: this.analyzeMaxDifficultyParameter(reviews, currentParams.weights?.w15)
         };
 
         // Calculate overall parameter effectiveness
@@ -239,10 +239,10 @@ class FSRSAnalyticsService {
         
         progression.phases = phases.map((phaseReviews, index) => ({
             phase: index + 1,
-            startDate: phaseReviews[0]?.review_date,
-            endDate: phaseReviews[phaseReviews.length - 1]?.review_date,
+            startDate: phaseReviews[0]?.reviewed_at,
+            endDate: phaseReviews[phaseReviews.length - 1]?.reviewed_at,
             reviewCount: phaseReviews.length,
-            successRate: phaseReviews.filter(r => r.rating >= 3).length / phaseReviews.length,
+            successRate: phaseReviews.filter(r => r.rating >= 2).length / phaseReviews.length,
             averageStability: phaseReviews.reduce((sum, r) => sum + r.stability_after, 0) / phaseReviews.length,
             averageDifficulty: phaseReviews.reduce((sum, r) => sum + r.difficulty_after, 0) / phaseReviews.length
         }));
@@ -267,8 +267,8 @@ class FSRSAnalyticsService {
         // Identify struggling cards (multiple failures)
         const cardFailures = {};
         reviews.forEach(r => {
-            if (r.rating === 1) {
-                cardFailures[r.card_id] = (cardFailures[r.card_id] || 0) + 1;
+            if (r.rating === 0) { // Again = failure
+                cardFailures[r.card_template_id] = (cardFailures[r.card_template_id] || 0) + 1;
             }
         });
         progression.strugglingCards = Object.values(cardFailures).filter(failures => failures >= 3).length;
@@ -300,11 +300,12 @@ class FSRSAnalyticsService {
 
         // Calculate key differences
         for (const param in defaultParams) {
-            if (currentParams[param] !== undefined) {
-                const difference = ((currentParams[param] - defaultParams[param]) / defaultParams[param] * 100);
+            const currentValue = currentParams.weights?.[param];
+            if (currentValue !== undefined) {
+                const difference = ((currentValue - defaultParams[param]) / defaultParams[param] * 100);
                 if (Math.abs(difference) > 5) { // Only show significant differences
                     comparison.keyDifferences[param] = {
-                        current: currentParams[param],
+                        current: currentValue,
                         default: defaultParams[param],
                         percentChange: difference.toFixed(1) + '%'
                     };
@@ -357,7 +358,7 @@ class FSRSAnalyticsService {
     analyzeInitialStabilityParameter(reviews, w0Value) {
         const newCardReviews = reviews.filter(r => r.state_before === 'new');
         const successRate = newCardReviews.length > 0 ? 
-            newCardReviews.filter(r => r.rating >= 3).length / newCardReviews.length : 0;
+            newCardReviews.filter(r => r.rating >= 2).length / newCardReviews.length : 0;
         
         return {
             effectivenessScore: successRate,
@@ -368,7 +369,7 @@ class FSRSAnalyticsService {
     }
 
     analyzeGoodRatingParameter(reviews, w1Value) {
-        const goodRatingReviews = reviews.filter(r => r.rating === 3);
+        const goodRatingReviews = reviews.filter(r => r.rating === 2); // Good rating = 2
         const avgStabilityGain = goodRatingReviews.length > 0 ? 
             goodRatingReviews.reduce((sum, r) => sum + (r.stability_after - r.stability_before), 0) / goodRatingReviews.length : 0;
         
@@ -381,7 +382,7 @@ class FSRSAnalyticsService {
     }
 
     analyzeEasyRatingParameter(reviews, w2Value) {
-        const easyRatingReviews = reviews.filter(r => r.rating === 4);
+        const easyRatingReviews = reviews.filter(r => r.rating === 3); // Easy rating = 3
         const avgStabilityGain = easyRatingReviews.length > 0 ? 
             easyRatingReviews.reduce((sum, r) => sum + (r.stability_after - r.stability_before), 0) / easyRatingReviews.length : 0;
         
@@ -449,7 +450,7 @@ class FSRSAnalyticsService {
     calculateWeeklySuccessRates(reviews) {
         const weeks = this.groupReviewsByPhase(reviews, 7);
         return weeks.map(weekReviews => 
-            weekReviews.filter(r => r.rating >= 3).length / weekReviews.length
+            weekReviews.filter(r => r.rating >= 2).length / weekReviews.length
         );
     }
 
@@ -466,7 +467,7 @@ class FSRSAnalyticsService {
         let totalError = 0;
         predictableReviews.forEach(review => {
             const predicted = calculateRetrievability(review.elapsed_days, review.stability_before);
-            const actual = review.rating >= 3 ? 1 : 0;
+            const actual = review.rating >= 2 ? 1 : 0; // Success = rating >= 2
             totalError += Math.abs(predicted - actual);
         });
 
@@ -477,10 +478,10 @@ class FSRSAnalyticsService {
         if (reviews.length === 0) return [];
         
         const phases = [];
-        const startDate = new Date(reviews[0].review_date);
+        const startDate = new Date(reviews[0].reviewed_at);
         
         reviews.forEach(review => {
-            const reviewDate = new Date(review.review_date);
+            const reviewDate = new Date(review.reviewed_at);
             const daysSinceStart = (reviewDate - startDate) / (1000 * 60 * 60 * 24);
             const phaseIndex = Math.floor(daysSinceStart / daysPerPhase);
             
@@ -493,7 +494,7 @@ class FSRSAnalyticsService {
 
     calculateDifficultyPerformanceCorrelation(reviews) {
         const difficulties = reviews.map(r => r.difficulty_before);
-        const performances = reviews.map(r => r.rating >= 3 ? 1 : 0);
+        const performances = reviews.map(r => r.rating >= 2 ? 1 : 0); // Success = rating >= 2
         return this.calculateCorrelation(difficulties, performances);
     }
 

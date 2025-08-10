@@ -69,9 +69,33 @@ A modern, database-backed spaced repetition flashcard app with user authenticati
 - Manual testing: login, study cards, check dashboard, logout.
 - See `/tests/database-test.html` for database connectivity tests.
 
+
+## Development Checks
+Run these scripts to catch missing or invalid imports before they reach the browser:
+
+```sh
+npm run audit-imports
+npm run lint
+npm run build
+```
+
+- `audit-imports` verifies every import matches an existing export.
+- `lint` uses ESLint to flag unresolved or unused imports.
+- `build` bundles the project and fails if any modules are missing.
+
+Together these steps help prevent runtime import errors by validating your code during development.
+
+## Configuration Imports
+All configuration objects are exported from `js/config.js`, including the new `CACHE_CONFIG`:
+
+```js
+import { SESSION_CONFIG, CACHE_CONFIG } from './js/config.js';
+```
+
+Use this import pattern in examples and guides to ensure caching settings are available.
 ## Database Schema
 - See `migration/README.md` for full schema, migration order, and ER diagram.
 
 ## Contact & Support
 - For issues, open a GitHub issue or contact the development team.
-- See `migration/README.md` for more troubleshooting tips. 
+- See `migration/README.md` for more troubleshooting tips.

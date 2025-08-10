@@ -61,7 +61,7 @@ The FSRS Personalization System provides truly individualized spaced repetition 
 ```
 
 #### Migration 08: Updated Schema
-- Updated default parameters in `fsrs_parameters` table
+- Updated default parameters in `fsrs_params` table
 - New users automatically get research-based optimal defaults
 - All 17 FSRS weights (w0-w16) now use scientifically validated values
 
@@ -156,7 +156,7 @@ console.log('System-wide metrics:', systemReport.aggregateMetrics);
 import { mcp__supabase__execute_sql } from './supabase.js';
 
 const result = await mcp__supabase__execute_sql({
-    query: `SELECT user_id, w0, w1, w2 FROM fsrs_parameters LIMIT 5;`
+    query: `SELECT user_id, weights->>'w0' AS w0, weights->>'w1' AS w1, weights->>'w2' AS w2 FROM fsrs_params LIMIT 5;`
 });
 // Should show w0=0.4197, w1=1.1829, w2=3.1262 instead of 1.0
 ```

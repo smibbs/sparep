@@ -131,16 +131,16 @@
         // Test Suite: SQL Injection Protection
         async function testSQLInjectionProtection() {
             const sqlInjectionPayloads = [
-                "'; DROP TABLE cards; --",
+                "'; DROP TABLE card_templates; --",
                 "' OR '1'='1",
                 "'; INSERT INTO user_card_flags VALUES ('test'); --",
-                "' UNION SELECT * FROM user_profiles --",
-                "'; UPDATE cards SET user_flag_count = 999999; --",
+                "' UNION SELECT * FROM profiles --",
+                "'; UPDATE card_templates SET user_flag_count = 999999; --",
                 "' OR 1=1 --",
-                "'; DELETE FROM cards; --",
+                "'; DELETE FROM user_cards; --",
                 "' OR 'x'='x",
                 "'; GRANT ALL PRIVILEGES TO PUBLIC; --",
-                "' OR EXISTS(SELECT * FROM cards) --"
+                "' OR EXISTS(SELECT * FROM card_templates) --"
             ];
 
             for (let i = 0; i < sqlInjectionPayloads.length; i++) {

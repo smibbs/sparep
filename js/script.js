@@ -18,7 +18,7 @@ const supabase = window.supabaseClient;
 async function checkAndShowAdminNav(userId) {
     try {
         const { data: profile, error } = await supabase
-            .from('user_profiles')
+            .from('profiles')
             .select('user_tier')
             .eq('id', userId)
             .single();
@@ -519,7 +519,7 @@ async function displayCurrentCard() {
     }
     
     // Batch all DOM updates to minimize reflows/repaints
-    const lastSeenText = formatTimeAgo(currentCard.last_review_date);
+    const lastSeenText = formatTimeAgo(currentCard.last_reviewed_at);
     const progressInfo = getProgressInfo(currentCard);
     
     // Get all DOM elements at once
@@ -631,17 +631,17 @@ function generateRatingChart(sessionData) {
         return '<div class="rating-chart"><p>No rating data available</p></div>';
     }
 
-    // Count final ratings for each card
-    const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    const ratingLabels = { 1: 'Again', 2: 'Hard', 3: 'Good', 4: 'Easy' };
-    const ratingColors = { 1: '#dc3545', 2: '#ffc107', 3: '#28a745', 4: '#17a2b8' };
+    // Count final ratings for each card (0-3 scale)
+    const ratingCounts = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    const ratingLabels = { 0: 'Again', 1: 'Hard', 2: 'Good', 3: 'Easy' };
+    const ratingColors = { 0: '#dc3545', 1: '#ffc107', 2: '#28a745', 3: '#17a2b8' };
 
     // Analyze ratings for each card
     for (const [cardId, ratings] of Object.entries(sessionData.ratings)) {
         if (ratings && ratings.length > 0) {
             // Get the final rating for this card (last rating in the array)
             const finalRating = ratings[ratings.length - 1].rating;
-            if (finalRating >= 1 && finalRating <= 4) {
+            if (finalRating >= 0 && finalRating <= 3) {
                 ratingCounts[finalRating]++;
             }
         }
@@ -656,7 +656,7 @@ function generateRatingChart(sessionData) {
     // Generate chart HTML
     let chartHTML = '<div class="rating-chart"><h3>Session Ratings</h3>';
     
-    for (let rating = 1; rating <= 4; rating++) {
+    for (let rating = 0; rating <= 3; rating++) {
         const count = ratingCounts[rating];
         const percentage = totalCards > 0 ? (count / totalCards) * 100 : 0;
         const color = ratingColors[rating];
@@ -705,7 +705,7 @@ function generateReviewScheduleChart(sessionData) {
         const finalRating = ratings[ratings.length - 1].rating;
         
         // Find the corresponding card data
-        const cardData = sessionData.cards.find(card => String(card.card_id) === cardId);
+        const cardData = sessionData.cards.find(card => String(card.card_template_id) === cardId);
         if (!cardData) continue;
 
         // Calculate next review date using FSRS
@@ -721,8 +721,8 @@ function generateReviewScheduleChart(sessionData) {
             nextReviewDate = fsrsResult.nextReviewDate;
         } catch (error) {
             console.warn('FSRS calculation failed, using approximation:', error);
-            // Fallback to simple approximation
-            const intervalDays = { 1: 1, 2: 3, 3: 7, 4: 14 };
+            // Fallback to simple approximation (updated for 0-3 scale)
+            const intervalDays = { 0: 1, 1: 3, 2: 7, 3: 14 };
             const days = intervalDays[finalRating] || 7;
             nextReviewDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
         }
@@ -797,7 +797,7 @@ function generateReviewSummary(sessionData) {
         const finalRating = ratings[ratings.length - 1].rating;
         
         // Find the corresponding card data
-        const cardData = sessionData.cards.find(card => String(card.card_id) === cardId);
+        const cardData = sessionData.cards.find(card => String(card.card_template_id) === cardId);
         if (!cardData) continue;
 
         // Calculate next review date using FSRS
@@ -812,8 +812,8 @@ function generateReviewSummary(sessionData) {
             nextReviewDate = fsrsResult.nextReviewDate;
         } catch (error) {
             console.warn('FSRS calculation failed, using approximation:', error);
-            // Fallback to simple approximation
-            const intervalDays = { 1: 1, 2: 3, 3: 7, 4: 14 };
+            // Fallback to simple approximation (updated for 0-3 scale)
+            const intervalDays = { 0: 1, 1: 3, 2: 7, 3: 14 };
             const days = intervalDays[finalRating] || 7;
             nextReviewDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
         }
@@ -978,7 +978,7 @@ async function showSessionCompleteMessage(sessionData) {
 function getProgressInfo(card) {
     if (!card.progress) return '';
 
-    const reviewDate = new Date(card.progress.next_review_date);
+    const reviewDate = new Date(card.progress.due_at);
     const now = new Date();
     const isOverdue = reviewDate < now;
     
@@ -1067,8 +1067,13 @@ async function loadSession() {
         // Ensure user profile exists before doing any operations
         await appState.dbService.ensureUserProfileExists(appState.user.id);
 
-        // Initialize progress for new user if needed
-        await appState.dbService.initializeUserProgress(appState.user.id);
+        // Initialize progress for missing cards (this will find new cards in card_templates)
+        try {
+            await appState.dbService.initializeMissingUserProgress(appState.user.id);
+        } catch (error) {
+            console.warn('⚠️ Could not initialize missing cards:', error);
+            // Continue anyway - some cards might still be available
+        }
         
         // Check daily limit for free users before starting new session
         const userProfile = await appState.authService.getUserProfile(true);
@@ -1510,8 +1515,8 @@ async function handleRating(event) {
         const rating = parseInt(button.dataset.rating);
         if (!rating || !appState.currentCard) return;
 
-        // Defensive logging for card_id and user_id
-        const cardId = appState.currentCard.card_id;
+        // Defensive logging for card_template_id and user_id
+        const cardId = appState.currentCard.card_template_id;
         const userId = appState.user?.id;
         if (!cardId || !userId) {
             // handleRating: Missing cardId or userId
@@ -1543,8 +1548,8 @@ async function handleRating(event) {
         // Increment session reviewed count
         appState.sessionReviewedCount++;
         
-        // Track milestone for cards reviewed (only for ratings 2, 3, 4) - non-blocking
-        if (rating >= 2 && typeof window.streakUI !== 'undefined') {
+        // Track milestone for cards reviewed (only for ratings 1, 2, 3 - Hard/Good/Easy) - non-blocking
+        if (rating >= 1 && typeof window.streakUI !== 'undefined') {
             // Run streak tracking in background without blocking UI
             window.streakUI.trackCardReview().catch(error => {
                 console.error('Error tracking card review milestone:', error);
@@ -1689,10 +1694,10 @@ function restoreCardStructure() {
                     <button id="flip-button" class="nav-button">Flip</button>
                 </div>
                 <div id="rating-buttons" class="rating-buttons hidden">
-                    <button id="rate-again" class="rating-button rating-again" data-rating="1">Again</button>
-                    <button id="rate-hard" class="rating-button rating-hard" data-rating="2">Hard</button>
-                    <button id="rate-good" class="rating-button rating-good" data-rating="3">Good</button>
-                    <button id="rate-easy" class="rating-button rating-easy" data-rating="4">Easy</button>
+                    <button id="rate-again" class="rating-button rating-again" data-rating="0">Again</button>
+                    <button id="rate-hard" class="rating-button rating-hard" data-rating="1">Hard</button>
+                    <button id="rate-good" class="rating-button rating-good" data-rating="2">Good</button>
+                    <button id="rate-easy" class="rating-button rating-easy" data-rating="3">Easy</button>
                 </div>
                 <div class="report-card-container hidden" id="report-card-container">
                     <a href="#" id="report-card-link" class="report-card-link" title="Report this card">Report Card</a>
@@ -2024,8 +2029,8 @@ async function submitFlag() {
         let cardId;
         if (appState.currentCard.cards && appState.currentCard.cards.id) {
             cardId = appState.currentCard.cards.id;
-        } else if (appState.currentCard.card_id) {
-            cardId = appState.currentCard.card_id;
+        } else if (appState.currentCard.card_template_id) {
+            cardId = appState.currentCard.card_template_id;
         } else if (appState.currentCard.id) {
             cardId = appState.currentCard.id;
         } else {

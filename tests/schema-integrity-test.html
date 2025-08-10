@@ -44,12 +44,12 @@
         // Test Suite: Core Tables Existence
         async function testCoreTablesExistence() {
             const coreTables = [
-                'user_profiles', 
-                'cards', 
-                'subjects', 
-                'user_card_progress', 
-                'review_history', 
-                'fsrs_parameters', 
+                'profiles',
+                'card_templates',
+                'subjects',
+                'user_cards',
+                'reviews',
+                'fsrs_params',
                 'user_card_flags'
             ];
 
@@ -111,27 +111,27 @@
 
         // Test Suite: Critical Column Names
         async function testCriticalColumnNames() {
-            await testConfig.runTest('Cards table has user_flag_count column', async () => {
+            await testConfig.runTest('Card templates table has user_flag_count column', async () => {
                 const { data, error } = await supabase
-                    .from('cards')
+                    .from('card_templates')
                     .select('user_flag_count')
                     .limit(1);
-                
+
                 testConfig.assertTrue(
                     !error || !error.message.includes('column') || !error.message.includes('does not exist'),
-                    'Cards table should have user_flag_count column'
+                    'Card templates table should have user_flag_count column'
                 );
             });
 
-            await testConfig.runTest('User profiles table has streak columns', async () => {
+            await testConfig.runTest('Profiles table has streak columns', async () => {
                 const { data, error } = await supabase
-                    .from('user_profiles')
+                    .from('profiles')
                     .select('current_daily_streak, longest_daily_streak, last_streak_date, streak_freeze_count')
                     .limit(1);
-                
+
                 testConfig.assertTrue(
                     !error || !error.message.includes('column') || !error.message.includes('does not exist'),
-                    'User profiles should have streak-related columns'
+                    'Profiles should have streak-related columns'
                 );
             });
 
@@ -157,7 +157,7 @@
                 // by checking if queries with enum filters work
                 try {
                     const { error } = await supabase
-                        .from('user_profiles')
+                        .from('profiles')
                         .select('user_tier')
                         .eq('user_tier', 'free')
                         .limit(1);
@@ -177,7 +177,7 @@
             await testConfig.runTest('card_state enum accepts valid values', async () => {
                 try {
                     const { error } = await supabase
-                        .from('user_card_progress')
+                        .from('user_cards')
                         .select('state')
                         .eq('state', 'new')
                         .limit(1);
@@ -217,28 +217,28 @@
 
         // Test Suite: Foreign Key Relationships
         async function testForeignKeyRelationships() {
-            await testConfig.runTest('User profiles foreign key to auth.users', async () => {
+            await testConfig.runTest('Profiles foreign key to auth.users', async () => {
                 // Test that the relationship exists by attempting a join-like query
                 const { error } = await supabase
-                    .from('user_profiles')
+                    .from('profiles')
                     .select('id, email')
                     .limit(1);
-                
+
                 testConfig.assertTrue(
                     !error || !error.message.includes('foreign key'),
-                    'User profiles should maintain foreign key to auth.users'
+                    'Profiles should maintain foreign key to auth.users'
                 );
             });
 
-            await testConfig.runTest('Cards to subjects foreign key', async () => {
+            await testConfig.runTest('Card templates to subjects foreign key', async () => {
                 const { error } = await supabase
-                    .from('cards')
+                    .from('card_templates')
                     .select('id, subject_id')
                     .limit(1);
-                
+
                 testConfig.assertTrue(
                     !error || !error.message.includes('foreign key'),
-                    'Cards should maintain foreign key to subjects'
+                    'Card templates should maintain foreign key to subjects'
                 );
             });
 
@@ -262,7 +262,7 @@
                 // This should generally fail with auth errors, not permission errors
                 
                 const { error } = await supabase
-                    .from('user_profiles')
+                    .from('profiles')
                     .select('*')
                     .limit(1);
                 
@@ -279,7 +279,7 @@
                     );
                 } else {
                     // If no error, that would mean RLS is not properly configured
-                    testConfig.failTest('RLS should block unauthenticated access to user_profiles');
+                    testConfig.failTest('RLS should block unauthenticated access to profiles');
                 }
             });
         }
@@ -290,7 +290,7 @@
                 // We can't directly test trigger functions, but we can verify
                 // that tables have updated_at columns that should be managed by triggers
                 
-                const tablesWithUpdatedAt = ['user_profiles', 'cards', 'subjects'];
+                const tablesWithUpdatedAt = ['profiles', 'card_templates', 'subjects'];
                 
                 for (const table of tablesWithUpdatedAt) {
                     const { error } = await supabase
@@ -337,7 +337,7 @@
             await testConfig.runTest('UUID columns accept valid UUID format', async () => {
                 // Test that UUID columns exist and accept proper format
                 const { error } = await supabase
-                    .from('cards')
+                    .from('card_templates')
                     .select('id')
                     .limit(1);
                 
@@ -350,7 +350,7 @@
 
             await testConfig.runTest('Timestamp columns accept proper dates', async () => {
                 const { error } = await supabase
-                    .from('cards')
+                    .from('card_templates')
                     .select('created_at, updated_at')
                     .limit(1);
                 
@@ -363,7 +363,7 @@
 
             await testConfig.runTest('Integer columns accept numeric values', async () => {
                 const { error } = await supabase
-                    .from('cards')
+                    .from('card_templates')
                     .select('total_reviews, correct_reviews, user_flag_count')
                     .limit(1);
                 

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Cards to New</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Reset All Cards to New Status</h1>
+    <p>This will reset all your cards to 'new' status so you can review them again.</p>
+    
+    <button id="resetBtn">Reset All Cards to New</button>
+    <button id="checkBtn">Check Current Card Count</button>
+    
+    <div id="output"></div>
+
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config/supabase-config.js"></script>
+    <script src="js/supabase-client.js" type="module"></script>
+    
+    <script type="module">
+        import { getSupabaseClient } from './js/supabase-client.js';
+        
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            output.appendChild(div);
+        }
+        
+        async function getCurrentUser() {
+            try {
+                const supabase = await getSupabaseClient();
+                const { data: { user }, error } = await supabase.auth.getUser();
+                if (error) throw error;
+                return user;
+            } catch (error) {
+                log(`Error getting user: ${error.message}`, 'error');
+                return null;
+            }
+        }
+        
+        async function checkCardCount() {
+            try {
+                const user = await getCurrentUser();
+                if (!user) return;
+                
+                const supabase = await getSupabaseClient();
+                
+                // Check current card counts by state
+                const { data: counts, error } = await supabase
+                    .from('user_cards')
+                    .select('state')
+                    .eq('user_id', user.id);
+                
+                if (error) throw error;
+                
+                const stateCounts = {};
+                counts.forEach(card => {
+                    stateCounts[card.state] = (stateCounts[card.state] || 0) + 1;
+                });
+                
+                log(`Current card counts:`, 'info');
+                Object.entries(stateCounts).forEach(([state, count]) => {
+                    log(`  ${state}: ${count} cards`, 'info');
+                });
+                
+                // Check total cards available
+                const { count: totalCards } = await supabase
+                    .from('card_templates')
+                    .select('*', { count: 'exact', head: true });
+                    
+                log(`Total cards in database: ${totalCards}`, 'info');
+                
+            } catch (error) {
+                log(`Error checking cards: ${error.message}`, 'error');
+            }
+        }
+        
+        async function resetAllCards() {
+            try {
+                const user = await getCurrentUser();
+                if (!user) return;
+                
+                log('Starting card reset...', 'info');
+                const supabase = await getSupabaseClient();
+                
+                // Reset all user_cards to new state
+                const { data, error } = await supabase
+                    .from('user_cards')
+                    .update({
+                        state: 'new',
+                        stability: 1.0,
+                        difficulty: 5.0,
+                        reps: 0,
+                        total_reviews: 0,
+                        correct_reviews: 0,
+                        incorrect_reviews: 0,
+                        lapses: 0,
+                        due_at: new Date().toISOString(), // Due now
+                        last_reviewed_at: null,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('user_id', user.id)
+                    .select('user_id, card_template_id');
+                
+                if (error) throw error;
+                
+                const resetCount = data ? data.length : 0;
+                log(`Successfully reset ${resetCount} cards to 'new' status`, 'success');
+                
+                // Also clear any existing review history to start fresh
+                const { error: reviewError } = await supabase
+                    .from('reviews')
+                    .delete()
+                    .eq('user_id', user.id);
+                
+                if (reviewError) {
+                    log(`Warning: Could not clear review history: ${reviewError.message}`, 'error');
+                } else {
+                    log('Review history cleared', 'success');
+                }
+                
+                log('Card reset complete! You can now study all cards again.', 'success');
+                
+            } catch (error) {
+                log(`Error resetting cards: ${error.message}`, 'error');
+            }
+        }
+        
+        document.getElementById('resetBtn').addEventListener('click', resetAllCards);
+        document.getElementById('checkBtn').addEventListener('click', checkCardCount);
+        
+        // Initial check
+        checkCardCount();
+    </script>
+</body>
+</html>

@@ -1,14 +1,13 @@
-// Simple Scroll-Triggered Text Animation
-class SimpleTextAnimation {
+// Auto-Advancing Slide Animation with Fade Transitions
+class SlideAnimation {
     constructor() {
-        this.scrollProgress = 0;
+        this.currentSlide = 0;
+        this.slideInterval = null;
         this.isInitialized = false;
-        
-        // Text reveal thresholds for 6 messages (first message shows at 0%)
-        this.revealThresholds = [0.0, 0.2, 0.35, 0.5, 0.65, 0.8];
-        
-        // Throttled scroll handler for performance
-        this.handleScroll = this.throttle(this.onScroll.bind(this), 16); // ~60fps
+        this.messageDuration = 4000; // 4 seconds for message display
+        this.fadeDuration = 1000; // 1 second for fade to black
+        this.totalCycleDuration = this.messageDuration + this.fadeDuration; // 5 seconds total
+        this.isFading = false;
         
         this.init();
     }
@@ -18,26 +17,26 @@ class SimpleTextAnimation {
         
         try {
             this.setupElements();
-            this.bindEvents();
-            this.updateAnimation();
+            this.startSlideshow();
             this.isInitialized = true;
         } catch (error) {
-            console.error('Failed to initialize text animation:', error);
+            console.error('Failed to initialize slide animation:', error);
         }
     }
     
     setupElements() {
         // Get animation elements
         this.revealTexts = document.querySelectorAll('.reveal-text');
-        this.scrollIndicator = document.querySelector('.scroll-indicator');
-        this.progressBar = document.querySelector('.scroll-progress-bar');
-        this.scrollDriver = document.querySelector('.scroll-driver');
+        this.animationContent = document.querySelector('.animation-content');
         
-        if (!this.scrollDriver) {
-            throw new Error('Scroll driver element not found');
+        console.log('Found', this.revealTexts.length, 'text elements');
+        console.log('Animation content:', this.animationContent);
+        
+        if (!this.revealTexts.length) {
+            throw new Error('No reveal text elements found');
         }
         
-        // Initially hide all text elements except the first one
+        // Initially show only the first slide
         this.revealTexts.forEach((text, index) => {
             if (index === 0) {
                 text.classList.add('visible');
@@ -47,116 +46,128 @@ class SimpleTextAnimation {
         });
     }
     
-    bindEvents() {
-        window.addEventListener('scroll', this.handleScroll);
-        window.addEventListener('resize', this.throttle(() => {
-            this.calculateScrollProgress();
-            this.updateAnimation();
-        }, 250));
-    }
-    
-    onScroll() {
-        this.calculateScrollProgress();
-        this.updateAnimation();
-        this.updateProgressBar();
-    }
-    
-    calculateScrollProgress() {
-        const scrollDriverHeight = this.scrollDriver.offsetHeight;
-        const viewportHeight = window.innerHeight;
-        const scrollableDistance = scrollDriverHeight - viewportHeight;
+    startSlideshow() {
+        // Start the slide advancement timer (5 second cycles)
+        this.slideInterval = setInterval(() => {
+            this.nextSlide();
+        }, this.totalCycleDuration);
         
-        if (scrollableDistance <= 0) {
-            this.scrollProgress = 0;
+        // Start the fade sequence after 4 seconds
+        this.scheduleFadeSequence();
+    }
+    
+    scheduleFadeSequence() {
+        // Schedule the fade sequence for each slide
+        setTimeout(() => {
+            this.executeTransition();
+        }, this.messageDuration);
+    }
+    
+    executeTransition() {
+        if (this.currentSlide >= this.revealTexts.length - 1) {
+            // Don't fade if we're on the last message
             return;
         }
         
-        const scrolled = window.pageYOffset || document.documentElement.scrollTop;
-        this.scrollProgress = Math.min(1, Math.max(0, scrolled / scrollableDistance));
-    }
-    
-    updateAnimation() {
-        // Determine which text should be active based on scroll progress
-        let activeTextIndex = -1;
+        this.isFading = true;
         
-        for (let i = 0; i < this.revealThresholds.length; i++) {
-            const currentThreshold = this.revealThresholds[i];
-            const nextThreshold = this.revealThresholds[i + 1] || 1.0;
-            
-            if (this.scrollProgress >= currentThreshold && this.scrollProgress < nextThreshold) {
-                activeTextIndex = i;
-                break;
-            }
+        // Step 1: Fade current text out (0.6s)
+        if (this.revealTexts[this.currentSlide]) {
+            this.revealTexts[this.currentSlide].classList.add('fading');
         }
         
-        // Special case: if we've reached the last threshold, keep the last message visible
-        const lastMessageIndex = this.revealThresholds.length - 1;
-        if (this.scrollProgress >= this.revealThresholds[lastMessageIndex]) {
-            activeTextIndex = lastMessageIndex;
+        // Step 2: Add black overlay at same time as text fade
+        if (this.animationContent) {
+            this.animationContent.classList.add('fade-to-black');
         }
         
-        // Show only the active text, hide all others
-        this.revealTexts.forEach((textElement, index) => {
-            if (index === activeTextIndex) {
-                textElement.classList.add('visible');
-            } else {
-                textElement.classList.remove('visible');
+        // Step 3: After text finishes fading, hide it completely
+        setTimeout(() => {
+            // Hide current slide completely
+            if (this.revealTexts[this.currentSlide]) {
+                this.revealTexts[this.currentSlide].classList.remove('visible', 'fading');
             }
-        });
+        }, 600);
         
-        // Hide scroll indicator only when reaching the last message (80% or more)
-        if (this.scrollProgress >= 0.8 && this.scrollIndicator) {
-            this.scrollIndicator.classList.add('hidden');
-        } else if (this.scrollProgress < 0.8 && this.scrollIndicator) {
-            this.scrollIndicator.classList.remove('hidden');
+        // Step 4: After total fade duration, remove black overlay and show next text
+        setTimeout(() => {
+            // Remove fade overlay
+            if (this.animationContent) {
+                this.animationContent.classList.remove('fade-to-black');
+            }
+            this.isFading = false;
+        }, this.fadeDuration);
+        
+        // Schedule next transition if not on second-to-last slide
+        if (this.currentSlide < this.revealTexts.length - 2) {
+            setTimeout(() => {
+                this.executeTransition();
+            }, this.totalCycleDuration);
         }
     }
     
-    updateProgressBar() {
-        if (this.progressBar) {
-            this.progressBar.style.width = `${this.scrollProgress * 100}%`;
+    nextSlide() {
+        // Don't advance if we're on the last slide
+        if (this.currentSlide >= this.revealTexts.length - 1) {
+            // Stop the slideshow - clear intervals but keep last message visible
+            this.destroy();
+            return;
         }
-    }
-    
-    throttle(func, limit) {
-        let inThrottle;
-        return function() {
-            const args = arguments;
-            const context = this;
-            if (!inThrottle) {
-                func.apply(context, args);
-                inThrottle = true;
-                setTimeout(() => inThrottle = false, limit);
-            }
-        };
+        
+        // Hide current slide
+        if (this.revealTexts[this.currentSlide]) {
+            this.revealTexts[this.currentSlide].classList.remove('visible');
+        }
+        
+        // Advance to next slide
+        this.currentSlide = this.currentSlide + 1;
+        
+        // Show new slide
+        if (this.revealTexts[this.currentSlide]) {
+            this.revealTexts[this.currentSlide].classList.add('visible');
+        }
     }
     
     // Public methods
     destroy() {
-        if (!this.isInitialized) return;
-        
-        window.removeEventListener('scroll', this.handleScroll);
-        this.isInitialized = false;
+        // Clear intervals but keep the animation elements intact
+        if (this.slideInterval) {
+            clearInterval(this.slideInterval);
+            this.slideInterval = null;
+        }
+    }
+    
+    pause() {
+        if (this.slideInterval) {
+            clearInterval(this.slideInterval);
+            this.slideInterval = null;
+        }
+    }
+    
+    resume() {
+        if (this.isInitialized && !this.slideInterval && this.currentSlide < this.revealTexts.length - 1) {
+            this.startSlideshow();
+        }
     }
     
     reset() {
-        // Reset all animations and states
-        this.scrollProgress = 0;
+        // Reset to first slide
+        this.currentSlide = 0;
+        this.isFading = false;
         
-        // Hide all text elements
-        this.revealTexts.forEach(text => {
-            text.classList.remove('visible');
+        // Remove fade overlay
+        if (this.animationContent) {
+            this.animationContent.classList.remove('fade-to-black');
+        }
+        
+        // Hide all text elements except first
+        this.revealTexts.forEach((text, index) => {
+            if (index === 0) {
+                text.classList.add('visible');
+            } else {
+                text.classList.remove('visible');
+            }
         });
-        
-        // Show scroll indicator
-        if (this.scrollIndicator) {
-            this.scrollIndicator.classList.remove('hidden');
-        }
-        
-        // Reset progress bar
-        if (this.progressBar) {
-            this.progressBar.style.width = '0%';
-        }
     }
 }
 
@@ -166,9 +177,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.location.pathname.includes('login.html') && 
         document.querySelector('.animation-content')) {
         
-        window.simpleTextAnimation = new SimpleTextAnimation();
+        window.slideAnimation = new SlideAnimation();
     }
 });
 
 // Export for manual initialization if needed
-export default SimpleTextAnimation;
+export default SlideAnimation;

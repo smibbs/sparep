@@ -94,7 +94,7 @@ class StreakService {
 
             const supabase = await this.getSupabase();
             const { data, error } = await supabase
-                .from('user_profiles')
+                .from('profiles')
                 .select('current_daily_streak, longest_daily_streak, last_streak_date')
                 .eq('id', userId)
                 .single();

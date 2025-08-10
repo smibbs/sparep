@@ -89,8 +89,15 @@ class AuthService {
             if (!user) throw new Error('No authenticated user');
 
             const { data: profile, error } = await supabase
-                .from('user_profiles')
-                .select('id, email, display_name, user_tier, reviews_today, last_review_date, daily_new_cards_limit, daily_review_limit')
+                .from('profiles')
+                .select(`
+                    id, email, display_name, user_tier, is_admin,
+                    timezone, day_start_time,
+                    daily_new_cards_limit, daily_review_limit,
+                    reviews_today, last_review_date,
+                    current_daily_streak, longest_daily_streak, last_streak_date, streak_freeze_count,
+                    created_at, updated_at
+                `)
                 .eq('id', user.id)
                 .single();
 
@@ -116,7 +123,7 @@ class AuthService {
      * ⚠️  SECURITY WARNING: This is a client-side check for UI optimization only.
      * ⚠️  DO NOT rely on this for security decisions or access control.
      * ⚠️  All security enforcement must happen server-side through RLS policies
-     *     and database functions that use the server-side is_admin() function.
+     *     and database functions that verify is_admin server-side.
      * 
      * Use this ONLY for:
      * - Showing/hiding UI elements (nav links, buttons)
@@ -129,7 +136,7 @@ class AuthService {
      */
     async isAdmin() {
         const profile = await this.getUserProfile();
-        return profile?.user_tier === 'admin';
+        return profile?.is_admin === true;
     }
 
     /**
@@ -162,20 +169,24 @@ class AuthService {
      */
     async verifyAdminAccess() {
         try {
-            const supabase = await getSupabaseClient();
+            const supabase = await this.getSupabase();
+            const user = await this.getCurrentUser();
+            if (!user) return false;
             
-            // Use a lightweight database function that calls is_admin() server-side
-            // This function should exist in the database and use SECURITY DEFINER
-            const { data, error } = await supabase.rpc('verify_admin_access');
+            // Direct query to verify admin status server-side
+            // RLS policies will ensure only the user can query their own profile
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('is_admin')
+                .eq('id', user.id)
+                .single();
             
             if (error) {
-                if (error.message?.includes('permission') || error.message?.includes('Admin privileges required')) {
-                    return false; // User is not admin
-                }
-                throw new Error(`Admin verification failed: ${error.message}`);
+                console.error('Admin verification query error:', error);
+                return false;
             }
             
-            return data === true;
+            return profile?.is_admin === true;
         } catch (error) {
             console.error('Admin verification error:', error);
             // On error, assume not admin for security
@@ -183,35 +194,97 @@ class AuthService {
         }
     }
 
-    // Get daily review limit for user
+    // Get daily review limit for user (considering fsrs_params overrides)
     async getDailyReviewLimit() {
-        const profile = await this.getUserProfile();
-        if (!profile) return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
-        
-        switch (profile.user_tier) {
-            case 'free': return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
-            case 'paid':
-            case 'admin': return SESSION_CONFIG.PAID_USER_DAILY_LIMIT; // Effectively unlimited
-            default: return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+        try {
+            const supabase = await this.getSupabase();
+            const user = await this.getCurrentUser();
+            if (!user) return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+            
+            // Get user's effective daily limits from the optimized view
+            const { data: sessionInfo, error } = await supabase
+                .from('v_user_study_session_info')
+                .select('profile_review_limit, fsrs_reviews_override, user_tier')
+                .eq('user_id', user.id)
+                .single();
+                
+            if (error || !sessionInfo) {
+                // Fallback to profile-based limits
+                const profile = await this.getUserProfile();
+                if (!profile) return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+                
+                switch (profile.user_tier) {
+                    case 'free': return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+                    case 'paid':
+                    case 'admin': return SESSION_CONFIG.PAID_USER_DAILY_LIMIT;
+                    default: return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+                }
+            }
+            
+            // Use fsrs_params override if available, otherwise profile limit
+            const effectiveLimit = sessionInfo.fsrs_reviews_override || sessionInfo.profile_review_limit;
+            
+            // Apply tier-based limits for free users
+            if (sessionInfo.user_tier === 'free') {
+                return Math.min(effectiveLimit || SESSION_CONFIG.FREE_USER_DAILY_LIMIT, SESSION_CONFIG.FREE_USER_DAILY_LIMIT);
+            }
+            
+            return effectiveLimit || SESSION_CONFIG.PAID_USER_DAILY_LIMIT;
+        } catch (error) {
+            console.error('Error getting daily review limit:', error);
+            // Fallback to basic tier-based limits
+            const profile = await this.getUserProfile();
+            if (!profile) return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+            
+            switch (profile.user_tier) {
+                case 'free': return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+                case 'paid':
+                case 'admin': return SESSION_CONFIG.PAID_USER_DAILY_LIMIT;
+                default: return SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+            }
         }
     }
 
-    // Check if user has daily reviews remaining
+    // Check if user has daily reviews remaining (timezone-aware)
     async hasReviewsRemaining() {
-        const profile = await this.getUserProfile();
-        if (!profile) return false;
-        
-        const tier = profile.user_tier;
-        if (tier === 'paid' || tier === 'admin') return true;
-        
-        // For free users, check daily limit
-        const today = new Date().toDateString();
-        const lastReviewDate = profile.last_review_date ? new Date(profile.last_review_date).toDateString() : null;
-        
-        // Reset count if it's a new day
-        const reviewsToday = (lastReviewDate === today) ? profile.reviews_today : 0;
-        
-        return reviewsToday < SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+        try {
+            const supabase = await this.getSupabase();
+            const user = await this.getCurrentUser();
+            if (!user) return false;
+            
+            // Use the database function to check if it's a new day for the user
+            const { data: isNewDay, error: newDayError } = await supabase
+                .rpc('is_new_day_for_user', { user_id: user.id });
+                
+            const profile = await this.getUserProfile();
+            if (!profile) return false;
+            
+            const tier = profile.user_tier;
+            if (tier === 'paid' || tier === 'admin' || profile.is_admin) return true;
+            
+            // Get effective daily limit
+            const dailyLimit = await this.getDailyReviewLimit();
+            
+            // Reset count if it's a new day (timezone-aware)
+            const reviewsToday = (!newDayError && isNewDay) ? 0 : profile.reviews_today;
+            
+            return reviewsToday < dailyLimit;
+        } catch (error) {
+            console.error('Error checking reviews remaining:', error);
+            // Fallback to simple check
+            const profile = await this.getUserProfile();
+            if (!profile) return false;
+            
+            const tier = profile.user_tier;
+            if (tier === 'paid' || tier === 'admin' || profile.is_admin) return true;
+            
+            // Simple date-based check as fallback
+            const today = new Date().toDateString();
+            const lastReviewDate = profile.last_review_date ? new Date(profile.last_review_date).toDateString() : null;
+            const reviewsToday = (lastReviewDate === today) ? profile.reviews_today : 0;
+            
+            return reviewsToday < SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+        }
     }
 
     // Subscribe to auth state changes
@@ -713,10 +786,10 @@ class AuthService {
             const user = await this.getCurrentUser();
             if (!user) throw new Error('No authenticated user');
 
-            // Update display_name in user_profiles table
+            // Update display_name in profiles table
             if (profileData.display_name !== undefined) {
                 const { error: profileError } = await supabase
-                    .from('user_profiles')
+                    .from('profiles')
                     .update({ display_name: profileData.display_name })
                     .eq('id', user.id);
 
@@ -735,7 +808,7 @@ class AuthService {
                     // Rollback display name change if email update failed
                     if (profileData.display_name !== undefined) {
                         await supabase
-                            .from('user_profiles')
+                            .from('profiles')
                             .update({ display_name: this.userProfile?.display_name || '' })
                             .eq('id', user.id);
                     }
