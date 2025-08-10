@@ -5,9 +5,10 @@
   "main": "index.js",
   "scripts": {
     "migrate": "node migration/migrate-cards.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node scripts/audit-imports.js",
     "audit-imports": "node scripts/audit-imports.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build": "node scripts/build.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0"
