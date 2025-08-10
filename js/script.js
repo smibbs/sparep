@@ -492,23 +492,11 @@ async function displayCurrentCard() {
     // Displaying card
     appState.cardStartTime = Date.now(); // Track when the card was shown
     
-    // Debug: Check card validation
-    console.log('🔍 Card validation check:');
-    console.log('🔍 currentCard exists:', !!currentCard);
-    console.log('🔍 currentCard.cards exists:', !!currentCard?.cards);
-    console.log('🔍 question type:', typeof currentCard?.cards?.question);
-    console.log('🔍 answer type:', typeof currentCard?.cards?.answer);
-    console.log('🔍 question value:', currentCard?.cards?.question);
-    console.log('🔍 answer value:', currentCard?.cards?.answer);
-
     // Robust check for card data
     if (!currentCard || typeof currentCard.cards?.question !== 'string' || typeof currentCard.cards?.answer !== 'string') {
-        console.log('🔍 Card validation FAILED - showing error');
         showError('Card data is missing or invalid. Please refresh or contact support.');
         return;
     }
-    
-    console.log('🔍 Card validation PASSED - proceeding with display');
 
     const cardFront = document.querySelector('.card-front');
     const cardBack = document.querySelector('.card-back');
@@ -542,12 +530,6 @@ async function displayCurrentCard() {
     const ratingButtons = document.querySelectorAll('.rating-button');
     const reportCardLink = document.getElementById('report-card-link');
     
-    // Debug: Log the current card structure
-    console.log('🔍 Current card in display:', currentCard);
-    console.log('🔍 Current card.cards:', currentCard?.cards);
-    console.log('🔍 Question:', currentCard?.cards?.question);
-    console.log('🔍 Answer:', currentCard?.cards?.answer);
-
     // Batch content updates
     const frontContent = `<div class="last-seen-indicator" id="last-seen-front">${lastSeenText}</div><div class="subject-label">${subjectName}</div><p>${currentCard.cards.question}</p>${progressInfo || ''}`;
     const backContent = `<div class="last-seen-indicator" id="last-seen-back">${lastSeenText}</div><div class="subject-label">${subjectName}</div><p>${currentCard.cards.answer}</p>`;
@@ -1087,10 +1069,7 @@ async function loadSession() {
 
         // Initialize progress for missing cards (this will find new cards in card_templates)
         try {
-            const initResult = await appState.dbService.initializeMissingUserProgress(appState.user.id);
-            if (initResult.initialized > 0) {
-                console.log(`✅ Initialized ${initResult.initialized} new cards for study`);
-            }
+            await appState.dbService.initializeMissingUserProgress(appState.user.id);
         } catch (error) {
             console.warn('⚠️ Could not initialize missing cards:', error);
             // Continue anyway - some cards might still be available
