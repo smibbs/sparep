@@ -180,41 +180,43 @@ For the best experience, consider using Safari in normal mode or another browser
                 console.log('🔍 Sample due card from service:', dueCards[0]);
             }
             
+            // Determine if we already have enough due cards
+            let limitedDueCards = dueCards;
+            let formattedNewCards = [];
             if (dueCards.length >= SESSION_CONFIG.CARDS_PER_SESSION) {
-                return dueCards.slice(0, SESSION_CONFIG.CARDS_PER_SESSION);
-            }
+                limitedDueCards = dueCards.slice(0, SESSION_CONFIG.CARDS_PER_SESSION);
+            } else {
+                // If we need more cards, get new ones
+                const newCardsNeeded = SESSION_CONFIG.CARDS_PER_SESSION - dueCards.length;
+                const newCards = await dbService.getNewCards(userId, newCardsNeeded);
+                console.log(`🆕 SessionManager: Found ${newCards.length} new cards`);
+                if (newCards.length > 0) {
+                    console.log('🔍 Sample new card from service:', newCards[0]);
+                }
 
-            // If we need more cards, get new ones
-            const newCardsNeeded = SESSION_CONFIG.CARDS_PER_SESSION - dueCards.length;
-            const newCards = await dbService.getNewCards(userId, newCardsNeeded);
-            console.log(`🆕 SessionManager: Found ${newCards.length} new cards`);
-            if (newCards.length > 0) {
-                console.log('🔍 Sample new card from service:', newCards[0]);
+                // Transform new cards to match expected format
+                formattedNewCards = newCards.map(card => ({
+                    card_template_id: card.card_template_id || card.id,
+                    cards: {
+                        question: card.question,
+                        answer: card.answer,
+                        id: card.card_template_id || card.id,
+                        subject_name: card.subject_name,
+                        deck_name: card.deck_name
+                    },
+                    stability: card.stability || 1.0,
+                    difficulty: card.difficulty || 5.0,
+                    state: card.state || 'new',
+                    total_reviews: 0,
+                    due_at: card.due_at || new Date().toISOString()
+                }));
+
+                console.log('🔧 After transformation - sample new card:', formattedNewCards[0]);
             }
-            
-            
-            // Transform new cards to match expected format
-            const formattedNewCards = newCards.map(card => ({
-                card_template_id: card.card_template_id || card.id,
-                cards: {
-                    question: card.question,
-                    answer: card.answer,
-                    id: card.card_template_id || card.id,
-                    subject_name: card.subject_name,
-                    deck_name: card.deck_name
-                },
-                stability: card.stability || 1.0,
-                difficulty: card.difficulty || 5.0,
-                state: card.state || 'new',
-                total_reviews: 0,
-                due_at: card.due_at || new Date().toISOString()
-            }));
-            
-            console.log('🔧 After transformation - sample new card:', formattedNewCards[0]);
 
 
             // Transform due cards to match the expected nested structure
-            const formattedDueCards = dueCards.map(card => ({
+            const formattedDueCards = limitedDueCards.map(card => ({
                 card_template_id: card.card_template_id,
                 cards: {
                     question: card.question,
