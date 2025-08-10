@@ -10,6 +10,7 @@ import { handleError } from './errorHandler.js';
 
 // Use global Supabase client
 const supabase = window.supabaseClient;
+const supabaseInitializationError = window.supabaseClientError || window.supabaseConfigError || null;
 
 /**
  * Check if user is admin and show admin navigation link
@@ -105,6 +106,10 @@ const MOBILE_MAX_LOADING_TIME = 30000; // 30 seconds max loading on mobile
 let loadingTimeoutId = null;
 let loadingStartTimestamp = null;
 
+// Desktop loading timeout management
+const DESKTOP_MAX_LOADING_TIME = 30000; // 30 seconds max loading on desktop
+let desktopLoadingTimeoutId = null;
+
 async function transitionToState(newState, message = null) {
     if (currentState === newState) return;
     
@@ -113,9 +118,10 @@ async function transitionToState(newState, message = null) {
     const savingState = document.getElementById('saving-state');
     const content = document.getElementById('content');
     
-    // Clear mobile loading timeout when leaving loading state
+    // Clear loading timeouts when leaving loading state
     if (currentState === 'loading' && newState !== 'loading') {
         clearMobileLoadingTimeout();
+        clearDesktopLoadingTimeout();
     }
     
     // Ensure minimum loading time if transitioning away from loading
@@ -194,10 +200,11 @@ async function transitionToState(newState, message = null) {
     
     currentState = newState;
     
-    // Track loading start time and setup mobile timeout
+    // Track loading start time and setup timeouts
     if (newState === 'loading') {
         minimumLoadingStartTime = Date.now();
         setupMobileLoadingTimeout();
+        setupDesktopLoadingTimeout();
     }
 }
 
@@ -262,6 +269,16 @@ function showLoading(show) {
 
 function showError(message) {
     transitionToState('error', message);
+}
+
+// Make showError available globally for early error handling
+window.showError = showError;
+
+// If Supabase failed to initialize, show error and stop further execution
+if (!supabase) {
+    const message = supabaseInitializationError || 'Supabase client failed to initialize. Please check your configuration.';
+    showError(message);
+    throw new Error(message);
 }
 
 function showContent(show) {
@@ -374,6 +391,68 @@ function handleMobileLoadingTimeout() {
                 }
             };
             errorActions.insertBefore(recoveryButton, errorActions.firstChild);
+        }
+    }, 100);
+}
+
+/**
+ * Setup desktop loading timeout to prevent stuck states
+ */
+function setupDesktopLoadingTimeout() {
+    // Only setup timeout on desktop devices
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        return;
+    }
+
+    // Clear any existing timeout
+    clearDesktopLoadingTimeout();
+
+    loadingStartTimestamp = Date.now();
+    desktopLoadingTimeoutId = setTimeout(() => {
+        handleDesktopLoadingTimeout();
+    }, DESKTOP_MAX_LOADING_TIME);
+}
+
+/**
+ * Clear desktop loading timeout
+ */
+function clearDesktopLoadingTimeout() {
+    if (desktopLoadingTimeoutId) {
+        clearTimeout(desktopLoadingTimeoutId);
+        desktopLoadingTimeoutId = null;
+    }
+    loadingStartTimestamp = null;
+}
+
+/**
+ * Handle desktop loading timeout - show recovery options
+ */
+function handleDesktopLoadingTimeout() {
+    console.error('Loading timeout detected on desktop', {
+        currentState,
+        loadingDuration: loadingStartTimestamp ? Date.now() - loadingStartTimestamp : 'unknown'
+    });
+
+    // Check if we're still in loading state
+    if (currentState !== 'loading') {
+        return;
+    }
+
+    const timeoutMessage = 'Loading is taking longer than expected. Please refresh the page or check your internet connection.';
+    showError(timeoutMessage);
+
+    // Add desktop-specific retry button
+    setTimeout(() => {
+        const errorActions = document.querySelector('.error-actions');
+        if (errorActions && !document.getElementById('desktop-retry-button')) {
+            const retryButton = document.createElement('button');
+            retryButton.id = 'desktop-retry-button';
+            retryButton.className = 'nav-button';
+            retryButton.textContent = 'Retry';
+            retryButton.onclick = () => {
+                window.location.reload();
+            };
+            errorActions.insertBefore(retryButton, errorActions.firstChild);
         }
     }, 100);
 }
@@ -501,9 +580,10 @@ async function displayCurrentCard() {
     const cardFront = document.querySelector('.card-front');
     const cardBack = document.querySelector('.card-back');
     const card = document.querySelector('.card');
-    
+
     if (!cardFront || !cardBack || !card) {
-        // Card elements not found
+        console.error('Card display elements not found', { cardFront, cardBack, card });
+        showError('Card display elements not found.');
         return;
     }
 

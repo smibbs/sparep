@@ -20,8 +20,10 @@
     }
 
     loadConfig(basePath + 'supabase-config.js')
-        .catch(() => {
-            console.warn('Supabase configuration not found. Using example configuration.');
-            return loadConfig(basePath + 'supabase-config.example.js');
+        .catch((error) => {
+            console.error('Supabase configuration not found. Ensure GitHub secrets are configured.', error);
+            if (typeof window !== 'undefined') {
+                window.supabaseConfigError = 'Supabase configuration not found';
+            }
         });
 })();
