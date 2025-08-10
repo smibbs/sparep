@@ -211,10 +211,12 @@ export default {
     FSRS_CONFIG,
     TIMEZONE_CONFIG,
     STREAK_CONFIG,
+    CACHE_CONFIG,
     LOADING_CONFIG,
     DECK_CONFIG,
     CARD_TEMPLATE_CONFIG
 };
+
 
 // Export all configurations for named imports
 export {
@@ -227,6 +229,7 @@ export {
     FSRS_CONFIG,
     TIMEZONE_CONFIG,
     STREAK_CONFIG,
+    CACHE_CONFIG,
     LOADING_CONFIG,
     DECK_CONFIG,
     CARD_TEMPLATE_CONFIG
