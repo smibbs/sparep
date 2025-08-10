@@ -6,12 +6,15 @@
   "scripts": {
     "migrate": "node migration/migrate-cards.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "audit-imports": "node scripts/audit-imports.js"
+    "audit-imports": "node scripts/audit-imports.js",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0"
   },
   "devDependencies": {
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "eslint": "^9.32.0",
+    "eslint-plugin-import": "^2.29.1"
   }
 }
