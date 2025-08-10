@@ -103,22 +103,14 @@ class DatabaseService {
     async ensureReviewHistorySchema() {
         const supabase = await this.getSupabase();
         
-        // Check if the new reviews table exists by trying to select a single row
+        // Verify the reviews table (sole review table) exists by selecting a single row
         const { error } = await supabase
             .from('reviews')
             .select('id')
             .limit(1);
 
         if (error) {
-            // New table check failed, try old table for backward compatibility
-            const { error: oldError } = await supabase
-                .from('reviews')
-                .select('id')
-                .limit(1);
-            
-            if (oldError) {
-                console.warn('Neither new nor old review table found');
-            }
+            console.warn('Reviews table not found:', error.message);
         }
     }
 
