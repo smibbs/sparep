@@ -1,190 +1,203 @@
-# Database Migrations
+# FSRS Database Complete Rewrite - Migration Guide
 
-This directory contains SQL migration files that can recreate the entire Supabase database schema from scratch. The migrations are numbered sequentially and should be run in order. **These migrations exactly match the current production schema.**
+## Overview
 
-## Migration Files (Sequential Order)
+This directory contains the complete rewrite of the FSRS spaced repetition database. All previous tables and data have been removed and replaced with a modern, optimized architecture designed for better FSRS algorithm implementation.
 
-### Core Schema Migrations (01-12)
-Run these migrations sequentially for a fresh database setup:
+## ⚠️ IMPORTANT BREAKING CHANGES
 
-1. **01-initial-setup.sql** - Basic database setup, extensions, and helper functions
-   - Dependencies: None - must be run first
-2. **02-enums.sql** - All custom enum types (user_tier, card_state, flag_reason)
-   - Dependencies: 01-initial-setup.sql
-3. **03-user-profiles.sql** - User profiles table with authentication and tier system
-   - Dependencies: 01-initial-setup.sql, 02-enums.sql
-4. **04-subjects.sql** - Subjects table for organizing flashcards with hierarchical structure
-   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql
-5. **05-cards.sql** - Cards table for flashcard content with multimedia and flagging support
-   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 04-subjects.sql
-6. **06-user-card-progress.sql** - User progress tracking with complete FSRS implementation
-   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 05-cards.sql
-7. **07-review-history.sql** - Detailed review history for FSRS calculations and analytics
-   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 05-cards.sql
-8. **08-fsrs-parameters.sql** - Personalized FSRS algorithm parameters per user
-   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql
-9. **09-user-card-flags.sql** - User flagging system for reporting card issues
-   - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql, 05-cards.sql
-10. **10-functions-and-procedures.sql** - Helper functions and stored procedures
-    - Dependencies: 01-initial-setup.sql, 02-enums.sql, 03-user-profiles.sql
-11. **11-policies-and-security.sql** - Additional RLS policies and security enhancements
-    - Dependencies: All previous migrations
-12. **12-sample-data.sql** - Optional sample data for development environments
-    - Dependencies: All previous migrations
+**ALL PREVIOUS DATA HAS BEEN DELETED** - This is a complete fresh start:
+- All user progress has been reset
+- All existing cards and reviews have been removed
+- FSRS parameters have been reset to defaults
+- Users will need to start their learning journey from the beginning
 
-### Incremental Updates (Archive Directory)
-Historical migration fixes and enhancements located in `archive/` and `backup/` directories:
+## New Architecture Highlights
 
-**Note:** Migration 14 references `streak_rewards_schema.sql` which is located in the project root, not in the migration directory. This file contains the streak tracking system schema that was developed separately.
+### 🎯 Modern FSRS Implementation
+- **JSONB Parameter Storage**: FSRS weights stored as flexible JSON instead of 17 individual columns
+- **0-3 Rating Scale**: Standard FSRS rating (Again=0, Hard=1, Good=2, Easy=3)
+- **Decimal Precision**: Enhanced precision for stability/difficulty calculations
+- **Immutable Review History**: Complete audit trail of all reviews for analytics
 
-### Current Status
-- ✅ Core migrations (01-12) have correct dependency references
-- ✅ All "-current" suffix references have been removed from migration 02 and 03
-- ⚠️ Archive migrations (13+) reference historical schema files that may require manual review
-- ⚠️ `streak_rewards_schema.sql` is in project root, not migration directory
+### 🏗️ Improved Database Design
+- **Deck-Based Organization**: Cards organized in decks with per-deck settings
+- **Separated Concerns**: Card templates (content) separate from user progress
+- **Timezone Support**: User-specific timezones and day start times
+- **Optimized Views**: Pre-built views for common client queries
 
-## Key Features Implemented
+### 🔒 Enhanced Security
+- **Comprehensive RLS**: Row Level Security on all tables
+- **Admin Functions**: Secure admin-only functions with proper permission checks
+- **User Isolation**: Complete separation of user data
 
-### Database Schema
-- **Custom Enums**: `user_tier` (free/paid/admin), `card_state` (FSRS states), `flag_reason` (user flagging)
-- **Full FSRS Support**: Complete Free Spaced Repetition Scheduler implementation
-- **User Tier System**: Free (20 reviews/day), Paid (unlimited), Admin (unlimited + management)
-- **Dual Flagging System**: Admin flagging for content control + user flagging for issue reporting
-- **Row Level Security**: Comprehensive RLS policies protecting all user data
+## Migration Files (Run in Order)
 
-### Tables Created
-- **user_profiles** - Extended user data with tiers, statistics, and daily limits
-- **subjects** - Hierarchical subject organization with visual customization
-- **cards** - Flashcard content with multimedia support, statistics, and flagging
-- **user_card_progress** - Complete FSRS learning state and progress tracking
-- **review_history** - Detailed review logs for FSRS calculations and analytics
-- **fsrs_parameters** - Personalized algorithm parameters per user
-- **user_card_flags** - User-submitted flags for card issues with admin resolution
+1. **01-extensions-and-enums.sql** - PostgreSQL extensions and custom enums
+2. **02-profiles.sql** - Enhanced user profiles with timezone support
+3. **03-subjects-and-decks.sql** - Subject hierarchy and new deck system
+4. **04-card-templates.sql** - Shared card content templates
+5. **05-user-cards.sql** - Individual user progress tracking
+6. **06-reviews.sql** - Immutable review history
+7. **07-fsrs-params.sql** - JSONB FSRS parameter storage
+8. **08-user-flags-and-streaks.sql** - User flagging and streak systems
+9. **09-loading-messages.sql** - Dynamic loading message system
+10. **10-views.sql** - Optimized client-facing views
+11. **11-final-optimizations.sql** - Performance indexes and sample data
 
-### Functions and Procedures
-- **User Management**: Tier-based access control and daily limit enforcement
-- **FSRS Implementation**: Complete algorithm functions and parameter management
-- **Flagging System**: Card flagging workflows for both users and admins
-- **Daily Limits**: Automatic reset and tracking of daily review counts
+## Database Schema Changes
 
-## Usage
+### New Tables
+- `profiles` - Enhanced user profiles with timezone/day start support
+- `subjects` - Subject organization (similar to before but cleaner)
+- `decks` - NEW: Per-deck settings and daily limits
+- `card_templates` - Shared card content (replaces `cards`)
+- `user_cards` - Individual user progress (replaces `user_card_progress`)
+- `reviews` - Immutable review log (replaces `review_history`)
+- `fsrs_params` - JSONB FSRS parameters (replaces individual w0-w16 columns)
+- `user_card_flags` - User flagging system (enhanced)
+- `user_streak_milestones` - Streak milestone tracking
+- `streak_reward_configs` - Configurable streak rewards
+- `user_streak_history` - Daily streak activity log
+- `loading_messages` - Dynamic loading messages with context
 
-### Fresh Database Setup
-Run migrations in sequential order:
+### New Views for Client Consumption
+- `v_due_user_cards` - Cards due for review
+- `v_new_user_cards` - New cards ready for introduction
+- `v_due_counts_by_deck` - Summary counts by deck for dashboard
+- `v_user_study_session_info` - Complete study session information
+
+## Key Improvements
+
+### FSRS Algorithm
+- **Better Parameter Management**: JSONB storage allows easier updates and optimization
+- **Standard Rating Scale**: 0-3 scale aligns with FSRS research and other implementations
+- **Enhanced Precision**: DECIMAL fields for more accurate calculations
+- **Per-Deck Configuration**: Different FSRS settings for different learning contexts
+
+### Database Performance
+- **Optimized Indexes**: Strategic indexes for common query patterns
+- **Efficient Views**: Pre-computed views reduce client query complexity
+- **Better Constraints**: Enhanced data validation and consistency
+
+### User Experience
+- **Timezone Awareness**: Proper timezone handling for due date calculations
+- **Deck Organization**: Better learning organization with deck-based limits
+- **Streak System**: Enhanced streak tracking with configurable rewards
+- **Loading Messages**: Context-aware loading messages for better UX
+
+## Client Code Migration Required
+
+### Rating Scale Change
+```javascript
+// OLD (1-4 scale)
+const RATING_OLD = {
+    AGAIN: 1,
+    HARD: 2, 
+    GOOD: 3,
+    EASY: 4
+};
+
+// NEW (0-3 scale)
+const RATING_NEW = {
+    AGAIN: 0,
+    HARD: 1,
+    GOOD: 2, 
+    EASY: 3
+};
+```
+
+### FSRS Parameters Access
+```javascript
+// OLD (individual columns)
+const stability = fsrsParams.w0;
+
+// NEW (JSONB access)
+const stability = fsrsParams.weights.w0;
+```
+
+### Database Queries
+```javascript
+// OLD
+const cards = await supabase.from('user_card_progress')
+    .select('*, cards(*)')
+    .eq('user_id', userId)
+    .lte('due_date', new Date());
+
+// NEW (using views)
+const cards = await supabase.from('v_due_user_cards')
+    .select('*')
+    .eq('user_id', userId);
+```
+
+## Essential Functions
+
+### Review Processing
+Use `process_card_review()` function to handle complete review workflow:
 ```sql
--- Connect to Supabase SQL Editor and run each file in order
-\i 01-initial-setup.sql
-\i 02-enums.sql
-\i 03-user-profiles.sql
-\i 04-subjects.sql
-\i 05-cards.sql
-\i 06-user-card-progress.sql
-\i 07-review-history.sql
-\i 08-fsrs-parameters.sql
-\i 09-user-card-flags.sql
-\i 10-functions-and-procedures.sql
-\i 11-policies-and-security.sql
-\i 12-sample-data.sql  -- Optional for development
+SELECT process_card_review(
+    user_id,
+    card_template_id, 
+    deck_id,
+    rating, -- 0-3 scale
+    response_time_ms,
+    new_stability,
+    new_difficulty,
+    new_due_at,
+    new_state
+);
 ```
 
-### Development Environment
-Include file 12 (sample data) for testing and development purposes.
-
-### Production Environment
-Skip file 12 (sample data) for production deployments.
-
-## Schema Alignment
-
-⚠️ **Migration Status Update (2025-01-26)**
-
-**Recent Changes:**
-- ✅ **Migration 31 Enhanced Security Applied**: Fixed and applied enhanced card flagging security with proper column references (`user_flag_count`)
-- ✅ **Historical Migrations Archived**: Migrations 13-32 moved to `migration/archive/` for reference
-- ✅ **Original Migrations Backed Up**: All original files preserved in `migration/backup/`
-- 🔄 **Schema Alignment In Progress**: Core migrations (01-12) need updating to match current database state
-
-**Current Migration Status:**
-- Core migrations (01-12) reflect the **original** database design but are **outdated**
-- Current database includes additional features: streak tracking, enhanced security, additional tables
-- Use `migration/backup/` files for historical reference
-- Use `migration/archive/` for incremental updates that were applied to the live database
-
-## Migration History
-
-### January 2025 Cleanup
-- **Applied Missing Security**: Migration 31 enhanced flagging security successfully applied
-- **Directory Organization**: Created `backup/` and `archive/` directories for better organization
-- **Fixed Column References**: Corrected `flag_count` → `user_flag_count` in Migration 31
-- **Schema Documentation**: Generated complete TypeScript types reflecting current database state
-
-### June 2024 Refactoring  
-- Consolidated duplicate migration files
-- Aligned all schemas with production database
-- Created clean sequential numbering (01-12)
-- Added comprehensive enum support
-- Enhanced user tier and flagging systems
-
-### Key Changes Made
-- **Enums**: Replaced TEXT constraints with proper enum types
-- **Column Names**: Standardized naming (e.g., `response_time_ms` vs `response_time`)
-- **Missing Fields**: Added all fields present in production schema
-- **Consolidation**: Combined related functionality into logical files
-
-## File Structure
-
-### Current Files (01-12)
-Original migration files that reflect the **initial** database design. **Note**: These are outdated and don't match the current database state.
-
-### Backup Directory (`backup/`)
-Complete backup of all migration files as they existed before cleanup. Use these for historical reference.
-
-### Archive Directory (`archive/`)
-Contains migrations 13-32 that were incrementally applied to the live database:
-- **Migration 31**: Enhanced card flagging security (corrected and applied)
-- **Migration 32**: Additional admin verification functions
-- **Migrations 13-30**: Various fixes, optimizations, and feature additions
-
-### New Schema Files (*-current.sql)
-Partial work toward updated migrations that match the current database state (work in progress).
-
-## Security Features
-
-- **Row Level Security**: All tables have comprehensive RLS policies
-- **Function Security**: All functions use SECURITY DEFINER where appropriate
-- **User Tier Enforcement**: Automatic daily limit and access control
-- **Data Protection**: Users can only access their own data (except admins)
-- **Audit Trail**: Complete review history and flagging resolution tracking
-
-## Troubleshooting
-
-If you encounter errors:
-1. **Check Sequence**: Ensure migrations run in exact order (01-12)
-2. **Verify Dependencies**: Each migration depends on previous ones
-3. **Check Logs**: Review Supabase logs for detailed error messages
-4. **Permission Issues**: Verify database permissions and RLS policies
-5. **Schema Conflicts**: Ensure no existing schema conflicts
-
-## Data Model Overview
-
-```mermaid
-erDiagram
-    auth.users ||--|| user_profiles : extends
-    user_profiles ||--|| fsrs_parameters : has
-    subjects }|--|| user_profiles : created_by
-    cards }|--|| subjects : belongs_to
-    cards }|--|| user_profiles : created_by
-    user_card_progress }|--|| cards : tracks
-    user_card_progress }|--|| user_profiles : for_user
-    review_history }|--|| cards : reviews
-    review_history }|--|| user_profiles : by_user
-    user_card_flags }|--|| cards : flags
-    user_card_flags }|--|| user_profiles : submitted_by
+### Study Queue
+Use `get_user_study_queue()` for mixed due/new card queues:
+```sql
+SELECT * FROM get_user_study_queue(user_id, deck_id, max_new, max_due);
 ```
 
-## Contact
+## Sample Data
 
-For questions about these migrations:
-1. Review this documentation
-2. Check Supabase project logs
-3. Verify against production schema
-4. Contact development team if needed
+Sample subjects, cards, and streak rewards have been created. Use the following to test:
+
+1. **Mathematics Subject**: Basic math cards (2+2, 5×6)
+2. **Science Subject**: General science knowledge
+3. **Streak Rewards**: 3, 7, 30, and 100-day milestones
+
+## Verification
+
+Run the integrity check function to verify the migration:
+```sql
+SELECT * FROM verify_database_integrity();
+```
+
+Should return:
+- Tables Check: PASS (11 tables)
+- Enums Check: PASS (3 enums)
+- Views Check: PASS (4+ views)
+
+## Next Steps
+
+1. **Update Client Code**: Migrate to 0-3 rating scale and new schema
+2. **Test FSRS Calculations**: Verify JSONB parameter access works correctly
+3. **Update UI Components**: Modify rating buttons and deck selection
+4. **Test Views**: Ensure client queries work with new views
+5. **Performance Testing**: Verify query performance with new indexes
+
+## Rollback Strategy
+
+⚠️ **No rollback available** - This is a complete rewrite. If issues occur:
+1. Restore from backup taken before migration
+2. Or re-run individual migration files to rebuild schema
+3. Contact development team for assistance
+
+## Support
+
+For issues with this migration:
+1. Check migration logs in Supabase dashboard
+2. Verify all 11 migration files were applied successfully
+3. Run `verify_database_integrity()` to check system health
+4. Review client code for required updates
+
+---
+
+**Migration completed successfully!** 
+Your FSRS database is now modernized and ready for enhanced spaced repetition learning.

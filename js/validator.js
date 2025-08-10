@@ -33,7 +33,7 @@ export class Validator {
     }
 
     /**
-     * Validate rating value
+     * Validate rating value (updated for 0-3 scale - standard FSRS)
      * @param {any} rating - Rating to validate
      * @param {string} context - Context for error message
      * @returns {boolean} True if valid
@@ -43,8 +43,8 @@ export class Validator {
         if (typeof rating !== 'number' || !Number.isInteger(rating)) {
             throw new Error(`Invalid rating type for ${context}. Must be a number.`);
         }
-        if (rating < 1 || rating > 4) {
-            throw new Error(`Rating must be between 1 and 4 for ${context}. Got: ${rating}`);
+        if (rating < 0 || rating > 3) {
+            throw new Error(`Rating must be between 0 and 3 for ${context}. Got: ${rating}`);
         }
         return true;
     }

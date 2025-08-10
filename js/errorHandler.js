@@ -84,6 +84,26 @@ export class ErrorHandler {
             return 'TIMEOUT_ERROR';
         }
         
+        // FSRS-specific errors
+        if (this.isFSRSError(error)) {
+            return 'FSRS_ERROR';
+        }
+        
+        // Deck-related errors
+        if (this.isDeckError(error)) {
+            return 'DECK_ERROR';
+        }
+        
+        // Composite key errors
+        if (this.isCompositeKeyError(error)) {
+            return 'COMPOSITE_KEY_ERROR';
+        }
+        
+        // Enum violation errors
+        if (this.isEnumError(error)) {
+            return 'ENUM_ERROR';
+        }
+        
         // Generic errors
         return 'UNKNOWN_ERROR';
     }
@@ -131,7 +151,8 @@ export class ErrorHandler {
         return error.code && (
             error.code.startsWith('PGRST') || // PostgREST errors
             error.code.startsWith('P') ||     // Postgres errors
-            error.code.startsWith('23')       // SQL constraint violations
+            error.code.startsWith('23') ||    // SQL constraint violations
+            error.code.startsWith('22')       // Data exception errors
         );
     }
 
@@ -157,6 +178,41 @@ export class ErrorHandler {
     isTimeoutError(error) {
         return /timeout|timed.*out/i.test(error.message) ||
                error.name === 'TimeoutError';
+    }
+
+    /**
+     * Check if error is FSRS-related
+     */
+    isFSRSError(error) {
+        return /fsrs|stability|difficulty|weight|retention/i.test(error.message) ||
+               /invalid.*rating|rating.*out.*of.*range/i.test(error.message) ||
+               /invalid.*state.*transition/i.test(error.message);
+    }
+
+    /**
+     * Check if error is deck-related
+     */
+    isDeckError(error) {
+        return /deck.*not.*found|deck.*required|deck.*id.*missing|invalid.*deck/i.test(error.message) ||
+               /deck.*not.*active|deck.*deleted/i.test(error.message);
+    }
+
+    /**
+     * Check if error is composite primary key related
+     */
+    isCompositeKeyError(error) {
+        return /duplicate.*key.*value|violates.*unique.*constraint/i.test(error.message) ||
+               /user_cards_pkey|primary.*key.*violation/i.test(error.message) ||
+               /missing.*deck_id|deck_id.*required/i.test(error.message);
+    }
+
+    /**
+     * Check if error is enum violation
+     */
+    isEnumError(error) {
+        return /invalid.*input.*value.*for.*enum/i.test(error.message) ||
+               /user_tier|card_state|flag_reason/i.test(error.message) ||
+               error.code === '22P02'; // Invalid text representation
     }
 
     /**
@@ -191,6 +247,18 @@ export class ErrorHandler {
             case 'TIMEOUT_ERROR':
                 return 'Request took too long. Please try again.';
             
+            case 'FSRS_ERROR':
+                return 'Invalid study data or rating. Please check your input and try again.';
+            
+            case 'DECK_ERROR':
+                return 'Deck not found or unavailable. Please select a valid deck.';
+            
+            case 'COMPOSITE_KEY_ERROR':
+                return 'Card already exists in this deck or missing required deck information.';
+            
+            case 'ENUM_ERROR':
+                return 'Invalid data format. Please refresh the page and try again.';
+            
             default:
                 return 'An unexpected error occurred. Please try again.';
         }
@@ -219,6 +287,8 @@ export class ErrorHandler {
             'TIMEOUT_ERROR',
             'RATE_LIMIT_ERROR',
             'DATABASE_ERROR'
+            // Note: FSRS_ERROR, DECK_ERROR, COMPOSITE_KEY_ERROR, ENUM_ERROR are typically not retryable
+            // as they indicate data/logic issues that won't resolve with retry
         ];
         
         const shouldRetry = retryableErrors.includes(errorType);
@@ -257,9 +327,9 @@ export class ErrorHandler {
         };
         
         // Use appropriate log level based on error type
-        if (['AUTH_ERROR', 'PERMISSION_ERROR', 'VALIDATION_ERROR'].includes(errorType)) {
+        if (['AUTH_ERROR', 'PERMISSION_ERROR', 'VALIDATION_ERROR', 'FSRS_ERROR', 'DECK_ERROR', 'ENUM_ERROR'].includes(errorType)) {
             console.warn('Error handled:', logData);
-        } else if (['QUOTA_ERROR', 'RATE_LIMIT_ERROR'].includes(errorType)) {
+        } else if (['QUOTA_ERROR', 'RATE_LIMIT_ERROR', 'COMPOSITE_KEY_ERROR'].includes(errorType)) {
             console.info('Error handled:', logData);
         } else {
             console.error('Error handled:', logData);

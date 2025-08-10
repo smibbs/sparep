@@ -33,7 +33,7 @@ class FSRSOptimizationService {
             
             // Get user's total review count
             const { data: reviewCount, error: countError } = await supabase
-                .from('review_history')
+                .from('reviews')
                 .select('id', { count: 'exact' })
                 .eq('user_id', userId);
 
@@ -43,7 +43,7 @@ class FSRSOptimizationService {
             
             // Get last parameter update
             const { data: params, error: paramsError } = await supabase
-                .from('fsrs_parameters')
+                .from('fsrs_params')
                 .select('updated_at')
                 .eq('user_id', userId)
                 .single();
@@ -80,7 +80,7 @@ class FSRSOptimizationService {
             
             // Get recent review history with sufficient data
             const { data: reviews, error: reviewError } = await supabase
-                .from('review_history')
+                .from('reviews')
                 .select('*')
                 .eq('user_id', userId)
                 .order('review_date', { ascending: false })

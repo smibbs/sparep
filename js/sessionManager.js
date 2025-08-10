@@ -174,6 +174,10 @@ For the best experience, consider using Safari in normal mode or another browser
         try {
             // Get up to configured session size due cards
             const dueCards = await dbService.getCardsDue(userId);
+            console.log(`📋 SessionManager: Found ${dueCards.length} due cards`);
+            if (dueCards.length > 0) {
+                console.log('🔍 Sample due card from service:', dueCards[0]);
+            }
             
             if (dueCards.length >= SESSION_CONFIG.CARDS_PER_SESSION) {
                 return dueCards.slice(0, SESSION_CONFIG.CARDS_PER_SESSION);
@@ -182,27 +186,83 @@ For the best experience, consider using Safari in normal mode or another browser
             // If we need more cards, get new ones
             const newCardsNeeded = SESSION_CONFIG.CARDS_PER_SESSION - dueCards.length;
             const newCards = await dbService.getNewCards(userId, newCardsNeeded);
+            console.log(`🆕 SessionManager: Found ${newCards.length} new cards`);
+            if (newCards.length > 0) {
+                console.log('🔍 Sample new card from service:', newCards[0]);
+            }
+            
             
             // Transform new cards to match expected format
             const formattedNewCards = newCards.map(card => ({
-                card_id: card.id,
-                cards: card,
-                stability: 1.0,
-                difficulty: 5.0,
-                state: 'new',
+                card_template_id: card.card_template_id || card.id,
+                cards: {
+                    question: card.question,
+                    answer: card.answer,
+                    id: card.card_template_id || card.id,
+                    subject_name: card.subject_name,
+                    deck_name: card.deck_name
+                },
+                stability: card.stability || 1.0,
+                difficulty: card.difficulty || 5.0,
+                state: card.state || 'new',
                 total_reviews: 0,
-                next_review_date: new Date().toISOString()
+                due_at: card.due_at || new Date().toISOString()
+            }));
+            
+            console.log('🔧 After transformation - sample new card:', formattedNewCards[0]);
+
+
+            // Transform due cards to match the expected nested structure
+            const formattedDueCards = dueCards.map(card => ({
+                card_template_id: card.card_template_id,
+                cards: {
+                    question: card.question,
+                    answer: card.answer,
+                    id: card.card_template_id,
+                    subject_name: card.subject_name,
+                    deck_name: card.deck_name
+                },
+                stability: card.stability || 1.0,
+                difficulty: card.difficulty || 5.0,
+                state: card.state || 'review',
+                total_reviews: card.total_reviews || 0,
+                due_at: card.due_at,
+                last_reviewed_at: card.last_reviewed_at
             }));
 
-            const allCards = [...dueCards, ...formattedNewCards];
+            if (formattedDueCards.length > 0) {
+                console.log('🔧 After transformation - sample due card:', formattedDueCards[0]);
+            }
+
+            const allCards = [...formattedDueCards, ...formattedNewCards];
+            console.log(`🎯 Final combined cards: ${allCards.length} total`);
+            if (allCards.length > 0) {
+                console.log('🔍 Sample final card:', allCards[0]);
+            }
+            
+            
+            // Deduplicate cards by card_template_id to avoid completion tracking issues
+            const seenIds = new Set();
+            const uniqueCards = allCards.filter(card => {
+                const cardId = String(card.card_template_id);
+                if (seenIds.has(cardId)) {
+                    console.log(`🔍 Removing duplicate card with ID: ${cardId}`);
+                    return false; // Skip this duplicate
+                }
+                seenIds.add(cardId);
+                return true; // Keep this unique card
+            });
+            
+            console.log('🔍 Unique cards after deduplication:', uniqueCards);
+            console.log('🔍 Removed duplicates:', allCards.length - uniqueCards.length);
             
             // If we still don't have enough cards, that's okay for now
             // We'll work with what we have
-            if (allCards.length === 0) {
+            if (uniqueCards.length === 0) {
                 throw new Error('No cards available for session');
             }
             
-            return allCards;
+            return uniqueCards;
         } catch (error) {
             console.error('Failed to load session cards:', error);
             throw error;
@@ -227,7 +287,8 @@ For the best experience, consider using Safari in normal mode or another browser
         }
 
         const currentCard = this.getCurrentCard();
-        const cardId = String(currentCard.card_id); // Ensure consistent string type
+        const cardId = String(currentCard.card_template_id); // Ensure consistent string type
+        
         
         // Initialize ratings array for this card if needed
         if (!this.sessionData.ratings[cardId]) {
@@ -245,6 +306,7 @@ For the best experience, consider using Safari in normal mode or another browser
 
         // Handle rating logic - all ratings count as completed
         this.sessionData.completedCards.add(cardId);
+        
 
         // Save to session storage
         this.saveSession();
@@ -261,10 +323,12 @@ For the best experience, consider using Safari in normal mode or another browser
             return null;
         }
 
+
         // Get the next uncompleted card from the session
         for (let i = 0; i < this.sessionData.cards.length; i++) {
             const card = this.sessionData.cards[i];
-            const cardId = String(card.card_id); // Ensure string consistency
+            const cardId = String(card.card_template_id); // Ensure string consistency
+            
             
             // Return the first uncompleted card
             if (!this.sessionData.completedCards.has(cardId)) {

@@ -11,12 +11,12 @@ async function checkAndShowAdminNav(userId) {
     try {
         const supabase = await getSupabaseClient();
         const { data: profile, error } = await supabase
-            .from('user_profiles')
-            .select('user_tier')
+            .from('profiles')
+            .select('is_admin')
             .eq('id', userId)
             .single();
 
-        if (!error && profile && profile.user_tier === 'admin') {
+        if (!error && profile && profile.is_admin === true) {
             const adminNavLink = document.getElementById('admin-nav-link');
             if (adminNavLink) {
                 adminNavLink.classList.remove('hidden');
@@ -40,9 +40,75 @@ async function checkAndShowAdminNav(userId) {
  */
 export async function getUserStats(userId) {
     const supabase = await getSupabaseClient();
+    
+    try {
+        // Use optimized views and profile data for better performance
+        const [sessionInfo, deckCounts, userCards] = await Promise.all([
+            // Get user session info including streak data
+            supabase
+                .from('v_user_study_session_info')
+                .select(`
+                    current_daily_streak, total_new_cards, total_due_cards,
+                    user_tier, profile_created_at
+                `)
+                .eq('user_id', userId)
+                .single(),
+            
+            // Get deck-based counts for cards due
+            supabase
+                .from('v_due_counts_by_deck')
+                .select('total_due_count, total_cards')
+                .eq('user_id', userId),
+            
+            // Get user cards for accuracy calculation
+            supabase
+                .from('user_cards')
+                .select('total_reviews, correct_reviews')
+                .eq('user_id', userId)
+        ]);
+        
+        // Extract data with error handling
+        const userInfo = sessionInfo.data || {};
+        const decks = deckCounts.data || [];
+        const cards = userCards.data || [];
+        
+        // Total cards studied (cards with at least 1 review)
+        const totalStudied = cards.filter(c => (c.total_reviews || 0) > 0).length;
+        
+        // Review accuracy (correct_reviews / total_reviews)
+        let correct = 0, total = 0;
+        cards.forEach(c => {
+            correct += c.correct_reviews || 0;
+            total += c.total_reviews || 0;
+        });
+        const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+        
+        // Cards due (sum across all decks)
+        const cardsDue = decks.reduce((sum, deck) => sum + (deck.total_due_count || 0), 0);
+        
+        // Use streak from profile (calculated server-side)
+        const streak = userInfo.current_daily_streak || 0;
+        
+        return {
+            totalStudied,
+            accuracy,
+            cardsDue,
+            streak
+        };
+    } catch (error) {
+        console.error('Error getting user stats:', error);
+        // Fallback to basic queries if optimized views fail
+        return await getUserStatsBasic(userId);
+    }
+}
+
+// Fallback function with basic queries
+async function getUserStatsBasic(userId) {
+    const supabase = await getSupabaseClient();
+    
     // Total cards studied (at least 1 review)
     const { data: progress, error: progressError } = await supabase
-        .from('user_card_progress')
+        .from('user_cards')
         .select('total_reviews')
         .eq('user_id', userId);
     if (progressError) throw progressError;
@@ -50,7 +116,7 @@ export async function getUserStats(userId) {
 
     // Review accuracy (correct_reviews / total_reviews)
     const { data: reviews, error: reviewsError } = await supabase
-        .from('user_card_progress')
+        .from('user_cards')
         .select('correct_reviews, total_reviews')
         .eq('user_id', userId);
     if (reviewsError) throw reviewsError;
@@ -61,33 +127,23 @@ export async function getUserStats(userId) {
     });
     const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
 
-    // Cards due today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
+    // Cards due today (use view if available, fallback to direct query)
     const { data: dueCards, error: dueError } = await supabase
-        .from('user_card_progress')
-        .select('next_review_date')
-        .eq('user_id', userId)
-        .lte('next_review_date', tomorrow.toISOString());
-    if (dueError) throw dueError;
-    const cardsDue = (dueCards || []).length;
+        .from('v_due_user_cards')
+        .select('card_template_id', { count: 'exact' })
+        .eq('user_id', userId);
+    
+    const cardsDue = dueError ? 0 : (dueCards?.length || 0);
 
-    // Study streak (days with at least 1 review, consecutive up to today)
-    const { data: history, error: historyError } = await supabase
-        .from('review_history')
-        .select('review_date')
-        .eq('user_id', userId)
-        .order('review_date', { ascending: false });
-    if (historyError) throw historyError;
-    const days = new Set((history || []).map(h => (new Date(h.review_date)).toDateString()));
-    let streak = 0;
-    let d = new Date();
-    while (days.has(d.toDateString())) {
-        streak++;
-        d.setDate(d.getDate() - 1);
-    }
+    // Get streak from profile
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('current_daily_streak')
+        .eq('id', userId)
+        .single();
+    
+    const streak = profile?.current_daily_streak || 0;
+    
     return {
         totalStudied,
         accuracy,
@@ -97,42 +153,90 @@ export async function getUserStats(userId) {
 }
 
 /**
- * Get subject progress breakdown for the user with card state counts
+ * Get deck progress breakdown for the user with card state counts
  * @param {string} userId
- * @returns {Promise<Array<{subject_id: string, subject_name: string, total: number, new: number, learning: number, review: number, other: number, percentages: {new: number, learning: number, review: number, other: number}}>>}
+ * @returns {Promise<Array<{deck_id: string, deck_name: string, total: number, new: number, learning: number, review: number, other: number, percentages: {new: number, learning: number, review: number, other: number}}>>}
  */
-export async function getSubjectProgress(userId) {
+export async function getDeckProgress(userId) {
     const supabase = await getSupabaseClient();
-    // Getting subject progress for user
-    // Get all subjects
-    const { data: subjects, error: subjectsError } = await supabase
-        .from('subjects')
-        .select('id, name');
-    // Subjects query result
-    if (subjectsError) throw subjectsError;
-    // Get all cards for user with progress
+    
+    try {
+        // Use the optimized deck counts view for better performance
+        const { data: deckCounts, error } = await supabase
+            .from('v_due_counts_by_deck')
+            .select(`
+                deck_id, deck_name, total_cards,
+                new_count, learning_count, review_count, suspended_count
+            `)
+            .eq('user_id', userId);
+            
+        if (error) throw error;
+        
+        return (deckCounts || []).map(deck => {
+            const total = deck.total_cards || 0;
+            const newCount = deck.new_count || 0;
+            const learningCount = deck.learning_count || 0; 
+            const reviewCount = deck.review_count || 0;
+            const otherCount = (deck.suspended_count || 0); // suspended cards
+            
+            return {
+                deck_id: deck.deck_id,
+                deck_name: deck.deck_name,
+                total,
+                new: newCount,
+                learning: learningCount,
+                review: reviewCount,
+                other: otherCount,
+                percentages: {
+                    new: total > 0 ? Math.round((newCount / total) * 100) : 0,
+                    learning: total > 0 ? Math.round((learningCount / total) * 100) : 0,
+                    review: total > 0 ? Math.round((reviewCount / total) * 100) : 0,
+                    other: total > 0 ? Math.round((otherCount / total) * 100) : 0
+                }
+            };
+        });
+    } catch (error) {
+        console.error('Error getting deck progress:', error);
+        // Fallback to subject-based progress if deck view fails
+        return await getSubjectProgressFallback(userId);
+    }
+}
+
+// Fallback function for subject-based progress (legacy compatibility)
+async function getSubjectProgressFallback(userId) {
+    const supabase = await getSupabaseClient();
+    
+    // Get all subjects that have cards for this user
     const { data: progress, error: progressError } = await supabase
-        .from('user_card_progress')
-        .select('card_id, state, cards:card_id(subject_id)')
+        .from('user_cards')
+        .select(`
+            state,
+            card_templates!inner(subject_id, subjects(id, name))
+        `)
         .eq('user_id', userId);
-    // Progress query result
+        
     if (progressError) throw progressError;
+    
     // Group by subject and count states
     const subjectMap = {};
-    (subjects || []).forEach(s => {
-        subjectMap[s.id] = { 
-            subject_id: s.id, 
-            subject_name: s.name, 
-            total: 0, 
-            new: 0, 
-            learning: 0, 
-            review: 0, 
-            other: 0 
-        };
-    });
+    
     (progress || []).forEach(p => {
-        const sid = p.cards?.subject_id;
-        if (!sid || !subjectMap[sid]) return;
+        const subject = p.card_templates?.subjects;
+        if (!subject) return;
+        
+        const sid = subject.id;
+        if (!subjectMap[sid]) {
+            subjectMap[sid] = { 
+                subject_id: sid, 
+                subject_name: subject.name, 
+                total: 0, 
+                new: 0, 
+                learning: 0, 
+                review: 0, 
+                other: 0 
+            };
+        }
+        
         subjectMap[sid].total++;
         
         // Count by state
@@ -152,6 +256,7 @@ export async function getSubjectProgress(userId) {
                 break;
         }
     });
+    
     // Calculate percentages for each state
     return Object.values(subjectMap).map(s => ({
         ...s,
@@ -163,6 +268,9 @@ export async function getSubjectProgress(userId) {
         }
     }));
 }
+
+// Keep the original function name for backward compatibility
+export const getSubjectProgress = getDeckProgress;
 
 // Debounce utility
 function debounce(fn, delay) {
@@ -294,9 +402,9 @@ async function updateDashboard() {
         const user = await window.authService.getCurrentUser();
         if (!user) throw new Error('Not logged in');
         // Fetch stats
-        const [userStats, subjectProgress] = await Promise.all([
+        const [userStats, deckProgress] = await Promise.all([
             getUserStats(user.id),
-            getSubjectProgress(user.id)
+            getDeckProgress(user.id)
         ]);
         // Update stat cards
         document.getElementById('total-cards').textContent = userStats.totalStudied;
@@ -306,13 +414,13 @@ async function updateDashboard() {
         // Check if user is admin and show admin link
         await checkAndShowAdminNav(user.id);
         
-        // Update subject progress
+        // Update deck progress (or subject progress as fallback)
         const list = document.getElementById('subject-progress-list');
         list.innerHTML = '';
-        if (subjectProgress.length === 0) {
-            list.innerHTML = '<p>No subjects found.</p>';
+        if (deckProgress.length === 0) {
+            list.innerHTML = '<p>No decks found. Create your first deck to start studying!</p>';
         } else {
-            subjectProgress.forEach(s => {
+            deckProgress.forEach(s => {
                 const div = document.createElement('div');
                 div.className = 'subject-progress-item';
                 
@@ -339,8 +447,10 @@ async function updateDashboard() {
                     }
                 });
                 
+                // Show deck name if available, otherwise use subject name for fallback
+                const displayName = s.deck_name || s.subject_name || 'Unnamed Deck';
                 div.innerHTML = `
-                    <div class="subject-progress-title"><strong>${s.subject_name}</strong></div>
+                    <div class="subject-progress-title"><strong>${displayName}</strong></div>
                     <div class="subject-progress-bar">
                         ${barHTML}
                     </div>

@@ -121,7 +121,7 @@ class FSRSSchedulerService {
             
             // Get all users with FSRS parameters
             const { data: users, error: usersError } = await supabase
-                .from('fsrs_parameters')
+                .from('fsrs_params')
                 .select('user_id, updated_at')
                 .order('updated_at', { ascending: true });
 
@@ -228,7 +228,7 @@ class FSRSSchedulerService {
             
             // Get all users with parameters
             const { data: users, error: usersError } = await supabase
-                .from('fsrs_parameters')
+                .from('fsrs_params')
                 .select('user_id')
                 .limit(options.maxUsers || 100);
 

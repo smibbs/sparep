@@ -11,28 +11,15 @@ class FSRSParametersService {
         // Cache expiration time (30 minutes)
         this.cacheExpiration = 30 * 60 * 1000;
         
-        // Default FSRS parameters based on FSRS research
+        // Default FSRS parameters based on modern FSRS research
         this.defaultParams = {
-            // FSRS algorithm weights (w0-w18)
-            w0: 0.4197,    // Initial stability for new cards
-            w1: 1.1829,    // Stability increase factor for Good rating  
-            w2: 3.1262,    // Stability increase factor for Easy rating
-            w3: 15.4722,   // Stability decrease factor for Hard rating
-            w4: 7.2102,    // Stability decrease factor for Again rating
-            w5: 0.5316,    // Impact of card difficulty on stability
-            w6: 1.0651,    // Difficulty adjustment factor
-            w7: 0.0234,    // Impact of elapsed time since last review
-            w8: 1.616,     // Stability increase exponential factor
-            w9: 0.0721,    // Stability power factor
-            w10: 0.1284,   // Retrievability impact factor
-            w11: 1.0824,   // Failure stability multiplier
-            w12: 0.0,      // Minimum allowed stability value
-            w13: 100.0,    // Maximum allowed stability value
-            w14: 1.0,      // Minimum allowed difficulty value
-            w15: 10.0,     // Maximum allowed difficulty value / Hard rating multiplier
-            w16: 2.9013,   // Easy rating multiplier
-            w17: 0.0,      // Reserved for future use
-            w18: 0.0,      // Reserved for future use
+            // FSRS algorithm weights (w0-w18) - stored in JSONB
+            weights: {
+                w0: 0.4872, w1: 1.4003, w2: 3.1145, w3: 15.69, w4: 7.1434,
+                w5: 0.6477, w6: 1.0007, w7: 0.0674, w8: 1.6597, w9: 0.1712,
+                w10: 1.1178, w11: 2.0225, w12: 0.0904, w13: 0.3025, w14: 2.1214,
+                w15: 0.2498, w16: 2.9466, w17: 0.4891, w18: 0.6468
+            },
             
             // Learning configuration
             learning_steps_minutes: [1, 10],
@@ -42,9 +29,9 @@ class FSRSParametersService {
             minimum_interval_days: 1,
             desired_retention: 0.9, // Target retention rate
             
-            // Daily limits
-            new_cards_per_day: 20,
-            reviews_per_day: 200,
+            // Daily limits (overrides for profile defaults)
+            new_cards_per_day: null,  // NULL = inherit from profile
+            reviews_per_day: null,    // NULL = inherit from profile
             
             // Relearning configuration
             relearning_steps_minutes: [10],
@@ -69,11 +56,11 @@ class FSRSParametersService {
                 return cached.params;
             }
 
-            // Load from database
+            // Load from database with JSONB weights
             const supabase = await this.getSupabase();
             const { data, error } = await supabase
-                .from('fsrs_parameters')
-                .select('*')
+                .from('fsrs_params')
+                .select('weights, desired_retention, learning_steps_minutes, graduating_interval_days, easy_interval_days, maximum_interval_days, minimum_interval_days, new_cards_per_day, reviews_per_day, relearning_steps_minutes, minimum_relearning_interval_days, lapse_minimum_interval_days, lapse_multiplier, created_at, updated_at')
                 .eq('user_id', userId)
                 .single();
 
@@ -109,14 +96,26 @@ class FSRSParametersService {
         try {
             const supabase = await this.getSupabase();
             
-            // Insert default parameters
+            // Insert default parameters with JSONB weights
             const { data, error } = await supabase
-                .from('fsrs_parameters')
+                .from('fsrs_params')
                 .insert({
                     user_id: userId,
-                    ...this.defaultParams
+                    weights: this.defaultParams.weights,  // JSONB field
+                    learning_steps_minutes: this.defaultParams.learning_steps_minutes,
+                    graduating_interval_days: this.defaultParams.graduating_interval_days,
+                    easy_interval_days: this.defaultParams.easy_interval_days,
+                    maximum_interval_days: this.defaultParams.maximum_interval_days,
+                    minimum_interval_days: this.defaultParams.minimum_interval_days,
+                    desired_retention: this.defaultParams.desired_retention,
+                    new_cards_per_day: this.defaultParams.new_cards_per_day,
+                    reviews_per_day: this.defaultParams.reviews_per_day,
+                    relearning_steps_minutes: this.defaultParams.relearning_steps_minutes,
+                    minimum_relearning_interval_days: this.defaultParams.minimum_relearning_interval_days,
+                    lapse_minimum_interval_days: this.defaultParams.lapse_minimum_interval_days,
+                    lapse_multiplier: this.defaultParams.lapse_multiplier
                 })
-                .select()
+                .select('weights, desired_retention, learning_steps_minutes, graduating_interval_days, easy_interval_days, maximum_interval_days, minimum_interval_days, new_cards_per_day, reviews_per_day, relearning_steps_minutes, minimum_relearning_interval_days, lapse_minimum_interval_days, lapse_multiplier, created_at, updated_at')
                 .single();
 
             if (error) throw error;
@@ -147,7 +146,7 @@ class FSRSParametersService {
             const supabase = await this.getSupabase();
             
             const { data, error } = await supabase
-                .from('fsrs_parameters')
+                .from('fsrs_params')
                 .update({
                     ...updates,
                     updated_at: new Date().toISOString()
@@ -193,44 +192,37 @@ class FSRSParametersService {
      * @returns {Object} Formatted parameters
      */
     formatParameters(dbParams) {
+        // Extract JSONB weights and merge with other parameters
+        const weights = dbParams.weights || {};
         return {
-            // FSRS weights
-            w0: dbParams.w0,
-            w1: dbParams.w1,
-            w2: dbParams.w2,
-            w3: dbParams.w3,
-            w4: dbParams.w4,
-            w5: dbParams.w5,
-            w6: dbParams.w6,
-            w7: dbParams.w7,
-            w8: dbParams.w8,
-            w9: dbParams.w9,
-            w10: dbParams.w10,
-            w11: dbParams.w11,
-            w12: dbParams.w12,
-            w13: dbParams.w13,
-            w14: dbParams.w14,
-            w15: dbParams.w15,
-            w16: dbParams.w16,
+            // FSRS weights (w0-w18) from JSONB
+            w0: weights.w0 || 0.4872, w1: weights.w1 || 1.4003, w2: weights.w2 || 3.1145,
+            w3: weights.w3 || 15.69, w4: weights.w4 || 7.1434, w5: weights.w5 || 0.6477,
+            w6: weights.w6 || 1.0007, w7: weights.w7 || 0.0674, w8: weights.w8 || 1.6597,
+            w9: weights.w9 || 0.1712, w10: weights.w10 || 1.1178, w11: weights.w11 || 2.0225,
+            w12: weights.w12 || 0.0904, w13: weights.w13 || 0.3025, w14: weights.w14 || 2.1214,
+            w15: weights.w15 || 0.2498, w16: weights.w16 || 2.9466, w17: weights.w17 || 0.4891,
+            w18: weights.w18 || 0.6468,
             
             // Learning configuration
-            learning_steps_minutes: dbParams.learning_steps_minutes,
-            graduating_interval_days: dbParams.graduating_interval_days,
-            easy_interval_days: dbParams.easy_interval_days,
-            maximum_interval_days: dbParams.maximum_interval_days,
-            minimum_interval_days: dbParams.minimum_interval_days,
+            learning_steps_minutes: dbParams.learning_steps_minutes || [1, 10],
+            graduating_interval_days: dbParams.graduating_interval_days || 1,
+            easy_interval_days: dbParams.easy_interval_days || 4,
+            maximum_interval_days: dbParams.maximum_interval_days || 36500,
+            minimum_interval_days: dbParams.minimum_interval_days || 1,
+            desired_retention: dbParams.desired_retention || 0.9,
             
-            // Daily limits
+            // Daily limits (nullable overrides)
             new_cards_per_day: dbParams.new_cards_per_day,
             reviews_per_day: dbParams.reviews_per_day,
             
             // Relearning configuration
-            relearning_steps_minutes: dbParams.relearning_steps_minutes,
-            minimum_relearning_interval_days: dbParams.minimum_relearning_interval_days,
+            relearning_steps_minutes: dbParams.relearning_steps_minutes || [10],
+            minimum_relearning_interval_days: dbParams.minimum_relearning_interval_days || 1,
             
             // Lapse configuration
-            lapse_minimum_interval_days: dbParams.lapse_minimum_interval_days,
-            lapse_multiplier: dbParams.lapse_multiplier
+            lapse_minimum_interval_days: dbParams.lapse_minimum_interval_days || 1,
+            lapse_multiplier: dbParams.lapse_multiplier || 0.5
         };
     }
 

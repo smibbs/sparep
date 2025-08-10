@@ -5,14 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Login - nanotopic</title>
     
-    <!-- Security headers for production -->
-    <script>
-        // Only add security headers in production (not localhost)
-        if (!window.location.hostname.includes('localhost') && window.location.hostname !== '127.0.0.1') {
-            document.write('<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">');
-            document.write('<meta http-equiv="Strict-Transport-Security" content="max-age=63072000; includeSubDomains; preload">');
-        }
-    </script>
     
     <!-- Mobile-specific meta tags for better experience -->
     <meta name="mobile-web-app-capable" content="yes">
@@ -21,7 +13,7 @@
     <meta name="apple-touch-fullscreen" content="yes">
     <meta name="format-detection" content="telephone=no">
     <link rel="stylesheet" href="css/auth.css?v=6">
-    <link rel="stylesheet" href="css/onboarding.css?v=7">
+    <link rel="stylesheet" href="css/onboarding.css?v=15">
     <!-- Include Supabase client library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config/supabase-config.js"></script>
@@ -31,8 +23,6 @@
     <script src="js/onboarding.js" type="module"></script>
 </head>
 <body>
-    <!-- Invisible scroll driver -->
-    <div class="scroll-driver"></div>
     
     <!-- Fixed split layout container -->
     <div class="page-container">
@@ -105,26 +95,15 @@
 
         <!-- Right side: Fixed animation area -->
         <div class="animation-side">
-            <!-- Scroll Progress Indicator -->
-            <div class="scroll-progress">
-                <div class="scroll-progress-bar"></div>
-            </div>
-            
-            <!-- Scroll indicator -->
-            <div class="scroll-indicator">
-                <span class="scroll-text">Scroll to learn more</span>
-                <div class="scroll-arrow"></div>
-            </div>
-            
             <!-- Simple text animation container -->
             <div class="animation-content">
                 <div class="message-container">
-                    <p class="reveal-text" id="message-1">Endless multiple-choice drills only train you to guess answers, not grasp <span class="sketch-underline">core concepts</span>!</p>
-                    <p class="reveal-text" id="message-2"><span class="sketch-underline">Spaced repetition</span> slashes study time by embedding fundamentals into your <span class="sketch-underline">long-term memory</span> with quick, focused bursts.</p>
-                    <p class="reveal-text" id="message-3">Just <span class="sketch-underline">five minutes a day</span> keeps the forgetting curve away, so you build <span class="sketch-underline">real understanding</span>—not shallow recall.</p>
-                    <p class="reveal-text" id="message-4"><span class="sketch-underline">Busy professionals</span> swap marathon crams for <span class="sketch-underline">pocket-sized reviews</span> that <span class="sketch-underline">power up</span> any question you face.</p>
-                    <p class="reveal-text" id="message-5">Master the "why" behind every fact and watch your <span class="sketch-underline">expertise soar</span>—spaced repetition makes every minute count!</p>
-                    <p class="reveal-text" id="message-6"><span class="sketch-underline">Sign up now</span> and learn with flashcards!</p>
+                    <p class="reveal-text" id="message-1"><span class="sketch-underline">Stop guessing. Start understanding</span>. Endless multiple-choice drills train your reflexes—not your reasoning.</p>
+                    <p class="reveal-text" id="message-2">Learn smarter, not longer. <span class="sketch-underline">Spaced repetition</span> locks in key concepts with short, focused bursts—no cramming required.</p>
+                    <p class="reveal-text" id="message-3"><span class="sketch-underline">Fifteen minutes a day</span> beats forgetting. Tiny reviews fight memory decay and build lasting clarity.</p>
+                    <p class="reveal-text" id="message-4">Built for busy minds. Professionals <span class="sketch-underline">ditch marathon study sessions</span> for bite-sized reviews that sharpen thinking on the go.</p>
+                    <p class="reveal-text" id="message-5">Know the "why," not just the "what." Spaced repetition turns facts into fluency—so <span class="sketch-underline">your expertise grows</span> with every tap.</p>
+                    <p class="reveal-text" id="message-6">Ready to learn faster? <span class="sketch-underline">Sign up now</span> and master big ideas with flashcards that fit your schedule.</p>
                 </div>
             </div>
         </div>

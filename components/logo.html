@@ -54,21 +54,12 @@
 
 /* Sketch underline effect */
 .sketch-underline {
-  position: relative;
   display: inline;
-}
-
-.sketch-underline::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: -2px;
-  width: calc(100% + 4px);
-  height: 12px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 12'%3E%3Cpath d='M1,8 Q15,2 30,6 Q45,10 60,4 Q75,8 90,6 Q95,4 99,8' stroke='%234a90e2' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
+  background-image: url('../assets/sketch-underline.svg');
+  background-position: left bottom;
+  background-repeat: repeat-x;
   background-size: 80px 12px;
-  opacity: 0.8;
-  pointer-events: none;
+  padding-bottom: 4px;
 }
 
 /* Login page specific styling */
@@ -95,12 +86,6 @@
     font-size: clamp(2rem, 4vw, 2.5rem);
   }
   
-  .sketch-underline::after {
-    height: 10px;
-    background-size: 60px 10px;
-    bottom: -3px;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10'%3E%3Cpath d='M1,6 Q15,2 30,5 Q45,8 60,3 Q75,6 90,5 Q95,3 99,6' stroke='%234a90e2' stroke-width='2.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
-  }
   
   /* Mobile login page adjustments */
   .login-logo {
@@ -120,12 +105,6 @@
     padding: 4px 8px;
   }
   
-  .sketch-underline::after {
-    height: 8px;
-    background-size: 45px 8px;
-    bottom: -2px;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 8'%3E%3Cpath d='M1,5 Q15,2 30,4 Q45,6 60,3 Q75,5 90,4 Q95,2 99,5' stroke='%234a90e2' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
-  }
   
   /* Mobile login page adjustments */
   .login-logo {
@@ -142,11 +121,6 @@
     font-size: clamp(1.5rem, 4vw, 1.875rem);
   }
   
-  .sketch-underline::after {
-    height: 6px;
-    background-size: 35px 6px;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 6'%3E%3Cpath d='M1,4 Q15,1 30,3 Q45,5 60,2 Q75,4 90,3 Q95,1 99,4' stroke='%234a90e2' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") repeat-x;
-  }
   
   .login-logo {
     font-size: clamp(1.375rem, 3.5vw, 1.75rem) !important;
