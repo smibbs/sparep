@@ -2,6 +2,7 @@
  * SessionManager - Handles batch session loading and local caching
  */
 import { SESSION_CONFIG, CACHE_CONFIG } from './config.js';
+import Validator from './validator.js';
 
 class SessionManager {
     constructor() {
@@ -149,7 +150,7 @@ For the best experience, consider using Safari in normal mode or another browser
                 cards: cards,
                 totalCardsInSession: cards.length, // Track actual number of cards
                 ratings: {}, // cardId -> array of rating objects
-                completedCards: new Set(), // Cards that have been rated (all ratings 1-4)
+                completedCards: new Set(), // Cards marked complete after receiving a 0-3 rating
                 currentCardIndex: 0,
                 sessionStartTime: new Date().toISOString()
             };
@@ -270,10 +271,12 @@ For the best experience, consider using Safari in normal mode or another browser
     }
 
     /**
-     * Record a rating for the current card
-     * @param {number} rating - Rating value (1-4)
-     * @param {number} responseTime - Response time in milliseconds
-     * @returns {boolean} Success status
+     * Record a rating for the current card.
+     * @param {number} rating - Rating value (0-3).
+     * @param {number} responseTime - Response time in milliseconds.
+     * @returns {boolean} Success status.
+     *
+     * Optionally validates the rating via {@link Validator.validateRating} before recording.
      */
     recordRating(rating, responseTime) {
         if (!this.sessionData || !this.getCurrentCard()) {
@@ -283,6 +286,14 @@ For the best experience, consider using Safari in normal mode or another browser
         // Validate session state before recording rating
         if (!this.validateSessionState()) {
             console.error('Session state validation failed before recording rating');
+            return false;
+        }
+
+        // Optionally validate rating value (0-3 scale)
+        try {
+            Validator.validateRating(rating, 'session rating');
+        } catch (error) {
+            console.error('Rating validation failed:', error);
             return false;
         }
 
