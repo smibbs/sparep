@@ -1873,9 +1873,11 @@ async function initializeUserProgress(userId) {
  */
 async function getDueCards(userId) {
     try {
-        
+        validateUserId(userId, 'getting due cards');
+
+        const supabase = await getSupabaseClient();
         const now = new Date().toISOString();
-        
+
         // Get cards that are either:
         // 1. Due for review (due_at <= now)
         // 2. New cards (state = 'new')
@@ -1883,7 +1885,7 @@ async function getDueCards(userId) {
             .from('user_cards')
             .select(`
                 *,
-                cards (
+                card_templates (
                     id,
                     question,
                     answer,
@@ -1904,10 +1906,10 @@ async function getDueCards(userId) {
 
         // Transform the data to a more usable format
         const dueCards = data.map(record => ({
-            id: record.cards.id,
+            id: record.card_template_id,
             question: record.card_templates.question,
             answer: record.card_templates.answer,
-            subject_id: record.cards.subject_id,
+            subject_id: record.card_templates.subject_id,
             progress: {
                 stability: record.stability,
                 difficulty: record.difficulty,
