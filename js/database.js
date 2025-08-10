@@ -1305,18 +1305,18 @@ class DatabaseService {
                 // Determine next state
                 let nextState = currentState;
                 if (currentState === 'new') {
-                    nextState = completingRating.rating >= 3 ? 'review' : 'learning';
+                    nextState = completingRating.rating >= 2 ? 'review' : 'learning';
                 } else if (currentState === 'learning') {
-                    nextState = completingRating.rating >= 3 ? 'review' : 'learning';
+                    nextState = completingRating.rating >= 2 ? 'review' : 'learning';
                 } else if (currentState === 'review') {
-                    nextState = completingRating.rating === 1 ? 'learning' : 'review';
+                    nextState = completingRating.rating === 0 ? 'learning' : 'review';
                 }
 
-                // Count total reviews (all ratings) and correct reviews (ratings >= 3)
+                // Count total reviews (all ratings) and correct reviews (ratings >= 2)
                 const totalReviews = allRatings.length;
-                const correctReviews = allRatings.filter(r => r.rating >= 3).length;
-                const incorrectReviews = allRatings.filter(r => r.rating < 3).length;
-                const lapses = allRatings.filter(r => r.rating === 1).length;
+                const correctReviews = allRatings.filter(r => r.rating >= 2).length;
+                const incorrectReviews = allRatings.filter(r => r.rating < 2).length;
+                const lapses = allRatings.filter(r => r.rating === 0).length;
 
                 // Update progress record
                 progressUpdates.push({
