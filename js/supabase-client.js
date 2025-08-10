@@ -1,5 +1,11 @@
 // Initialize Supabase client
-// Initializing Supabase client
+
+class SupabaseConfigError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'SupabaseConfigError';
+    }
+}
 
 let supabase = null;
 let initializationPromise = null;
@@ -38,37 +44,41 @@ async function initializeSupabase() {
         await waitForSupabaseLibrary();
 
         if (!window.supabaseConfig) {
-            throw new Error('Supabase configuration not found');
+            throw new SupabaseConfigError('Supabase configuration not found.');
         }
 
         const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.supabaseConfig;
+        const missingValues = !SUPABASE_URL || !SUPABASE_ANON_KEY;
+        const placeholderValues =
+            SUPABASE_URL.includes('YOUR_SUPABASE_URL') ||
+            SUPABASE_ANON_KEY.includes('YOUR_SUPABASE_ANON_KEY');
 
-        if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes('YOUR_SUPABASE_URL') || SUPABASE_ANON_KEY.includes('YOUR_SUPABASE_ANON_KEY')) {
-            throw new Error('Missing Supabase configuration values');
+        if (missingValues || placeholderValues) {
+            throw new SupabaseConfigError('Supabase configuration is missing or contains placeholder values.');
         }
 
         // Create Supabase client
         supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
+
         // Test the client
         await supabase.auth.getSession();
-        
+
         // Supabase client created and tested successfully
         return supabase;
     } catch (error) {
         // Failed to initialize Supabase client
-        
+
         // Clear the failed client
         supabase = null;
-        
-        // Retry initialization if under max retries
-        if (initializationRetries < MAX_RETRIES) {
+
+        // Retry initialization if under max retries and not a config error
+        if (!(error instanceof SupabaseConfigError) && initializationRetries < MAX_RETRIES) {
             initializationRetries++;
             // Retrying Supabase initialization
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
             return initializeSupabase();
         }
-        
+
         throw error;
     }
 }
@@ -80,24 +90,34 @@ export async function getSupabaseClient() {
         if (!initializationPromise) {
             initializationPromise = initializeSupabase();
         }
-        
+
         // Wait for initialization and return client
         return await initializationPromise;
     } catch (error) {
         // Clear failed initialization
         initializationPromise = null;
+        if (typeof window !== 'undefined' && typeof showError === 'function') {
+            showError(error.message || 'Failed to initialize Supabase client.');
+        }
         throw error;
     }
 }
 
 // Initialize immediately and set global reference
-initializationPromise = initializeSupabase().then(client => {
-    // Set global reference for other modules
-    if (typeof window !== 'undefined') {
-        window.supabaseClient = client;
-    }
-    return client;
-});
+initializationPromise = initializeSupabase()
+    .then(client => {
+        // Set global reference for other modules
+        if (typeof window !== 'undefined') {
+            window.supabaseClient = client;
+        }
+        return client;
+    })
+    .catch(error => {
+        if (typeof window !== 'undefined' && typeof showError === 'function') {
+            showError(error.message || 'Failed to initialize Supabase client.');
+        }
+        throw error;
+    });
 
 // Export the getter function as default
-export default getSupabaseClient; 
+export default getSupabaseClient;
