@@ -54,6 +54,7 @@ coverage/
 .nyc_output/
 test-results/
 *.test.local.js
+dist/
 
 # Test files in root directory
 test-*.html
