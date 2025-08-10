@@ -4,7 +4,7 @@
  */
 
 // FSRS Rating Scale (0-3 standardized scale)
-export const FSRS_RATINGS = {
+const FSRS_RATINGS = {
     AGAIN: 0,   // Card failed, needs relearning
     HARD: 1,    // Correct but difficult
     GOOD: 2,    // Standard correct response
@@ -12,7 +12,7 @@ export const FSRS_RATINGS = {
 };
 
 // Card States (FSRS learning progression)
-export const CARD_STATES = {
+const CARD_STATES = {
     NEW: 'new',
     LEARNING: 'learning', 
     REVIEW: 'review',
@@ -22,7 +22,7 @@ export const CARD_STATES = {
 };
 
 // Flag Reasons for reporting card issues
-export const FLAG_REASONS = {
+const FLAG_REASONS = {
     INCORRECT: 'incorrect',
     SPELLING: 'spelling', 
     CONFUSING: 'confusing',
@@ -30,14 +30,14 @@ export const FLAG_REASONS = {
 };
 
 // User Tier Configuration
-export const USER_TIERS = {
+const USER_TIERS = {
     FREE: 'free',
     PAID: 'paid',
     ADMIN: 'admin'
 };
 
 // Daily Limits Configuration (matching database defaults)
-export const DAILY_LIMITS = {
+const DAILY_LIMITS = {
     // Profile defaults (from database schema)
     DEFAULT_NEW_CARDS: 20,
     DEFAULT_REVIEWS: 100,
@@ -52,7 +52,7 @@ export const DAILY_LIMITS = {
 };
 
 // Session Configuration (legacy support)
-export const SESSION_CONFIG = {
+const SESSION_CONFIG = {
     CARDS_PER_SESSION: 10,
     
     // Legacy daily limits (deprecated - use DAILY_LIMITS instead)
@@ -69,7 +69,7 @@ export const SESSION_CONFIG = {
 };
 
 // FSRS Algorithm Configuration
-export const FSRS_CONFIG = {
+const FSRS_CONFIG = {
     // Default FSRS parameters (matching database defaults)
     DEFAULT_WEIGHTS: {
         // Standard 19 FSRS weights (w0-w18)
@@ -100,7 +100,7 @@ export const FSRS_CONFIG = {
 };
 
 // Timezone Configuration
-export const TIMEZONE_CONFIG = {
+const TIMEZONE_CONFIG = {
     DEFAULT_TIMEZONE: 'UTC',
     DEFAULT_DAY_START_TIME: '04:00:00', // 4 AM default
     
@@ -120,7 +120,7 @@ export const TIMEZONE_CONFIG = {
 };
 
 // Streak Configuration
-export const STREAK_CONFIG = {
+const STREAK_CONFIG = {
     // Minimum cards to maintain streak
     MIN_CARDS_FOR_STREAK: 1,
     
@@ -132,7 +132,7 @@ export const STREAK_CONFIG = {
 };
 
 // Cache Configuration
-export const CACHE_CONFIG = {
+const CACHE_CONFIG = {
     // Storage size limits (in bytes)
     MAX_STORAGE_SIZE: 5 * 1024 * 1024, // 5MB
     MAX_MEMORY_ENTRIES: 50, // Maximum entries in memory fallback
@@ -148,7 +148,7 @@ export const CACHE_CONFIG = {
 };
 
 // Loading Messages Configuration
-export const LOADING_CONFIG = {
+const LOADING_CONFIG = {
     CONTEXTS: {
         GENERAL: 'general',
         STUDY: 'study', 
@@ -168,7 +168,7 @@ export const LOADING_CONFIG = {
 };
 
 // Deck Configuration
-export const DECK_CONFIG = {
+const DECK_CONFIG = {
     DEFAULT_DECK_NAME: 'Default Deck',
     DEFAULT_DECK_DESCRIPTION: 'Your main study deck. You can create additional decks to organize your learning.',
     
@@ -181,7 +181,7 @@ export const DECK_CONFIG = {
 };
 
 // Card Template Configuration
-export const CARD_TEMPLATE_CONFIG = {
+const CARD_TEMPLATE_CONFIG = {
     // Validation limits
     MAX_QUESTION_LENGTH: 2000,
     MAX_ANSWER_LENGTH: 2000,
