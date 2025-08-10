@@ -9,19 +9,19 @@
 BEGIN;
 
 -- -----------------------------------------------------------------------------
--- 1. Enhanced user-level streak tracking in user_profiles
+-- 1. Enhanced user-level streak tracking in profiles
 -- -----------------------------------------------------------------------------
 
--- Add streak tracking columns to user_profiles
-ALTER TABLE user_profiles 
+-- Add streak tracking columns to profiles
+ALTER TABLE profiles
     ADD COLUMN IF NOT EXISTS current_daily_streak INT DEFAULT 0,
     ADD COLUMN IF NOT EXISTS longest_daily_streak INT DEFAULT 0,
     ADD COLUMN IF NOT EXISTS last_streak_date DATE,
     ADD COLUMN IF NOT EXISTS streak_freeze_count INT DEFAULT 0; -- For streak protection feature
 
 -- Add indexes for performance
-CREATE INDEX IF NOT EXISTS idx_user_profiles_streak_date ON user_profiles(last_streak_date);
-CREATE INDEX IF NOT EXISTS idx_user_profiles_current_streak ON user_profiles(current_daily_streak);
+CREATE INDEX IF NOT EXISTS idx_profiles_streak_date ON profiles(last_streak_date);
+CREATE INDEX IF NOT EXISTS idx_profiles_current_streak ON profiles(current_daily_streak);
 
 -- -----------------------------------------------------------------------------
 -- 2. Streak milestone tracking table
@@ -155,12 +155,12 @@ BEGIN
     -- Get current user streak info
     SELECT last_streak_date, current_daily_streak, longest_daily_streak
     INTO v_last_streak_date, v_current_streak, v_longest_streak
-    FROM user_profiles 
+    FROM profiles
     WHERE id = p_user_id;
     
     -- Count reviews for today
     SELECT COUNT(*)::INTEGER INTO v_cards_today
-    FROM review_history
+    FROM reviews
     WHERE user_id = p_user_id 
         AND DATE(review_date) = p_review_date;
     
@@ -188,8 +188,8 @@ BEGIN
     -- Update longest streak if current is longer
     v_longest_streak := GREATEST(COALESCE(v_longest_streak, 0), v_current_streak);
     
-    -- Update user_profiles with new streak data
-    UPDATE user_profiles 
+    -- Update profiles with new streak data
+    UPDATE profiles
     SET current_daily_streak = v_current_streak,
         longest_daily_streak = v_longest_streak,
         last_streak_date = p_review_date
