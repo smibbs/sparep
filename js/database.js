@@ -1214,7 +1214,7 @@ class DatabaseService {
                 const cardInSession = sessionData.cards.find(c => c.card_template_id === cardId);
                 if (!cardInSession) continue;
                 
-                // Get deck_id by querying the card_templates table or existing user_cards record
+                // Get deck_id from existing user_cards record or use user's default deck
                 let deckId = null;
                 try {
                     // First try to get deck_id from existing user_cards record
@@ -1224,19 +1224,34 @@ class DatabaseService {
                         .eq('user_id', user.id)
                         .eq('card_template_id', cardId)
                         .single();
-                    
+
                     if (existingRecord) {
                         deckId = existingRecord.deck_id;
                     } else {
-                        // If no existing record, get deck_id from card_templates
-                        const { data: cardTemplate } = await supabase
-                            .from('card_templates')
-                            .select('deck_id')
-                            .eq('id', cardId)
-                            .single();
-                        
-                        if (cardTemplate) {
-                            deckId = cardTemplate.deck_id;
+                        // Fallback to user's default deck (create if necessary)
+                        const { data: existingDecks, error: deckError } = await supabase
+                            .from('decks')
+                            .select('id')
+                            .eq('user_id', user.id)
+                            .limit(1);
+
+                        if (deckError) throw deckError;
+
+                        if (existingDecks && existingDecks.length > 0) {
+                            deckId = existingDecks[0].id;
+                        } else {
+                            const { data: newDeck, error: createError } = await supabase
+                                .from('decks')
+                                .insert({
+                                    name: 'Default Deck',
+                                    description: 'Auto-created default deck',
+                                    user_id: user.id
+                                })
+                                .select('id')
+                                .single();
+
+                            if (createError) throw createError;
+                            deckId = newDeck.id;
                         }
                     }
                 } catch (error) {
@@ -1305,18 +1320,18 @@ class DatabaseService {
                 // Determine next state
                 let nextState = currentState;
                 if (currentState === 'new') {
-                    nextState = completingRating.rating >= 3 ? 'review' : 'learning';
+                    nextState = completingRating.rating >= 2 ? 'review' : 'learning';
                 } else if (currentState === 'learning') {
-                    nextState = completingRating.rating >= 3 ? 'review' : 'learning';
+                    nextState = completingRating.rating >= 2 ? 'review' : 'learning';
                 } else if (currentState === 'review') {
-                    nextState = completingRating.rating === 1 ? 'learning' : 'review';
+                    nextState = completingRating.rating === 0 ? 'learning' : 'review';
                 }
 
-                // Count total reviews (all ratings) and correct reviews (ratings >= 3)
+                // Count total reviews (all ratings) and correct reviews (ratings >= 2)
                 const totalReviews = allRatings.length;
-                const correctReviews = allRatings.filter(r => r.rating >= 3).length;
-                const incorrectReviews = allRatings.filter(r => r.rating < 3).length;
-                const lapses = allRatings.filter(r => r.rating === 1).length;
+                const correctReviews = allRatings.filter(r => r.rating >= 2).length;
+                const incorrectReviews = allRatings.filter(r => r.rating < 2).length;
+                const lapses = allRatings.filter(r => r.rating === 0).length;
 
                 // Update progress record
                 progressUpdates.push({
@@ -1340,6 +1355,15 @@ class DatabaseService {
 
                 // Add review history records for each rating
                 for (const rating of allRatings) {
+                    const reviewedAt = new Date(rating.timestamp);
+                    const lastReviewObj = cardInSession.last_reviewed_at ? new Date(cardInSession.last_reviewed_at) : null;
+                    const dueBeforeObj = cardInSession.due_at ? new Date(cardInSession.due_at) : null;
+
+                    const elapsedDaysForReview = lastReviewObj ?
+                        (reviewedAt - lastReviewObj) / (1000 * 60 * 60 * 24) : 0;
+                    const scheduledDaysForReview = (dueBeforeObj && lastReviewObj) ?
+                        (dueBeforeObj - lastReviewObj) / (1000 * 60 * 60 * 24) : 0;
+
                     reviewRecords.push({
                         user_id: user.id,
                         card_template_id: cardId,
@@ -1350,13 +1374,15 @@ class DatabaseService {
                         difficulty_before: currentDifficulty,
                         reps_before: cardInSession.reps || 0,
                         lapses_before: cardInSession.lapses || 0,
-                        elapsed_days: 0,
-                        scheduled_days: 0,
+                        elapsed_days: elapsedDaysForReview,
+                        scheduled_days: scheduledDaysForReview,
                         stability_after: newStability,
                         difficulty_after: newDifficulty,
                         state_before: currentState,
                         state_after: nextState,
-                        created_at: rating.timestamp
+                        reviewed_at: rating.timestamp,
+                        due_at_before: cardInSession.due_at,
+                        due_at_after: nextReviewDate.toISOString()
                     });
                 }
 
