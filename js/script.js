@@ -7,9 +7,10 @@ import { SESSION_CONFIG } from './config.js';
 import NavigationController from './navigation.js';
 import slideMenu from './slideMenu.js';
 import { handleError } from './errorHandler.js';
+import { getSupabaseClient } from './supabase-client.js';
 
-// Use global Supabase client
-const supabase = window.supabaseClient;
+// Supabase client instance
+let supabase;
 
 /**
  * Check if user is admin and show admin navigation link
@@ -1274,6 +1275,9 @@ const errorState = document.getElementById('error-state');
 // Initialize the app
 async function initializeApp() {
     try {
+        // Ensure Supabase client is ready
+        supabase = await getSupabaseClient();
+
         // Initialize loading messages service FIRST so it's ready for dynamic messages
         try {
             const { default: loadingMessagesService } = await import('./loadingMessages.js');

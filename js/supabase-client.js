@@ -28,6 +28,21 @@ async function waitForSupabaseLibrary() {
     throw new Error('Supabase library failed to load');
 }
 
+async function waitForSupabaseConfig() {
+    let attempts = 0;
+    const maxAttempts = 50;
+    const delay = 100; // 100ms between attempts
+
+    while (attempts < maxAttempts) {
+        if (window.supabaseConfig) {
+            return true;
+        }
+        await new Promise(resolve => setTimeout(resolve, delay));
+        attempts++;
+    }
+    throw new SupabaseConfigError('Supabase configuration not loaded');
+}
+
 async function initializeSupabase() {
     try {
         // Return existing client if already initialized
@@ -40,12 +55,9 @@ async function initializeSupabase() {
             return await initializationPromise;
         }
 
-        // Wait for Supabase library to be available
+        // Wait for Supabase library and configuration to be available
         await waitForSupabaseLibrary();
-
-        if (!window.supabaseConfig) {
-            throw new SupabaseConfigError('Supabase configuration not found.');
-        }
+        await waitForSupabaseConfig();
 
         const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.supabaseConfig;
         const missingValues = !SUPABASE_URL || !SUPABASE_ANON_KEY;
