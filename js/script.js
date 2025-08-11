@@ -677,6 +677,14 @@ async function handleSessionComplete() {
     try {
         // Start saving state for batch submission
         await transitionToState('saving', 'Saving your progress...');
+        // Yield to the browser so the spinner can animate
+        await new Promise(resolve => {
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(() => requestAnimationFrame(resolve));
+            } else {
+                setTimeout(resolve, 0);
+            }
+        });
 
         // Get session data BEFORE clearing for completion statistics
         const sessionData = appState.sessionManager.getSessionData();
