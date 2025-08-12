@@ -772,6 +772,10 @@ body {
     background-color: #dc3545;
 }
 
+.rating-known {
+    background-color: #28a745;
+}
+
 .rating-hard {
     background-color: #ffc107;
     color: #212529;
@@ -792,7 +796,13 @@ body {
         transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
     }
-    
+
+    .rating-known:hover {
+        background-color: #218838;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+    }
+
     .rating-hard:hover {
         background-color: #e0a800;
         transform: translateY(-1px);

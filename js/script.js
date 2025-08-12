@@ -718,17 +718,17 @@ function generateRatingChart(sessionData) {
         return '<div class="rating-chart"><p>No rating data available</p></div>';
     }
 
-    // Count final ratings for each card (0-3 scale)
-    const ratingCounts = { 0: 0, 1: 0, 2: 0, 3: 0 };
-    const ratingLabels = { 0: 'Again', 1: 'Hard', 2: 'Good', 3: 'Easy' };
-    const ratingColors = { 0: '#dc3545', 1: '#ffc107', 2: '#28a745', 3: '#17a2b8' };
+    // Count final ratings for each card (using ratings 1 and 3)
+    const ratingCounts = { 1: 0, 3: 0 };
+    const ratingLabels = { 1: 'Again', 3: 'Known' };
+    const ratingColors = { 1: '#dc3545', 3: '#28a745' };
 
     // Analyze ratings for each card
     for (const [cardId, ratings] of Object.entries(sessionData.ratings)) {
         if (ratings && ratings.length > 0) {
             // Get the final rating for this card (last rating in the array)
             const finalRating = ratings[ratings.length - 1].rating;
-            if (finalRating >= 0 && finalRating <= 3) {
+            if (ratingCounts[finalRating] !== undefined) {
                 ratingCounts[finalRating]++;
             }
         }
@@ -743,7 +743,7 @@ function generateRatingChart(sessionData) {
     // Generate chart HTML
     let chartHTML = '<div class="rating-chart"><h3>Session Ratings</h3>';
     
-    for (let rating = 0; rating <= 3; rating++) {
+    for (const rating of [1, 3]) {
         const count = ratingCounts[rating];
         const percentage = totalCards > 0 ? (count / totalCards) * 100 : 0;
         const color = ratingColors[rating];
@@ -1784,10 +1784,8 @@ function restoreCardStructure() {
                     <button id="flip-button" class="nav-button">Flip</button>
                 </div>
                 <div id="rating-buttons" class="rating-buttons hidden">
-                    <button id="rate-again" class="rating-button rating-again" data-rating="0">Again</button>
-                    <button id="rate-hard" class="rating-button rating-hard" data-rating="1">Hard</button>
-                    <button id="rate-good" class="rating-button rating-good" data-rating="2">Good</button>
-                    <button id="rate-easy" class="rating-button rating-easy" data-rating="3">Easy</button>
+                    <button id="rate-again" class="rating-button rating-again" data-rating="1">Again</button>
+                    <button id="rate-known" class="rating-button rating-known" data-rating="3">Known</button>
                 </div>
                 <div class="report-card-container hidden" id="report-card-container">
                     <a href="#" id="report-card-link" class="report-card-link" title="Report this card">Report Card</a>
