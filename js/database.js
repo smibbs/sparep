@@ -407,6 +407,17 @@ class DatabaseService {
                 throw reviewError;
             }
 
+            // Update global card template statistics
+            const { error: templateStatsError } = await supabase.rpc('update_card_template_stats', {
+                template_id: card_template_id,
+                was_correct: rating >= 2,
+                response_time_ms: responseTime
+            });
+
+            if (templateStatsError) {
+                console.warn('Failed to update card template stats:', templateStatsError);
+            }
+
             // Only increment daily review count for completed reviews (rating >= 1 for 0-3 scale)
             if (rating >= 1) {
                 const { error: incrementError } = await supabase.rpc('increment_daily_reviews', {
@@ -1397,6 +1408,19 @@ class DatabaseService {
                     .insert(reviewRecords);
 
                 if (reviewError) throw reviewError;
+
+                // Update global card template statistics for each review
+                for (const review of reviewRecords) {
+                    const { error: templateStatsError } = await supabase.rpc('update_card_template_stats', {
+                        template_id: review.card_template_id,
+                        was_correct: review.rating >= 2,
+                        response_time_ms: review.response_time_ms
+                    });
+
+                    if (templateStatsError) {
+                        console.warn('Failed to update card template stats:', templateStatsError);
+                    }
+                }
             }
 
             // Update daily review count (only for completed cards)

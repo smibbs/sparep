@@ -589,10 +589,14 @@ class AdminService {
         });
 
 
-        // Initialize analytics and deck management
+        // Initialize analytics
         this.loadSubjects();
         this.loadAnalytics();
-        this.loadAllDecks(); // Initialize deck overview
+
+        // Only load deck overview if container exists
+        if (document.getElementById('deck-list')) {
+            this.loadAllDecks();
+        }
     }
 
     async loadFlaggedCards() {
