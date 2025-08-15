@@ -512,6 +512,22 @@ body {
     font-weight: 600;
 }
 
+.flagged-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 8px 0;
+}
+
+.flagged-stats span {
+    font-size: 14px;
+    color: #ccc;
+}
+
+.flagged-stats span strong {
+    color: white;
+}
+
 .card-actions {
     margin-top: 15px;
     display: flex;

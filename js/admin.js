@@ -1,6 +1,7 @@
 import { getSupabaseClient } from './supabase-client.js';
 import NavigationController from './navigation.js';
 import auth from './auth.js';
+import database from './database.js';
 
 class AdminService {
     constructor(autoInitialize = true) {
@@ -603,14 +604,20 @@ class AdminService {
         try {
             const supabase = await this.getSupabase();
             
-            // Get admin-flagged cards with new fields
+            // Get admin-flagged cards
             const { data: adminFlagged, error: adminError } = await supabase
                 .from('card_templates')
-                .select('id, question, answer, subsection, tags, flagged_reason, flagged_at, flagged_by, total_reviews, correct_reviews, incorrect_reviews')
+                .select('id, question, answer, subsection, tags, flagged_reason, flagged_at, flagged_by')
                 .eq('flagged_for_review', true)
                 .order('flagged_at', { ascending: false });
 
             if (adminError) throw adminError;
+
+            // Attach stats to admin flagged cards
+            const adminFlaggedWithStats = await Promise.all((adminFlagged || []).map(async card => ({
+                ...card,
+                stats: await database.getCardTemplateStats(card.id)
+            })));
 
             // Get user-flagged cards with detailed information
             const { data: userFlagged, error: userError } = await supabase
@@ -636,22 +643,48 @@ class AdminService {
                 console.warn('Could not load user-flagged cards:', userError);
             }
 
+            // Prepare stats map for user-flagged cards
+            const userStatsMap = {};
+            if (userFlagged && userFlagged.length > 0) {
+                const uniqueIds = [...new Set(userFlagged.map(f => f.card_template_id))];
+                const statsResults = await Promise.all(uniqueIds.map(async id => ({
+                    id,
+                    stats: await database.getCardTemplateStats(id)
+                })));
+                statsResults.forEach(({ id, stats }) => {
+                    userStatsMap[id] = stats;
+                });
+            }
+
             const container = document.getElementById('flagged-cards-list');
             if (!container) return;
 
             let html = '';
 
             // Admin flagged section
-            if (adminFlagged && adminFlagged.length > 0) {
+            if (adminFlaggedWithStats && adminFlaggedWithStats.length > 0) {
                 html += '<h3>Admin Flagged Cards</h3>';
-                html += adminFlagged.map(card => `
+                html += adminFlaggedWithStats.map(card => {
+                    const stats = card.stats || {};
+                    const total = stats.total_reviews || 0;
+                    const correct = stats.correct_reviews || 0;
+                    const incorrect = stats.incorrect_reviews || 0;
+                    const accuracy = total ? ((correct / total) * 100).toFixed(1) : '0.0';
+                    const avgTime = stats.average_response_time_ms ? (stats.average_response_time_ms / 1000).toFixed(1) + 's' : 'N/A';
+                    return `
                     <div class="flagged-card admin-flagged">
                         <h4>Card ID: ${card.id}</h4>
                         <p><strong>Question:</strong> ${this.escapeHtml(card.question)}</p>
                         <p><strong>Answer:</strong> ${this.escapeHtml(card.answer)}</p>
                         ${card.subsection ? `<p><strong>Section:</strong> ${this.escapeHtml(card.subsection)}</p>` : ''}
                         ${card.tags && card.tags.length > 0 ? `<p><strong>Tags:</strong> ${card.tags.map(t => this.escapeHtml(t)).join(', ')}</p>` : ''}
-                        <p><strong>Reviews:</strong> Total: ${card.total_reviews || 0}, Correct: ${card.correct_reviews || 0}, Incorrect: ${card.incorrect_reviews || 0}</p>
+                        <div class="flagged-stats">
+                            <span><strong>Total:</strong> ${total}</span>
+                            <span><strong>Correct:</strong> ${correct}</span>
+                            <span><strong>Incorrect:</strong> ${incorrect}</span>
+                            <span><strong>Accuracy:</strong> ${accuracy}%</span>
+                            <span><strong>Avg Time:</strong> ${avgTime}</span>
+                        </div>
                         <p><strong>Flagged:</strong> ${new Date(card.flagged_at).toLocaleString()}</p>
                         <p><strong>Reason:</strong> ${this.escapeHtml(card.flagged_reason || 'No reason provided')}</p>
                         <div class="card-actions">
@@ -659,7 +692,7 @@ class AdminService {
                             <button class="btn btn-danger" onclick="adminService.deleteCard('${card.id}')">Delete</button>
                         </div>
                     </div>
-                `).join('');
+                `;}).join('');
             }
 
             // User flagged section - group by card template
@@ -684,7 +717,13 @@ class AdminService {
                     const reasons = [...new Set(flags.map(f => f.reason))];
                     const comments = flags.filter(f => f.comment && f.comment.trim()).map(f => f.comment);
                     const latestFlag = flags.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-                    
+                    const stats = userStatsMap[cardId] || {};
+                    const total = stats.total_reviews || 0;
+                    const correct = stats.correct_reviews || 0;
+                    const incorrect = stats.incorrect_reviews || 0;
+                    const accuracy = total ? ((correct / total) * 100).toFixed(1) : '0.0';
+                    const avgTime = stats.average_response_time_ms ? (stats.average_response_time_ms / 1000).toFixed(1) + 's' : 'N/A';
+
                     html += `
                         <div class="flagged-card user-flagged">
                             <h4>Card ID: ${cardId}</h4>
@@ -692,10 +731,17 @@ class AdminService {
                             <p><strong>Answer:</strong> ${this.escapeHtml(card.answer)}</p>
                             ${card.subsection ? `<p><strong>Section:</strong> ${this.escapeHtml(card.subsection)}</p>` : ''}
                             ${card.tags && card.tags.length > 0 ? `<p><strong>Tags:</strong> ${card.tags.map(t => this.escapeHtml(t)).join(', ')}</p>` : ''}
+                            <div class="flagged-stats">
+                                <span><strong>Total:</strong> ${total}</span>
+                                <span><strong>Correct:</strong> ${correct}</span>
+                                <span><strong>Incorrect:</strong> ${incorrect}</span>
+                                <span><strong>Accuracy:</strong> ${accuracy}%</span>
+                                <span><strong>Avg Time:</strong> ${avgTime}</span>
+                            </div>
                             <p><strong>Reports:</strong> ${flags.length}</p>
                             <p><strong>Latest Report:</strong> ${new Date(latestFlag.created_at).toLocaleString()}</p>
                             <p><strong>Reasons:</strong> ${reasons.map(r => this.escapeHtml(r)).join(', ')}</p>
-                            ${comments.length > 0 ? 
+                            ${comments.length > 0 ?
                                 `<p><strong>Comments:</strong> ${comments.map(c => this.escapeHtml(c)).join('; ')}</p>` : ''
                             }
                             <div class="card-actions">
