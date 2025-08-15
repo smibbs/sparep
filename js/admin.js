@@ -2056,7 +2056,7 @@ class AdminService {
             { key: 'tags', label: 'Tags', formatter: (val) => Array.isArray(val) && val.length > 0 ? val.join(', ') : '-' },
             { key: 'total_reviews', label: 'Reviews' },
             { key: 'again_percentage', label: 'Failed %', formatter: (val) => val ? `${val}%` : '-' },
-            { key: 'average_response_time_ms', label: 'Avg Time', formatter: (val) => val ? `${val}ms` : '-' },
+            { key: 'average_response_time_ms', label: 'Avg Time', formatter: (val) => val ? `${(val / 1000).toFixed(1)}s` : '-' },
             { key: 'user_flag_count', label: 'User Flags' },
             { key: 'problem_score', label: 'Problem Score', className: 'problem-score', formatter: this.formatProblemScore }
         ];
