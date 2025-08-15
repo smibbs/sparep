@@ -1170,6 +1170,32 @@ class DatabaseService {
     }
 
     /**
+     * Retrieve performance statistics for a card template
+     * @param {string} cardTemplateId - The card template ID
+     * @returns {Promise<object>} Card statistics
+     */
+    async getCardTemplateStats(cardTemplateId) {
+        try {
+            validateCardId(cardTemplateId, 'getting card template stats');
+
+            const supabase = await this.getSupabase();
+
+            const { data, error } = await supabase
+                .from('card_templates')
+                .select('total_reviews, correct_reviews, incorrect_reviews, average_response_time_ms')
+                .eq('id', cardTemplateId)
+                .single();
+
+            if (error) throw error;
+
+            return data;
+        } catch (error) {
+            const handledError = handleError(error, 'getCardTemplateStats');
+            throw new Error(handledError.userMessage);
+        }
+    }
+
+    /**
      * Submit a batch of session ratings to the database
      * @param {Object} sessionData - Complete session data with ratings
      * @returns {Promise<boolean>} Success status
