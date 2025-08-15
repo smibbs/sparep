@@ -2042,7 +2042,7 @@ class AdminService {
 
         document.getElementById('total-cards-count').textContent = totalCards;
         document.getElementById('problem-cards-count').textContent = problemCards;
-        document.getElementById('avg-response-time').textContent = `${avgResponseTime}ms`;
+        document.getElementById('avg-response-time').textContent = `${(avgResponseTime / 1000).toFixed(1)}s`;
         document.getElementById('overall-again-percentage').textContent = `${overallAgainPercentage}%`;
         document.getElementById('avg-failed-attempts').textContent = avgFailedAttempts || '0';
     }
