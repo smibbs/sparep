@@ -5,18 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - nanotopic</title>
     <link rel="stylesheet" href="css/styles.css?v=6">
-    <link rel="stylesheet" href="css/admin.css?v=6">
+    <link rel="stylesheet" href="css/admin.css?v=7">
     <link rel="stylesheet" href="css/slide-menu.css?v=1">
 </head>
 <body>
     <div id="app-container">
-        
         <!-- Access Control Loading State -->
         <div id="access-loading" class="loading-state">
             <div class="loading-spinner"></div>
             <p class="loading-text">Checking admin access...</p>
         </div>
-        
+
         <!-- Access Denied State -->
         <div id="access-denied" class="error-state hidden">
             <div class="error-content">
@@ -27,30 +26,30 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Admin Dashboard Content -->
         <div id="admin-content" class="admin-content hidden">
-            <div class="admin-header">
-                <h1>Admin Analytics Dashboard</h1>
-                <div class="admin-header-controls">
-                    <button id="toggle-analytics" class="btn btn-primary">Analytics</button>
-                    <button id="toggle-management" class="btn btn-secondary">Management</button>
-                </div>
-            </div>
-            
-            <!-- Analytics Section -->
-            <div id="analytics-section" class="admin-main-section">
+            <header class="admin-header">
+                <h1>Admin Dashboard</h1>
+                <nav class="admin-header-controls">
+                    <button id="toggle-analytics" class="btn btn-primary">Stats</button>
+                    <button id="toggle-management" class="btn btn-secondary">Flagged</button>
+                </nav>
+            </header>
+
+            <!-- Statistics Section -->
+            <section id="analytics-section" class="admin-main-section">
                 <div class="analytics-header">
-                    <h3>Card Analytics</h3>
+                    <h3>Card Statistics</h3>
                     <div class="analytics-controls">
                         <select id="subject-filter" class="form-select">
                             <option value="">All Subjects</option>
                         </select>
-                        <button id="apply-filters" class="btn btn-primary">Apply Filters</button>
-                        <button id="export-csv" class="btn btn-success">Export CSV</button>
+                        <button id="apply-filters" class="btn btn-primary">Apply</button>
+                        <button id="export-csv" class="btn btn-success">Export</button>
                     </div>
                 </div>
-                
+
                 <!-- Summary Stats -->
                 <div class="summary-stats">
                     <div class="stat-card">
@@ -74,217 +73,102 @@
                         <span id="avg-failed-attempts">-</span>
                     </div>
                 </div>
-                
+
                 <!-- Analytics Table -->
                 <div id="analytics-table" class="analytics-table-container"></div>
-            </div>
-            
-            <!-- Management Section -->
-            <div id="management-section" class="admin-main-section hidden">
-                <div class="admin-section">
-                    <h3>Subject Management</h3>
-                    <div class="subject-management-controls">
-                        <div class="form-group">
-                            <input type="text" id="subject-search" placeholder="Search subjects..." class="form-input">
-                            <button id="search-subjects" class="btn btn-primary">Search</button>
-                            <button id="refresh-subjects" class="btn btn-secondary">Refresh</button>
-                        </div>
-                        <div class="bulk-actions">
-                            <button id="enable-selected" class="btn btn-success" disabled>Enable Selected</button>
-                            <button id="disable-selected" class="btn btn-warning" disabled>Disable Selected</button>
-                        </div>
-                    </div>
-                    <div id="subjects-table-container" class="table-container">
-                        <div class="loading-spinner" id="subjects-loading">Loading subjects...</div>
-                        <div id="subjects-table"></div>
-                    </div>
-                </div>
+            </section>
+
+            <!-- Flagged Cards Section -->
+            <section id="management-section" class="admin-main-section hidden">
                 <div class="admin-section">
                     <h3>Flagged Cards</h3>
                     <div id="flagged-cards-list"></div>
                     <button id="refresh-flagged" class="btn btn-primary">Refresh</button>
                 </div>
-                <div class="admin-section">
-                    <h3>Card Management</h3>
-                    <div class="form-group">
-                        <input type="text" id="card-search" placeholder="Search cards..." class="form-input">
-                        <button id="search-cards" class="btn btn-primary">Search</button>
-                    </div>
-                    <div id="card-search-results"></div>
-                </div>
-                <div class="admin-section">
-                    <h3>User Management</h3>
-                    <div class="form-group">
-                        <input type="email" id="user-email" placeholder="User email..." class="form-input">
-                        <select id="user-tier" class="form-select">
-                            <option value="free">Free</option>
-                            <option value="paid">Paid</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                        <button id="update-user-tier" class="btn btn-primary">Update Tier</button>
-                    </div>
-                </div>
-            </div>
+            </section>
         </div>
     </div>
-    
     <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Application Scripts -->
+    <!-- Configuration Loader -->
     <script src="js/config-loader.js" data-config-path="config/"></script>
+    <!-- Supabase Client Initialization -->
     <script src="js/supabase-client.js" type="module"></script>
-    <script src="js/auth.js" type="module"></script>
-    <script src="js/navigation.js" type="module"></script>
-    <script src="js/userAvatar.js" type="module"></script>
-    <script src="js/slideMenu.js" type="module"></script>
-    <script src="js/logoLoader.js" type="module"></script>
-    <script src="js/admin.js" type="module"></script>
-    
-    <!-- Admin Page Initialization -->
+
     <script type="module">
         import auth from './js/auth.js';
-        
-        // Initialize admin page
+
         async function initAdminPage() {
             try {
-                console.log('Starting admin page initialization...');
-                
-                // Check if user is authenticated first
-                const user = await auth.getCurrentUser();
-                console.log('Current user:', user);
-                
-                if (!user) {
-                    console.log('No user found, redirecting to login');
-                    auth.redirectToLogin();
-                    return;
-                }
-                
-                // Validate admin access
-                const userProfile = await auth.getUserProfile();
                 const isAdmin = await auth.verifyAdminAccess();
-                console.log('User profile:', userProfile);
-                console.log('Admin verification:', isAdmin);
 
-                if (!userProfile || !isAdmin) {
-                    console.log(`Admin access denied. is_admin: ${userProfile?.is_admin}`);
+                if (!isAdmin) {
                     document.getElementById('access-loading').classList.add('hidden');
                     document.getElementById('access-denied').classList.remove('hidden');
                     return;
                 }
-                
-                console.log('User is admin, proceeding with initialization');
-                
-                // Import admin service after auth check
+
                 const { default: AdminService } = await import('./js/admin.js');
-                
-                // Create admin instance but bypass auto-initialization
-                const adminService = new AdminService(false); // false = don't auto-init
-                
-                // User is admin - show admin content and initialize
-                console.log('Hiding loading and access denied, showing admin content');
-                
-                const loadingEl = document.getElementById('access-loading');
-                const deniedEl = document.getElementById('access-denied');
-                const adminEl = document.getElementById('admin-content');
-                
-                console.log('Before changes:');
-                console.log('Loading classes:', loadingEl.className);
-                console.log('Denied classes:', deniedEl.className);
-                console.log('Admin classes:', adminEl.className);
-                
-                loadingEl.classList.add('hidden');
-                deniedEl.classList.add('hidden');
-                adminEl.classList.remove('hidden');
-                
-                console.log('After changes:');
-                console.log('Loading classes:', loadingEl.className);
-                console.log('Denied classes:', deniedEl.className);
-                console.log('Admin classes:', adminEl.className);
-                
-                // Initialize slide menu navigation
+                const adminService = new AdminService(false);
+
+                document.getElementById('access-loading').classList.add('hidden');
+                document.getElementById('admin-content').classList.remove('hidden');
+
                 const { default: slideMenu } = await import('./js/slideMenu.js');
                 await slideMenu.initialize();
-                
-                // Make admin service globally available for onclick handlers
+
                 window.adminService = adminService;
-                
-                // Initialize admin functionality
-                adminService.initializeAsStandalone();
-                
-                // SECURITY: Set up periodic admin status validation
+
+                adminService.setupEventListeners();
+                adminService.loadFlaggedCards();
+
                 startPeriodicAdminValidation(auth);
-                
-                // Set up logout functionality (only for access denied button, slide menu handles main logout)
-                const accessLogoutButton = document.getElementById('access-logout-button');
-                if (accessLogoutButton) {
-                    accessLogoutButton.addEventListener('click', () => {
-                        auth.signOut().then(() => {
-                            window.location.href = 'login.html';
-                        });
+
+                const logoutBtn = document.getElementById('access-logout-button');
+                logoutBtn?.addEventListener('click', () => {
+                    auth.signOut().then(() => {
+                        window.location.href = 'login.html';
                     });
-                }
-                
+                });
             } catch (error) {
                 console.error('Error initializing admin page:', error);
                 document.getElementById('access-loading').classList.add('hidden');
                 document.getElementById('access-denied').classList.remove('hidden');
             }
         }
-        
-        /**
-         * Periodic Admin Status Validation
-         * 
-         * ✅ SECURITY: Regularly verifies admin status server-side to detect
-         *    privilege escalation attempts or session hijacking.
-         */
+
         function startPeriodicAdminValidation(auth) {
             let validationFailures = 0;
             const MAX_FAILURES = 2;
             const VALIDATION_INTERVAL = 5 * 60 * 1000; // 5 minutes
-            
+
             const validateAdminStatus = async () => {
                 try {
-                    console.log('Performing periodic admin status validation...');
-                    
-                    // Use server-side validation function
                     const isAdminValid = await auth.verifyAdminAccess();
-                    
+
                     if (!isAdminValid) {
                         validationFailures++;
-                        console.warn(`Admin validation failed (${validationFailures}/${MAX_FAILURES})`);
-                        
                         if (validationFailures >= MAX_FAILURES) {
-                            console.error('Multiple admin validation failures - redirecting to login');
                             alert('Your admin session has expired. Please log in again.');
                             window.location.href = 'login.html';
                             return;
                         }
                     } else {
-                        // Reset failure count on successful validation
                         validationFailures = 0;
-                        console.log('Admin status validated successfully');
                     }
                 } catch (error) {
-                    console.error('Admin validation error:', error);
                     validationFailures++;
-                    
                     if (validationFailures >= MAX_FAILURES) {
                         alert('Unable to verify admin access. Please log in again.');
                         window.location.href = 'login.html';
                     }
                 }
             };
-            
-            // Run initial validation after a short delay
-            setTimeout(validateAdminStatus, 30000); // 30 seconds
-            
-            // Set up periodic validation
+
+            setTimeout(validateAdminStatus, 30000);
             setInterval(validateAdminStatus, VALIDATION_INTERVAL);
-            
-            console.log(`Admin status validation started (every ${VALIDATION_INTERVAL / 1000 / 60} minutes)`);
         }
 
-        // Start initialization
         initAdminPage();
     </script>
 </body>
