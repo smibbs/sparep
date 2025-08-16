@@ -19,7 +19,29 @@ node_modules/
 
 # Supabase configuration files
 config/supabase-config.json
+config/supabase-config.local.json
+config/supabase-config.js
 SUPABASE_PRODUCTION_CHECKLIST.md
+
+# Generic secret/credential files
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.p8
+*.jks
+*.keystore
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+ssh_host_*_key
+ssh_host_*_key.pub
+service-account.json
+google-services.json
+GoogleService-Info.plist
 
 # Local configuration files
 *.local

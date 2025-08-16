@@ -65,6 +65,8 @@
                         <p>Back of card (Answer)</p>
                     </div>
                 </div>
+                <!-- Flag button overlay: shown when card is revealed -->
+                <button id="flag-overlay-button" class="flag-button flag-overlay" title="Report this card" aria-label="Report this card">🚩</button>
             </div>
             <div class="controls">
                 <div class="primary-controls">
@@ -73,9 +75,6 @@
                 <div id="rating-buttons" class="rating-buttons hidden">
                     <button id="rate-again" class="rating-button rating-again" data-rating="1">Again</button>
                     <button id="rate-known" class="rating-button rating-known" data-rating="3">Known</button>
-                </div>
-                <div class="report-card-container hidden" id="report-card-container">
-                    <a href="#" id="report-card-link" class="report-card-link" title="Report this card">Report Card</a>
                 </div>
             </div>
         </div>
@@ -109,7 +108,7 @@
                     </label>
                 </div>
                 <div id="other-reason-input" class="other-reason hidden">
-                    <textarea id="other-reason-text" placeholder="Please describe the issue..." maxlength="500"></textarea>
+                    <textarea id="other-reason-text" placeholder="Please describe the issue..." maxlength="250"></textarea>
                 </div>
             </div>
             <div class="modal-footer">

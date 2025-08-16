@@ -1012,7 +1012,7 @@ class DatabaseService {
             // Validate inputs with enhanced security checks
             validateCardId(card_template_id, 'flagging card');
             validateFlagReason(reason, 'flagging card');
-            const sanitizedComment = validateComment(comment, 500, 'flagging card');
+            const sanitizedComment = validateComment(comment, 250, 'flagging card');
             
             const supabase = await this.getSupabase();
             
@@ -1027,6 +1027,10 @@ class DatabaseService {
                 throw error;
             }
 
+            if (!data?.success) {
+                throw new Error(data?.error || 'Failed to flag card');
+            }
+
             return true;
         } catch (error) {
             // Handle specific flagging errors first
@@ -1039,7 +1043,6 @@ class DatabaseService {
             // Use centralized error handling for other errors
             const handledError = handleError(error, 'flagCard');
             throw new Error(handledError.userMessage);
-            throw error;
         }
     }
 

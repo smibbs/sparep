@@ -21,10 +21,11 @@ A modern, database-backed spaced repetition flashcard app with user authenticati
    - This project is pure HTML/CSS/JS, no build step required.
    - For local testing, use a static server (e.g. `npx serve` or VSCode Live Server).
 
-3. **Supabase Configuration:**
-   - Copy `config/supabase-config.example.json` to `config/supabase-config.json`.
-   - Fill in your Supabase project URL and anon key.
-   - Or, set these in `window.supabaseConfig` in your HTML for GitHub Pages.
+3. **Supabase Configuration (local + prod):**
+   - Preferred (prod & local): create `config/supabase-config.json` with `{ "SUPABASE_URL": "...", "SUPABASE_ANON_KEY": "..." }`.
+   - Local-only option: create `config/supabase-config.local.json` (see `config/supabase-config.local.example.json`). This is picked up automatically on localhost if `supabase-config.json` is absent.
+   - Legacy fallback: `config/supabase-config.js` that sets `window.supabaseConfig = { SUPABASE_URL, SUPABASE_ANON_KEY }` is also supported.
+   - If none exist, `config/supabase-config.example.json` (placeholders) is loaded and auth will fail by design.
 
 4. **Environment Variables:**
    - Not required for static hosting. For local dev, use the config file above.
@@ -49,6 +50,18 @@ A modern, database-backed spaced repetition flashcard app with user authenticati
 2. **GitHub Actions will deploy automatically** using `.github/workflows/deploy.yml`.
 3. **Access your app at:**
    `https://yourusername.github.io/sparep/`
+
+### Production secrets injection
+The workflow `.github/workflows/deploy.yml` writes `config/supabase-config.json` at build time from repository secrets `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Ensure both secrets are set in GitHub → Settings → Secrets and variables → Actions.
+
+### Supabase Auth redirect settings (required)
+In Supabase Dashboard → Authentication → URL Configuration:
+- Set Site URL to your domain, e.g. `https://nanotopic.co.uk`.
+- Add Additional Redirect URLs for both production and local dev, for example:
+  - `https://nanotopic.co.uk/`, `https://nanotopic.co.uk/login.html`, `https://nanotopic.co.uk/reset-password.html`
+  - `http://localhost:5500/`, `http://localhost:5500/login.html`, `http://localhost:5500/reset-password.html` (adjust the port you use)
+  - `http://127.0.0.1:5500/`, `http://127.0.0.1:5500/login.html`, `http://127.0.0.1:5500/reset-password.html`
+These URLs are used for email confirmations and password reset (`resetPasswordForEmail`) which calls back to `reset-password.html`.
 
 ## Troubleshooting
 - **403 Forbidden or Permission Denied:**
