@@ -137,7 +137,7 @@
             <div class="instructions">
                 <strong>Before running tests:</strong>
                 <ol>
-                    <li>Ensure your Supabase configuration is loaded (<code>config/supabase-config.js</code>)</li>
+                    <li>Ensure your Supabase configuration is loaded (<code>config/supabase-config.json</code>)</li>
                     <li>Verify you have network access to your Supabase instance</li>
                     <li>Note that most tests are designed to work without authentication (testing security boundaries)</li>
                 </ol>
@@ -240,7 +240,7 @@
                 }
             } else {
                 configStatus.push('❌ Supabase configuration not loaded');
-                configStatus.push('💡 Ensure config/supabase-config.js exists and is loaded');
+                configStatus.push('💡 Ensure config/supabase-config.json exists and is loaded');
             }
 
             // Check if test framework is loaded

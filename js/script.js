@@ -8,6 +8,7 @@ import NavigationController from './navigation.js';
 import slideMenu from './slideMenu.js';
 import { handleError } from './errorHandler.js';
 import { getSupabaseClient } from './supabase-client.js';
+import { Validator } from './validator.js';
 
 // Supabase client instance
 let supabase;
@@ -610,8 +611,8 @@ async function displayCurrentCard() {
     const reportCardLink = document.getElementById('report-card-link');
     
     // Batch content updates
-    const frontContent = `<div class="last-seen-indicator" id="last-seen-front">${lastSeenText}</div><div class="subject-label">${subjectName}</div><p>${currentCard.cards.question}</p>${progressInfo || ''}`;
-    const backContent = `<div class="last-seen-indicator" id="last-seen-back">${lastSeenText}</div><div class="subject-label">${subjectName}</div><p>${currentCard.cards.answer}</p>`;
+    const frontContent = `<div class="last-seen-indicator" id="last-seen-front">${Validator.escapeHtml(lastSeenText)}</div><div class="subject-label">${Validator.escapeHtml(subjectName)}</div><p>${Validator.escapeHtml(currentCard.cards.question)}</p>${progressInfo || ''}`;
+    const backContent = `<div class="last-seen-indicator" id="last-seen-back">${Validator.escapeHtml(lastSeenText)}</div><div class="subject-label">${Validator.escapeHtml(subjectName)}</div><p>${Validator.escapeHtml(currentCard.cards.answer)}</p>`;
     
     // Update content in one batch
     cardFront.innerHTML = frontContent;

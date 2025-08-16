@@ -114,8 +114,8 @@ Comprehensive security validation:
 ### Prerequisites
 
 1. **Supabase Configuration**
-   - Ensure `config/supabase-config.js` exists and contains your Supabase URL and anon key
-   - File should set `window.supabaseConfig = { url: '...', anonKey: '...' }`
+   - Ensure `config/supabase-config.json` exists and contains your Supabase URL and anon key
+   - File should contain `{ "SUPABASE_URL": "...", "SUPABASE_ANON_KEY": "..." }`
 
 2. **Network Access**
    - Browser must have access to your Supabase instance
@@ -177,9 +177,9 @@ These are not actual failures but expected behavior:
 
 **Problem**: `Supabase configuration not loaded`
 **Solution**: 
-1. Verify `config/supabase-config.js` exists
-2. Check file contains: `window.supabaseConfig = { url: 'your-url', anonKey: 'your-key' }`
-3. Ensure file is loaded before test files
+1. Verify `config/supabase-config.json` exists
+2. Check file contains `{ "SUPABASE_URL": "your-url", "SUPABASE_ANON_KEY": "your-key" }`
+3. Ensure `js/config-loader.js` is loaded before test files
 
 **Problem**: `Failed to connect to Supabase`
 **Solution**:

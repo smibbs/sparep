@@ -2,6 +2,7 @@ import database from './database.js';
 import { getSupabaseClient } from './supabase-client.js';
 import NavigationController from './navigation.js';
 import slideMenu from './slideMenu.js';
+import { Validator } from './validator.js';
 
 /**
  * Check if user is admin and show admin navigation link
@@ -449,8 +450,9 @@ async function updateDashboard() {
                 
                 // Show deck name if available, otherwise use subject name for fallback
                 const displayName = s.deck_name || s.subject_name || 'Unnamed Deck';
+                const safeName = Validator.escapeHtml(displayName);
                 div.innerHTML = `
-                    <div class="subject-progress-title"><strong>${displayName}</strong></div>
+                    <div class="subject-progress-title"><strong>${safeName}</strong></div>
                     <div class="subject-progress-bar">
                         ${barHTML}
                     </div>
