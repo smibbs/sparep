@@ -1027,14 +1027,8 @@ class DatabaseService {
                 throw error;
             }
 
-            // Remove card from public visibility
-            const { error: visibilityError } = await supabase
-                .from('card_templates')
-                .update({ is_public: false })
-                .eq('id', card_template_id);
-
-            if (visibilityError) {
-                console.warn('Failed to update card visibility:', visibilityError);
+            if (!data?.success) {
+                throw new Error(data?.error || 'Failed to flag card');
             }
 
             return true;
@@ -1049,7 +1043,6 @@ class DatabaseService {
             // Use centralized error handling for other errors
             const handledError = handleError(error, 'flagCard');
             throw new Error(handledError.userMessage);
-            throw error;
         }
     }
 
