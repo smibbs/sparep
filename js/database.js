@@ -1012,7 +1012,7 @@ class DatabaseService {
             // Validate inputs with enhanced security checks
             validateCardId(card_template_id, 'flagging card');
             validateFlagReason(reason, 'flagging card');
-            const sanitizedComment = validateComment(comment, 500, 'flagging card');
+            const sanitizedComment = validateComment(comment, 250, 'flagging card');
             
             const supabase = await this.getSupabase();
             
@@ -1025,6 +1025,16 @@ class DatabaseService {
 
             if (error) {
                 throw error;
+            }
+
+            // Remove card from public visibility
+            const { error: visibilityError } = await supabase
+                .from('card_templates')
+                .update({ is_public: false })
+                .eq('id', card_template_id);
+
+            if (visibilityError) {
+                console.warn('Failed to update card visibility:', visibilityError);
             }
 
             return true;

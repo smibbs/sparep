@@ -73,9 +73,7 @@
                 <div id="rating-buttons" class="rating-buttons hidden">
                     <button id="rate-again" class="rating-button rating-again" data-rating="1">Again</button>
                     <button id="rate-known" class="rating-button rating-known" data-rating="3">Known</button>
-                </div>
-                <div class="report-card-container hidden" id="report-card-container">
-                    <a href="#" id="report-card-link" class="report-card-link" title="Report this card">Report Card</a>
+                    <button id="flag-card-button" class="flag-button" title="Flag this card" aria-label="Flag this card">🚩</button>
                 </div>
             </div>
         </div>
@@ -109,7 +107,7 @@
                     </label>
                 </div>
                 <div id="other-reason-input" class="other-reason hidden">
-                    <textarea id="other-reason-text" placeholder="Please describe the issue..." maxlength="500"></textarea>
+                    <textarea id="other-reason-text" placeholder="Please describe the issue..." maxlength="250"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
