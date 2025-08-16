@@ -715,14 +715,15 @@ body {
 
 /* Rating buttons */
 .rating-buttons {
-    display: flex;
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
     width: 100%;
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
+    align-items: stretch;
 }
 
 .rating-button {
@@ -847,6 +848,7 @@ body {
         top: 0;
         left: 0;
         right: 0;
+        grid-template-columns: 1fr 1fr;
     }
     
     .rating-button {
@@ -1001,6 +1003,33 @@ body {
 }
 
 .controls.flip-only .flag-button {
+    display: none;
+}
+
+/* Flag overlay inside card */
+.flag-overlay {
+    position: absolute;
+    bottom: 12px; /* anchor to inside bottom-right */
+    right: 12px;
+    z-index: 30; /* Higher z-index to ensure it appears above card faces */
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 8px 10px;
+    font-size: 16px;
+    line-height: 1;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    /* Ensure proper positioning within card container */
+    transform: translateZ(0); /* Create stacking context */
+    pointer-events: auto; /* Ensure clickable */
+    /* Ensure flag stays within card bounds */
+    max-width: calc(100% - 24px);
+    max-height: calc(100% - 24px);
+}
+
+/* Show overlay only when card is revealed */
+.card:not(.revealed) .flag-overlay {
     display: none;
 }
 
@@ -1204,6 +1233,15 @@ body {
         font-size: 16px;
         min-width: 50px;
         border-radius: 10px;
+    }
+    
+    /* Mobile adjustments for flag overlay */
+    .flag-overlay {
+        bottom: 8px;
+        right: 8px;
+        padding: 6px 8px;
+        font-size: 14px;
+        border-radius: 6px;
     }
 }
 

@@ -607,7 +607,7 @@ async function displayCurrentCard() {
     const ratingButtonsDiv = document.getElementById('rating-buttons');
     const controls = document.querySelector('.controls');
     const ratingButtons = document.querySelectorAll('.rating-button');
-    const flagCardButton = document.getElementById('flag-card-button');
+    const flagCardButton = document.getElementById('flag-overlay-button');
     
     // Batch content updates
     const frontContent = `<div class="last-seen-indicator" id="last-seen-front">${Validator.escapeHtml(lastSeenText)}</div><div class="subject-label">${Validator.escapeHtml(subjectName)}</div><p>${Validator.escapeHtml(currentCard.cards.question)}</p>${progressInfo || ''}`;
@@ -637,19 +637,7 @@ async function displayCurrentCard() {
         console.warn('Failed to update progress:', error);
     });
     
-    // Show flag button for non-admin users only (non-blocking)
-    if (flagCardButton) {
-        appState.authService.isAdmin().then(isAdmin => {
-            if (isAdmin) {
-                flagCardButton.classList.add('hidden');
-            } else {
-                flagCardButton.classList.remove('hidden');
-            }
-        }).catch(() => {
-            // If error checking admin status, show flag button
-            flagCardButton.classList.remove('hidden');
-        });
-    }
+    // Flag visibility controlled by CSS based on card reveal state now
     
     // Ensure card-inner is clickable for normal cards (reset from completion state)
     if (cardInner) {
@@ -1385,7 +1373,9 @@ function setupEventListeners() {
     const logoutButton = document.getElementById('logout-button');
     const errorLogoutButton = document.getElementById('error-logout-button');
     const cardInner = document.querySelector('.card-inner');
-    const flagCardButton = document.getElementById('flag-card-button');
+    const flagCardButton = document.getElementById('flag-overlay-button');
+    const primaryControls = document.querySelector('.primary-controls');
+
 
     // Add event listeners
     if (flipButton) {
@@ -1569,6 +1559,8 @@ function handleFlip() {
     }
 
     card.classList.toggle('revealed');
+    
+    // Flag overlay visibility is controlled by CSS based on card reveal state
     if (card.classList.contains('revealed')) {
         // Show rating buttons, hide flip button
         ratingButtons.classList.remove('hidden');
@@ -1600,7 +1592,7 @@ async function handleRating(event) {
         // Disable rating buttons while processing (visual feedback)
         const ratingButtons = document.querySelectorAll('.rating-button');
         const ratingButtonsContainer = document.getElementById('rating-buttons');
-        const flagCardButton = document.getElementById('flag-card-button');
+        const flagCardButton = document.getElementById('flag-overlay-button');
         
         // Use CSS class for better performance and visual feedback
         if (ratingButtonsContainer) {
@@ -1764,6 +1756,7 @@ function restoreCardStructure() {
                         <p>Back of card (Answer)</p>
                     </div>
                 </div>
+                <button id="flag-overlay-button" class="flag-button flag-overlay" title="Report this card" aria-label="Report this card">🚩</button>
             </div>
             <div class="controls">
                 <div class="primary-controls">
@@ -1772,7 +1765,6 @@ function restoreCardStructure() {
                 <div id="rating-buttons" class="rating-buttons hidden">
                     <button id="rate-again" class="rating-button rating-again" data-rating="1">Again</button>
                     <button id="rate-known" class="rating-button rating-known" data-rating="3">Known</button>
-                    <button id="flag-card-button" class="flag-button" title="Flag this card" aria-label="Flag this card">🚩</button>
                 </div>
             </div>
         `;
@@ -2134,11 +2126,31 @@ function showFlagSuccessMessage() {
  * Move to the next card after flagging
  */
 async function moveToNextCard() {
-    appState.currentCardIndex++;
-    if (appState.currentCardIndex >= appState.cards.length) {
-        showNoMoreCardsMessage();
-    } else {
+    // Check if we have a session manager and are in an active session
+    if (!appState.sessionManager || !appState.sessionManager.sessionData) {
+        console.warn('No active session for moveToNextCard');
+        return;
+    }
+    
+    // Mark the current card as completed so it won't show again in this session
+    if (appState.currentCard && appState.currentCard.card_template_id) {
+        const cardId = String(appState.currentCard.card_template_id);
+        appState.sessionManager.sessionData.completedCards.add(cardId);
+        appState.sessionManager.saveSession();
+    }
+    
+    // Get the next card from the session
+    appState.currentCard = appState.sessionManager.getCurrentCard();
+    
+    if (appState.currentCard) {
         await displayCurrentCard();
+    } else {
+        // No more cards in session
+        if (appState.sessionManager.isSessionComplete()) {
+            await handleSessionComplete();
+        } else {
+            showNoMoreCardsMessage();
+        }
     }
 }
 
