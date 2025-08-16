@@ -9,6 +9,7 @@ import slideMenu from './slideMenu.js';
 import { handleError } from './errorHandler.js';
 import { getSupabaseClient } from './supabase-client.js';
 import { Validator } from './validator.js';
+import TimerManager from './timerManager.js';
 
 // Supabase client instance
 let supabase;
@@ -72,7 +73,7 @@ function redirectToLogin() {
 // Initialize app state
 const appState = {
     currentCard: null,
-    cardStartTime: null,
+    cardTimer: new TimerManager(), // Timer for active viewing time tracking
     sessionReviewedCount: 0, // Track cards reviewed in this session
     totalCards: 0,
     isLoading: true,
@@ -567,8 +568,8 @@ async function displayCurrentCard() {
         }
 
     const currentCard = appState.currentCard;
-    // Displaying card
-    appState.cardStartTime = Date.now(); // Track when the card was shown
+    // Start timing for active viewing
+    appState.cardTimer.start(); // Track active viewing time
 
     // Robust check for card data
     if (!currentCard || typeof currentCard.cards?.question !== 'string' || typeof currentCard.cards?.answer !== 'string') {
@@ -1479,6 +1480,8 @@ function handleMobileAppBackground() {
         }
     }
     
+    // Timer will automatically pause due to visibility change events
+    
     // Clear any running timeouts to prevent issues when returning
     clearMobileLoadingTimeout();
 }
@@ -1502,6 +1505,8 @@ function handleMobileAppForeground() {
             console.warn('Error checking user state on foreground:', error);
         });
     }
+    
+    // Timer will automatically resume due to visibility change events
     
     // Check if we're stuck in loading state and recover
     if (currentState === 'loading') {
@@ -1601,10 +1606,8 @@ async function handleRating(event) {
         ratingButtons.forEach(btn => btn.disabled = true);
         if (flagCardButton) flagCardButton.disabled = true;
 
-        // Calculate response time (if we have a start time)
-        const responseTime = appState.cardStartTime ? 
-            Date.now() - appState.cardStartTime : // Keep in milliseconds
-            null;
+        // Get active viewing time from timer
+        const responseTime = appState.cardTimer.stop();
 
         // Record the rating in the session manager (local cache)
         const recordSuccess = appState.sessionManager.recordRating(rating, responseTime);
