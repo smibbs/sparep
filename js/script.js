@@ -605,10 +605,9 @@ async function displayCurrentCard() {
     // Get all DOM elements at once
     const flipButton = document.getElementById('flip-button');
     const ratingButtonsDiv = document.getElementById('rating-buttons');
-    const reportCardContainer = document.getElementById('report-card-container');
     const controls = document.querySelector('.controls');
     const ratingButtons = document.querySelectorAll('.rating-button');
-    const reportCardLink = document.getElementById('report-card-link');
+    const flagCardButton = document.getElementById('flag-card-button');
     
     // Batch content updates
     const frontContent = `<div class="last-seen-indicator" id="last-seen-front">${Validator.escapeHtml(lastSeenText)}</div><div class="subject-label">${Validator.escapeHtml(subjectName)}</div><p>${Validator.escapeHtml(currentCard.cards.question)}</p>${progressInfo || ''}`;
@@ -627,9 +626,6 @@ async function displayCurrentCard() {
     if (flipButton && ratingButtonsDiv && controls) {
         flipButton.classList.remove('hidden');
         ratingButtonsDiv.classList.add('hidden');
-        if (reportCardContainer) {
-            reportCardContainer.classList.add('hidden');
-        }
         controls.classList.add('flip-only');
     }
     
@@ -641,17 +637,17 @@ async function displayCurrentCard() {
         console.warn('Failed to update progress:', error);
     });
     
-    // Show report card link for non-admin users only (non-blocking)
-    if (reportCardLink) {
+    // Show flag button for non-admin users only (non-blocking)
+    if (flagCardButton) {
         appState.authService.isAdmin().then(isAdmin => {
             if (isAdmin) {
-                reportCardLink.classList.add('hidden');
+                flagCardButton.classList.add('hidden');
             } else {
-                reportCardLink.classList.remove('hidden');
+                flagCardButton.classList.remove('hidden');
             }
         }).catch(() => {
-            // If error checking admin status, show report card link
-            reportCardLink.classList.remove('hidden');
+            // If error checking admin status, show flag button
+            flagCardButton.classList.remove('hidden');
         });
     }
     
@@ -1389,7 +1385,7 @@ function setupEventListeners() {
     const logoutButton = document.getElementById('logout-button');
     const errorLogoutButton = document.getElementById('error-logout-button');
     const cardInner = document.querySelector('.card-inner');
-    const reportCardLink = document.getElementById('report-card-link');
+    const flagCardButton = document.getElementById('flag-card-button');
 
     // Add event listeners
     if (flipButton) {
@@ -1405,8 +1401,8 @@ function setupEventListeners() {
             btn.addEventListener('click', debounce(handleRating, 200));
         });
     }
-    if (reportCardLink) {
-        reportCardLink.addEventListener('click', handleFlagCard);
+    if (flagCardButton) {
+        flagCardButton.addEventListener('click', handleFlagCard);
     }
     // Add retry and logout handlers
     if (retryButton) {
@@ -1566,35 +1562,21 @@ function handleFlip() {
     const flipButton = document.getElementById('flip-button');
     const ratingButtons = document.getElementById('rating-buttons');
     const controls = document.querySelector('.controls');
-    const reportCardLink = document.getElementById('report-card-link');
-    
+
     if (!card || !flipButton || !ratingButtons || !controls) {
         // Required DOM elements not found
         return;
     }
-    
-    const reportCardContainer = document.getElementById('report-card-container');
-    
+
     card.classList.toggle('revealed');
     if (card.classList.contains('revealed')) {
-        // Show rating buttons and report card link, hide flip button
+        // Show rating buttons, hide flip button
         ratingButtons.classList.remove('hidden');
         flipButton.classList.add('hidden');
         controls.classList.remove('flip-only');
-        // Show report card container for non-admins
-        if (reportCardContainer && reportCardLink) {
-            appState.authService.isAdmin().then(isAdmin => {
-                if (!isAdmin) {
-                    reportCardContainer.classList.remove('hidden');
-                }
-            });
-        }
     } else {
-        // Show flip button, hide rating buttons and report card link
+        // Show flip button, hide rating buttons
         ratingButtons.classList.add('hidden');
-        if (reportCardContainer) {
-            reportCardContainer.classList.add('hidden');
-        }
         flipButton.classList.remove('hidden');
         controls.classList.add('flip-only');
     }
@@ -1618,12 +1600,14 @@ async function handleRating(event) {
         // Disable rating buttons while processing (visual feedback)
         const ratingButtons = document.querySelectorAll('.rating-button');
         const ratingButtonsContainer = document.getElementById('rating-buttons');
+        const flagCardButton = document.getElementById('flag-card-button');
         
         // Use CSS class for better performance and visual feedback
         if (ratingButtonsContainer) {
             ratingButtonsContainer.classList.add('processing');
         }
         ratingButtons.forEach(btn => btn.disabled = true);
+        if (flagCardButton) flagCardButton.disabled = true;
 
         // Calculate response time (if we have a start time)
         const responseTime = appState.cardStartTime ? 
@@ -1675,6 +1659,7 @@ async function handleRating(event) {
             ratingButtonsContainer.classList.remove('processing');
         }
         ratingButtons.forEach(btn => btn.disabled = false);
+        if (flagCardButton) flagCardButton.disabled = false;
 
     } catch (error) {
         // Error handling rating
@@ -1787,9 +1772,7 @@ function restoreCardStructure() {
                 <div id="rating-buttons" class="rating-buttons hidden">
                     <button id="rate-again" class="rating-button rating-again" data-rating="1">Again</button>
                     <button id="rate-known" class="rating-button rating-known" data-rating="3">Known</button>
-                </div>
-                <div class="report-card-container hidden" id="report-card-container">
-                    <a href="#" id="report-card-link" class="report-card-link" title="Report this card">Report Card</a>
+                    <button id="flag-card-button" class="flag-button" title="Flag this card" aria-label="Flag this card">🚩</button>
                 </div>
             </div>
         `;
@@ -1805,7 +1788,6 @@ function showNoMoreCardsMessage() {
     const lastSeenFront = document.getElementById('last-seen-front');
     const lastSeenBack = document.getElementById('last-seen-back');
     const flipButton = document.getElementById('flip-button');
-    const reportCardLink = document.getElementById('report-card-link');
     const ratingButtons = document.getElementById('rating-buttons');
     const progressDiv = document.querySelector('.progress');
     const cardInner = document.querySelector('.card-inner');
@@ -1845,11 +1827,6 @@ function showNoMoreCardsMessage() {
     
     if (flipButton) {
         flipButton.classList.add('hidden');
-    }
-    
-    const reportCardContainer = document.getElementById('report-card-container');
-    if (reportCardContainer) {
-        reportCardContainer.classList.add('hidden');
     }
     
     if (ratingButtons) {
@@ -1906,11 +1883,6 @@ function showDailyLimitMessage(limitInfo) {
     
     if (flipButton) {
         flipButton.classList.add('hidden');
-    }
-    
-    const reportCardContainer = document.getElementById('report-card-container');
-    if (reportCardContainer) {
-        reportCardContainer.classList.add('hidden');
     }
     
     if (ratingButtons) {
