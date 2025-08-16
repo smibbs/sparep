@@ -81,8 +81,8 @@ sparep/
 │   └── sketch-underline.svg  # UI graphics
 │
 ├── config/                   # Configuration files
-│   ├── supabase-config.js    # Supabase configuration
-│   └── supabase-config.example.js # Configuration template
+│   ├── supabase-config.json    # Supabase configuration
+│   └── supabase-config.example.json # Configuration template
 │
 ├── migration/                # Database migrations
 │   ├── README.md            # Migration documentation

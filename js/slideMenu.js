@@ -2,6 +2,7 @@
 
 import auth from './auth.js';
 import userAvatar from './userAvatar.js';
+import { Validator } from './validator.js';
 
 export class SlideMenu {
     constructor() {
@@ -74,9 +75,10 @@ export class SlideMenu {
      */
     generateMenuHTML() {
         const currentPage = this.getCurrentPageType();
-        const userInitials = userAvatar.getInitials() || this.generateInitials(this.userProfile.display_name || this.userProfile.email);
-        const userName = this.extractDisplayName(this.userProfile.display_name);
-        const userEmail = this.userProfile.email;
+        const rawInitials = userAvatar.getInitials() || this.generateInitials(this.userProfile.display_name || this.userProfile.email);
+        const userInitials = Validator.escapeHtml(rawInitials);
+        const userName = Validator.escapeHtml(this.extractDisplayName(this.userProfile.display_name));
+        const userEmail = Validator.escapeHtml(this.userProfile.email);
         const isAdmin = this.userProfile.user_tier === 'admin';
 
         return `

@@ -6,7 +6,7 @@ To fix the mobile authentication issue on nanotopic.co.uk, you need to add your 
 
 ### Step 1: Get Your Supabase Credentials
 
-1. **Open your local `config/supabase-config.js` file**
+1. **Open your local `config/supabase-config.json` file**
 2. **Copy the values** for:
    - `SUPABASE_URL` (looks like: `https://your-project.supabase.co`)
    - `SUPABASE_ANON_KEY` (long string starting with `eyJ...`)
@@ -41,7 +41,7 @@ To fix the mobile authentication issue on nanotopic.co.uk, you need to add your 
 ## 🔍 Verification
 
 After deployment, the GitHub Action will:
-1. ✅ Create `config/supabase-config.js` during build
+1. ✅ Create `config/supabase-config.json` during build
 2. ✅ Inject your credentials securely 
 3. ✅ Deploy to nanotopic.co.uk with the config file included
 

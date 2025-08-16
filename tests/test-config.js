@@ -11,7 +11,7 @@ class TestConfig {
     // Initialize Supabase client (requires config to be loaded)
     async initSupabase() {
         if (typeof window.supabaseConfig === 'undefined') {
-            throw new Error('Supabase configuration not found. Please ensure config/supabase-config.js is loaded.');
+            throw new Error('Supabase configuration not found. Please ensure config/supabase-config.json is loaded.');
         }
 
         // Check if Supabase library is loaded - try different possible locations

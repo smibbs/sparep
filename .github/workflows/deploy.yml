@@ -21,14 +21,11 @@ jobs:
           node-version: 18
       - name: Create Supabase configuration
         run: |
-          cat > config/supabase-config.js << 'EOF'
-          const SUPABASE_URL = '${{ secrets.SUPABASE_URL }}';
-          const SUPABASE_ANON_KEY = '${{ secrets.SUPABASE_ANON_KEY }}';
-
-          window.supabaseConfig = {
-              SUPABASE_URL,
-              SUPABASE_ANON_KEY
-          };
+          cat > config/supabase-config.json << 'EOF'
+          {
+            "SUPABASE_URL": "${{ secrets.SUPABASE_URL }}",
+            "SUPABASE_ANON_KEY": "${{ secrets.SUPABASE_ANON_KEY }}"
+          }
           EOF
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

@@ -22,7 +22,7 @@ A modern, database-backed spaced repetition flashcard app with user authenticati
    - For local testing, use a static server (e.g. `npx serve` or VSCode Live Server).
 
 3. **Supabase Configuration:**
-   - Copy `config/supabase-config.example.js` to `config/supabase-config.js`.
+   - Copy `config/supabase-config.example.json` to `config/supabase-config.json`.
    - Fill in your Supabase project URL and anon key.
    - Or, set these in `window.supabaseConfig` in your HTML for GitHub Pages.
 

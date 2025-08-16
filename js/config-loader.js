@@ -2,26 +2,22 @@
     const scriptTag = document.currentScript;
     const basePath = scriptTag && scriptTag.dataset.configPath ? scriptTag.dataset.configPath : 'config/';
 
-    function inject(code) {
-        const s = document.createElement('script');
-        s.textContent = code;
-        document.head.appendChild(s);
+    async function loadJson(path) {
+        const response = await fetch(path);
+        if (!response.ok) {
+            throw new Error('Failed to load ' + path);
+        }
+        return response.json();
     }
 
-    function loadConfig(path) {
-        return fetch(path)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load ' + path);
-                }
-                return response.text();
-            })
-            .then(code => inject(code));
-    }
-
-    loadConfig(basePath + 'supabase-config.js')
-        .catch(() => {
+    async function loadConfig() {
+        try {
+            window.supabaseConfig = await loadJson(basePath + 'supabase-config.json');
+        } catch (error) {
             console.warn('Supabase configuration not found. Using example configuration.');
-            return loadConfig(basePath + 'supabase-config.example.js');
-        });
+            window.supabaseConfig = await loadJson(basePath + 'supabase-config.example.json');
+        }
+    }
+
+    loadConfig();
 })();

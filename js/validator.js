@@ -248,6 +248,23 @@ export class Validator {
     }
 
     /**
+     * Escape characters for safe insertion into HTML
+     * @param {any} input - String to escape
+     * @returns {string} Escaped string safe for innerHTML
+     */
+    static escapeHtml(input) {
+        if (typeof input !== 'string') {
+            return '';
+        }
+        return input
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    /**
      * Validate object has required properties
      * @param {any} obj - Object to validate
      * @param {string[]} requiredProps - Array of required property names
