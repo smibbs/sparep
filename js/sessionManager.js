@@ -1,7 +1,7 @@
 /**
  * SessionManager - Handles batch session loading and local caching
  */
-import { SESSION_CONFIG, CACHE_CONFIG } from './config.js';
+import { SESSION_CONFIG, CACHE_CONFIG, ADAPTIVE_SESSION_CONFIG } from './config.js';
 import Validator from './validator.js';
 
 const DEBUG = false;
@@ -168,19 +168,143 @@ For the best experience, consider using Safari in normal mode or another browser
     }
 
     /**
-     * Load cards for the session (due cards + new cards)
+     * Load cards for the session using adaptive hybrid selection
      * @param {string} userId - The user's ID
      * @param {Object} dbService - Database service instance
-     * @returns {Promise<Array>} Array of cards
+     * @returns {Promise<Array>} Array of cards with session metadata
      */
     async loadSessionCards(userId, dbService) {
         try {
+            // Use the new adaptive session cards method
+            const sessionResult = await dbService.getAdaptiveSessionCards(userId, ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE);
+            const { cards, metadata } = sessionResult;
+
+            console.log(`📋 SessionManager: Loaded ${cards.length} cards using adaptive selection`);
+            console.log(`🎯 User stage: ${metadata.userStage}`);
+            console.log(`📊 Card sources: ${metadata.cardSources.due} due, ${metadata.cardSources.new} new, ${metadata.cardSources.fallback} fallback`);
+            console.log(`📈 Achieved ratios: ${metadata.achievedRatios.duePercentage}% due, ${metadata.achievedRatios.newPercentage}% new, ${metadata.achievedRatios.fallbackPercentage}% fallback`);
+
+            if (DEBUG && cards.length > 0) {
+                console.log('🔍 Sample adaptive card:', cards[0]);
+            }
+
+            // Transform cards to match expected session format
+            const formattedCards = cards.map(card => ({
+                card_template_id: card.card_template_id,
+                cards: {
+                    question: card.question,
+                    answer: card.answer,
+                    id: card.card_template_id,
+                    subject_name: card.subject_name,
+                    deck_name: card.deck_name
+                },
+                stability: card.stability || 1.0,
+                difficulty: card.difficulty || 5.0,
+                state: card.state || 'new',
+                total_reviews: card.total_reviews || 0,
+                due_at: card.due_at,
+                last_reviewed_at: card.last_reviewed_at,
+                reps: card.reps || 0,
+                lapses: card.lapses || 0,
+                correct_reviews: card.correct_reviews || 0,
+                incorrect_reviews: card.incorrect_reviews || 0,
+                // Store source information for analytics
+                _cardSource: card.card_source || this.determineCardSource(card, metadata),
+                _sessionMetadata: metadata
+            }));
+
+            if (DEBUG && formattedCards.length > 0) {
+                console.log('🔧 Sample formatted card:', formattedCards[0]);
+            }
+
+            // Apply client-side shuffling to randomize presentation order
+            const shuffledCards = this.shuffleCards(formattedCards);
+            console.log(`🔀 Applied client-side shuffling to ${shuffledCards.length} cards`);
+
+            // Deduplicate cards by card_template_id to avoid completion tracking issues
+            const seenIds = new Set();
+            const uniqueCards = shuffledCards.filter(card => {
+                const cardId = String(card.card_template_id);
+                if (seenIds.has(cardId)) {
+                    console.log(`🔍 Removing duplicate card with ID: ${cardId}`);
+                    return false; // Skip this duplicate
+                }
+                seenIds.add(cardId);
+                return true; // Keep this unique card
+            });
+            
+            if (DEBUG) {
+                console.log('🔍 Unique cards after deduplication:', uniqueCards.length);
+            }
+            console.log('🔍 Removed duplicates:', shuffledCards.length - uniqueCards.length);
+            
+            // Ensure we have cards available
+            if (uniqueCards.length === 0) {
+                throw new Error('No cards available for session');
+            }
+            
+            // Store session metadata for analytics
+            if (uniqueCards.length > 0) {
+                uniqueCards._sessionMetadata = metadata;
+            }
+            
+            return uniqueCards;
+        } catch (error) {
+            console.error('Failed to load adaptive session cards:', error);
+            // Fallback to legacy method if adaptive fails
+            console.warn('Falling back to legacy card selection method...');
+            return this.loadLegacySessionCards(userId, dbService);
+        }
+    }
+
+    /**
+     * Determine card source for analytics (due/new/fallback)
+     * @param {Object} card - Card object
+     * @param {Object} metadata - Session metadata
+     * @returns {string} Card source type
+     */
+    determineCardSource(card, metadata) {
+        const now = new Date();
+        const dueAt = new Date(card.due_at);
+        
+        if (card.state === 'new') {
+            return 'new';
+        } else if (card.state === 'review' && dueAt <= now) {
+            return 'due';
+        } else {
+            return 'fallback';
+        }
+    }
+
+    /**
+     * Shuffle cards array using Fisher-Yates algorithm for fair randomization
+     * @param {Array} cards - Array of cards to shuffle
+     * @returns {Array} Shuffled array of cards
+     */
+    shuffleCards(cards) {
+        // Create a copy to avoid mutating the original array
+        const shuffled = [...cards];
+        
+        // Fisher-Yates shuffle algorithm
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        
+        return shuffled;
+    }
+
+    /**
+     * Legacy card loading method as fallback
+     * @param {string} userId - The user's ID
+     * @param {Object} dbService - Database service instance
+     * @returns {Promise<Array>} Array of cards using legacy method
+     */
+    async loadLegacySessionCards(userId, dbService) {
+        try {
             // Get up to configured session size due cards
             const dueCards = await dbService.getCardsDue(userId);
-            console.log(`📋 SessionManager: Found ${dueCards.length} due cards`);
-            if (DEBUG && dueCards.length > 0) {
-                console.log('🔍 Sample due card from service:', dueCards[0]);
-            }
+            console.log(`📋 SessionManager (Legacy): Found ${dueCards.length} due cards`);
             
             // Determine if we already have enough due cards
             let limitedDueCards = dueCards;
@@ -191,10 +315,7 @@ For the best experience, consider using Safari in normal mode or another browser
                 // If we need more cards, get new ones
                 const newCardsNeeded = SESSION_CONFIG.CARDS_PER_SESSION - dueCards.length;
                 const newCards = await dbService.getNewCards(userId, newCardsNeeded);
-                console.log(`🆕 SessionManager: Found ${newCards.length} new cards`);
-                if (DEBUG && newCards.length > 0) {
-                    console.log('🔍 Sample new card from service:', newCards[0]);
-                }
+                console.log(`🆕 SessionManager (Legacy): Found ${newCards.length} new cards`);
 
                 // Transform new cards to match expected format
                 formattedNewCards = newCards.map(card => ({
@@ -210,14 +331,10 @@ For the best experience, consider using Safari in normal mode or another browser
                     difficulty: card.difficulty || 5.0,
                     state: card.state || 'new',
                     total_reviews: 0,
-                    due_at: card.due_at || new Date().toISOString()
+                    due_at: card.due_at || new Date().toISOString(),
+                    _cardSource: 'new'
                 }));
-
-                if (DEBUG && formattedNewCards.length > 0) {
-                    console.log('🔧 After transformation - sample new card:', formattedNewCards[0]);
-                }
             }
-
 
             // Transform due cards to match the expected nested structure
             const formattedDueCards = limitedDueCards.map(card => ({
@@ -234,46 +351,31 @@ For the best experience, consider using Safari in normal mode or another browser
                 state: card.state || 'review',
                 total_reviews: card.total_reviews || 0,
                 due_at: card.due_at,
-                last_reviewed_at: card.last_reviewed_at
+                last_reviewed_at: card.last_reviewed_at,
+                _cardSource: 'due'
             }));
 
-            if (DEBUG && formattedDueCards.length > 0) {
-                console.log('🔧 After transformation - sample due card:', formattedDueCards[0]);
-            }
-
             const allCards = [...formattedDueCards, ...formattedNewCards];
-            console.log(`🎯 Final combined cards: ${allCards.length} total`);
-            if (DEBUG && allCards.length > 0) {
-                console.log('🔍 Sample final card:', allCards[0]);
-            }
+            console.log(`🎯 Legacy session: ${allCards.length} total cards`);
             
-            
-            // Deduplicate cards by card_template_id to avoid completion tracking issues
+            // Deduplicate cards by card_template_id
             const seenIds = new Set();
             const uniqueCards = allCards.filter(card => {
                 const cardId = String(card.card_template_id);
                 if (seenIds.has(cardId)) {
-                    console.log(`🔍 Removing duplicate card with ID: ${cardId}`);
-                    return false; // Skip this duplicate
+                    return false;
                 }
                 seenIds.add(cardId);
-                return true; // Keep this unique card
+                return true;
             });
             
-            if (DEBUG) {
-                console.log('🔍 Unique cards after deduplication:', uniqueCards);
-            }
-            console.log('🔍 Removed duplicates:', allCards.length - uniqueCards.length);
-            
-            // If we still don't have enough cards, that's okay for now
-            // We'll work with what we have
             if (uniqueCards.length === 0) {
                 throw new Error('No cards available for session');
             }
             
             return uniqueCards;
         } catch (error) {
-            console.error('Failed to load session cards:', error);
+            console.error('Failed to load legacy session cards:', error);
             throw error;
         }
     }

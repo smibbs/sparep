@@ -2,7 +2,7 @@ import { getSupabaseClient } from './supabase-client.js';
 import { updateStability, updateDifficulty, calculateNextReview, calculateInitialStability, calculateInitialDifficulty } from './fsrs.js';
 import fsrsParametersService from './fsrsParameters.js';
 import fsrsOptimizationService from './fsrsOptimization.js';
-import { SESSION_CONFIG } from './config.js';
+import { SESSION_CONFIG, ADAPTIVE_SESSION_CONFIG } from './config.js';
 import { handleError, withErrorHandling } from './errorHandler.js';
 import { validateRating, validateResponseTime, validateUserId, validateCardId, validateFlagReason, validateComment } from './validator.js';
 import loadingMessagesService from './loadingMessages.js';
@@ -740,6 +740,369 @@ class DatabaseService {
                 fullError: error
             });
             const handledError = handleError(error, 'getNewCards');
+            throw new Error(handledError.userMessage);
+        }
+    }
+
+    /**
+     * Get due cards with strict limit for hybrid sessions
+     * @param {string} userId - The user's ID
+     * @param {number} maxCards - Maximum number of due cards to return
+     * @returns {Promise<Array>} Array of due cards, ordered by FSRS priority
+     */
+    async getDueCardsWithLimit(userId, maxCards) {
+        try {
+            validateUserId(userId, 'getting due cards with limit');
+            
+            const supabase = await this.getSupabase();
+
+            // Get user profile to determine card filtering and admin status
+            const { data: userProfile, error: profileError } = await supabase
+                .from('profiles')
+                .select('user_tier, is_admin')
+                .eq('id', userId)
+                .single();
+
+            const isAdmin = userProfile?.is_admin === true;
+
+            // Get due cards from the view with strict ordering and limit
+            let dueQuery = supabase
+                .from('v_due_user_cards')
+                .select('*')
+                .eq('user_id', userId);
+
+            // Filter out flagged cards for non-admin users
+            if (!isAdmin) {
+                dueQuery = dueQuery.eq('flagged_for_review', false);
+            }
+
+            const { data: dueCards, error: dueError } = await dueQuery
+                .order('due_at', { ascending: true })  // FSRS priority: most overdue first
+                .limit(maxCards);
+
+            if (dueError) throw dueError;
+
+            return dueCards || [];
+        } catch (error) {
+            const handledError = handleError(error, 'getDueCardsWithLimit');
+            throw new Error(handledError.userMessage);
+        }
+    }
+
+    /**
+     * Get new cards with flexible limits for hybrid sessions
+     * @param {string} userId - The user's ID
+     * @param {number} minCards - Minimum number of new cards desired
+     * @param {number} maxCards - Maximum number of new cards to return
+     * @returns {Promise<Array>} Array of new cards
+     */
+    async getNewCardsWithLimit(userId, minCards, maxCards) {
+        try {
+            validateUserId(userId, 'getting new cards with limit');
+            
+            const supabase = await this.getSupabase();
+
+            // Get new cards from the view
+            const { data: newCards, error: newError } = await supabase
+                .from('v_new_user_cards')
+                .select('*')
+                .eq('user_id', userId)
+                .order('added_at', { ascending: true })  // Oldest new cards first
+                .limit(maxCards);
+                
+            if (newError) throw newError;
+            
+            return newCards || [];
+        } catch (error) {
+            const handledError = handleError(error, 'getNewCardsWithLimit');
+            throw new Error(handledError.userMessage);
+        }
+    }
+
+    /**
+     * Get recently reviewed cards as fallback for sessions
+     * @param {string} userId - The user's ID
+     * @param {number} limit - Maximum number of fallback cards
+     * @returns {Promise<Array>} Array of recently reviewed cards
+     */
+    async getRecentlyReviewedCards(userId, limit) {
+        try {
+            validateUserId(userId, 'getting recently reviewed cards');
+            
+            const supabase = await this.getSupabase();
+
+            // Get cards that were reviewed recently but aren't due yet
+            const { data: fallbackCards, error: fallbackError } = await supabase
+                .from('user_cards')
+                .select(`
+                    user_id,
+                    card_template_id,
+                    deck_id,
+                    state,
+                    stability,
+                    difficulty,
+                    due_at,
+                    last_reviewed_at,
+                    total_reviews,
+                    reps,
+                    lapses,
+                    correct_reviews,
+                    incorrect_reviews,
+                    created_at,
+                    updated_at,
+                    card_templates!inner (
+                        question,
+                        answer,
+                        tags,
+                        subsection,
+                        flagged_for_review,
+                        subjects (name)
+                    ),
+                    decks!inner (
+                        name,
+                        is_active
+                    )
+                `)
+                .eq('user_id', userId)
+                .eq('state', 'review')
+                .gt('due_at', new Date().toISOString())  // Not due yet
+                .eq('card_templates.flagged_for_review', false)
+                .eq('decks.is_active', true)
+                .order('last_reviewed_at', { ascending: false })  // Most recently reviewed first
+                .limit(limit);
+
+            if (fallbackError) throw fallbackError;
+
+            // Transform to match the expected format
+            const formattedCards = (fallbackCards || []).map(card => ({
+                user_id: card.user_id,
+                card_template_id: card.card_template_id,
+                deck_id: card.deck_id,
+                question: card.card_templates.question,
+                answer: card.card_templates.answer,
+                tags: card.card_templates.tags,
+                subsection: card.card_templates.subsection,
+                subject_name: card.card_templates.subjects?.name,
+                deck_name: card.decks.name,
+                state: card.state,
+                stability: card.stability,
+                difficulty: card.difficulty,
+                due_at: card.due_at,
+                last_reviewed_at: card.last_reviewed_at,
+                total_reviews: card.total_reviews,
+                reps: card.reps,
+                lapses: card.lapses,
+                correct_reviews: card.correct_reviews,
+                incorrect_reviews: card.incorrect_reviews,
+                created_at: card.created_at,
+                updated_at: card.updated_at
+            }));
+
+            return formattedCards;
+        } catch (error) {
+            const handledError = handleError(error, 'getRecentlyReviewedCards');
+            throw new Error(handledError.userMessage);
+        }
+    }
+
+    /**
+     * Determine user's learning stage based on their review history
+     * @param {string} userId - The user's ID
+     * @returns {Promise<Object>} User learning stage and statistics
+     */
+    async getUserLearningStage(userId) {
+        try {
+            validateUserId(userId, 'getting user learning stage');
+            
+            const supabase = await this.getSupabase();
+
+            // Get user's review statistics
+            const { data: stats, error: statsError } = await supabase
+                .from('user_cards')
+                .select('total_reviews')
+                .eq('user_id', userId);
+
+            if (statsError) throw statsError;
+
+            // Calculate total cards ever reviewed
+            const totalCardsReviewed = (stats || []).filter(card => card.total_reviews > 0).length;
+            
+            // Determine learning stage
+            let stage;
+            if (totalCardsReviewed < ADAPTIVE_SESSION_CONFIG.NEW_USER_THRESHOLD) {
+                stage = ADAPTIVE_SESSION_CONFIG.LEARNING_STAGES.NEW_USER;
+            } else if (totalCardsReviewed < ADAPTIVE_SESSION_CONFIG.ESTABLISHED_USER_THRESHOLD) {
+                stage = ADAPTIVE_SESSION_CONFIG.LEARNING_STAGES.TRANSITIONING;
+            } else {
+                stage = ADAPTIVE_SESSION_CONFIG.LEARNING_STAGES.ESTABLISHED;
+            }
+
+            return {
+                stage,
+                totalCardsReviewed,
+                thresholds: {
+                    newUser: ADAPTIVE_SESSION_CONFIG.NEW_USER_THRESHOLD,
+                    established: ADAPTIVE_SESSION_CONFIG.ESTABLISHED_USER_THRESHOLD
+                }
+            };
+        } catch (error) {
+            const handledError = handleError(error, 'getUserLearningStage');
+            throw new Error(handledError.userMessage);
+        }
+    }
+
+    /**
+     * Calculate adaptive session ratios based on user stage and card availability
+     * @param {string} learningStage - User's learning stage
+     * @param {number} dueCardsAvailable - Number of due cards available
+     * @param {number} newCardsAvailable - Number of new cards available
+     * @param {number} sessionSize - Target session size
+     * @returns {Object} Calculated ratios and limits
+     */
+    calculateAdaptiveRatios(learningStage, dueCardsAvailable, newCardsAvailable, sessionSize = ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE) {
+        const ratios = {
+            stage: learningStage,
+            sessionSize,
+            dueCardsAvailable,
+            newCardsAvailable
+        };
+
+        // New users get 100% new cards
+        if (learningStage === ADAPTIVE_SESSION_CONFIG.LEARNING_STAGES.NEW_USER) {
+            ratios.maxDue = 0;
+            ratios.targetNew = Math.min(sessionSize, newCardsAvailable);
+            ratios.maxFallback = 0;
+            ratios.ratioMode = 'new_user';
+            return ratios;
+        }
+
+        // Established users get 70/30 ratio enforcement
+        if (learningStage === ADAPTIVE_SESSION_CONFIG.LEARNING_STAGES.ESTABLISHED) {
+            ratios.maxDue = Math.floor(sessionSize * ADAPTIVE_SESSION_CONFIG.MAX_DUE_CARDS_RATIO);
+            ratios.targetNew = Math.ceil(sessionSize * ADAPTIVE_SESSION_CONFIG.TARGET_NEW_CARDS_RATIO);
+        } else {
+            // Transitioning users get flexible ratios - but ensure we don't exceed session size
+            const maxDueRatio = Math.floor(sessionSize * 0.8); // Up to 80%
+            const targetNewRatio = Math.ceil(sessionSize * 0.4); // Up to 40%
+            
+            // If both ratios would exceed session size, prioritize due cards
+            if (maxDueRatio + targetNewRatio > sessionSize) {
+                ratios.maxDue = Math.min(maxDueRatio, dueCardsAvailable);
+                ratios.targetNew = Math.min(sessionSize - ratios.maxDue, newCardsAvailable);
+            } else {
+                ratios.maxDue = Math.min(maxDueRatio, dueCardsAvailable);
+                ratios.targetNew = Math.min(targetNewRatio, newCardsAvailable);
+            }
+        }
+
+        // Calculate actual allocation
+        ratios.actualDue = Math.min(ratios.maxDue, dueCardsAvailable);
+        ratios.actualNew = Math.min(ratios.targetNew, newCardsAvailable);
+        ratios.remaining = sessionSize - ratios.actualDue - ratios.actualNew;
+        ratios.maxFallback = Math.max(0, ratios.remaining);
+        
+        ratios.ratioMode = learningStage === ADAPTIVE_SESSION_CONFIG.LEARNING_STAGES.ESTABLISHED ? 'hybrid' : 'transitioning';
+        
+        return ratios;
+    }
+
+    /**
+     * Get adaptive session cards with balanced due/new ratio based on user progression
+     * @param {string} userId - The user's ID
+     * @param {number} sessionSize - Desired session size
+     * @returns {Promise<Object>} Session cards with metadata
+     */
+    async getAdaptiveSessionCards(userId, sessionSize = ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE) {
+        try {
+            validateUserId(userId, 'getting adaptive session cards');
+
+            // Get user's learning stage
+            const userStage = await this.getUserLearningStage(userId);
+            
+            // Get available card counts
+            const [dueCards, newCards] = await Promise.all([
+                this.getDueCardsWithLimit(userId, sessionSize), // Get up to full session of due cards for counting
+                this.getNewCardsWithLimit(userId, 1, sessionSize) // Get up to full session of new cards for counting
+            ]);
+
+            // Calculate adaptive ratios
+            const ratios = this.calculateAdaptiveRatios(
+                userStage.stage,
+                dueCards.length,
+                newCards.length,
+                sessionSize
+            );
+
+            // Select cards based on calculated ratios
+            const sessionCards = [];
+            const metadata = {
+                userStage: userStage.stage,
+                ratios,
+                cardSources: {
+                    due: 0,
+                    new: 0,
+                    fallback: 0
+                }
+            };
+
+            // Add due cards (up to calculated limit)
+            const selectedDueCards = dueCards.slice(0, ratios.actualDue);
+            sessionCards.push(...selectedDueCards);
+            metadata.cardSources.due = selectedDueCards.length;
+
+            // Add new cards (up to calculated limit)
+            const selectedNewCards = newCards.slice(0, ratios.actualNew);
+            sessionCards.push(...selectedNewCards);
+            metadata.cardSources.new = selectedNewCards.length;
+
+            // Add fallback cards if we haven't reached session size
+            if (sessionCards.length < sessionSize && ratios.maxFallback > 0) {
+                if (ADAPTIVE_SESSION_CONFIG.ENABLE_FALLBACK_CARDS) {
+                    // First try additional due cards
+                    const additionalDueCards = dueCards.slice(ratios.actualDue, dueCards.length);
+                    const additionalDueNeeded = Math.min(ratios.maxFallback, additionalDueCards.length);
+                    sessionCards.push(...additionalDueCards.slice(0, additionalDueNeeded));
+                    metadata.cardSources.due += additionalDueNeeded;
+                    
+                    // Then try additional new cards if still needed
+                    const stillNeeded = sessionSize - sessionCards.length;
+                    if (stillNeeded > 0 && ADAPTIVE_SESSION_CONFIG.ALLOW_OVERSIZED_NEW_RATIO) {
+                        const additionalNewCards = newCards.slice(ratios.actualNew, newCards.length);
+                        const additionalNewNeeded = Math.min(stillNeeded, additionalNewCards.length);
+                        sessionCards.push(...additionalNewCards.slice(0, additionalNewNeeded));
+                        metadata.cardSources.new += additionalNewNeeded;
+                    }
+                    
+                    // Finally try recently reviewed cards as last resort
+                    const finalStillNeeded = sessionSize - sessionCards.length;
+                    if (finalStillNeeded > 0) {
+                        const fallbackCards = await this.getRecentlyReviewedCards(userId, finalStillNeeded);
+                        sessionCards.push(...fallbackCards);
+                        metadata.cardSources.fallback = fallbackCards.length;
+                    }
+                }
+            }
+
+            // Ensure minimum session size
+            if (sessionCards.length < ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE) {
+                console.warn(`Session size ${sessionCards.length} below minimum ${ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE}`);
+            }
+
+            // Calculate achieved ratios
+            const totalCards = sessionCards.length;
+            metadata.achievedRatios = {
+                duePercentage: totalCards > 0 ? (metadata.cardSources.due / totalCards * 100).toFixed(1) : 0,
+                newPercentage: totalCards > 0 ? (metadata.cardSources.new / totalCards * 100).toFixed(1) : 0,
+                fallbackPercentage: totalCards > 0 ? (metadata.cardSources.fallback / totalCards * 100).toFixed(1) : 0
+            };
+
+            return {
+                cards: sessionCards,
+                metadata
+            };
+
+        } catch (error) {
+            const handledError = handleError(error, 'getAdaptiveSessionCards');
             throw new Error(handledError.userMessage);
         }
     }
