@@ -68,6 +68,32 @@ const SESSION_CONFIG = {
     }
 };
 
+// Adaptive Session Configuration
+const ADAPTIVE_SESSION_CONFIG = {
+    // User progression thresholds
+    NEW_USER_THRESHOLD: 10,           // Cards reviewed to exit new user mode
+    ESTABLISHED_USER_THRESHOLD: 50,   // Cards reviewed for full ratio enforcement
+    
+    // Ratio targets for established users
+    MAX_DUE_CARDS_RATIO: 0.70,       // 70% ceiling for due cards
+    TARGET_NEW_CARDS_RATIO: 0.30,    // 30% target for new cards
+    
+    // Session quality
+    MIN_SESSION_SIZE: 5,              // Minimum viable session
+    PREFER_SESSION_SIZE: 10,          // Target session size
+    
+    // Edge case handling
+    ENABLE_FALLBACK_CARDS: true,     // Use recently reviewed as fallback
+    ALLOW_OVERSIZED_NEW_RATIO: true, // Exceed 30% if needed for session size
+    
+    // User learning stages
+    LEARNING_STAGES: {
+        NEW_USER: 'new_user',           // < 10 cards reviewed
+        TRANSITIONING: 'transitioning', // 10-50 cards reviewed
+        ESTABLISHED: 'established'      // 50+ cards reviewed
+    }
+};
+
 // FSRS Algorithm Configuration
 const FSRS_CONFIG = {
     // Default FSRS parameters (matching database defaults)
@@ -214,13 +240,15 @@ export default {
     CACHE_CONFIG,
     LOADING_CONFIG,
     DECK_CONFIG,
-    CARD_TEMPLATE_CONFIG
+    CARD_TEMPLATE_CONFIG,
+    ADAPTIVE_SESSION_CONFIG
 };
 
 
 // Export all configurations for named imports
 export {
     SESSION_CONFIG,
+    ADAPTIVE_SESSION_CONFIG,
     FSRS_RATINGS,
     CARD_STATES,
     FLAG_REASONS,
