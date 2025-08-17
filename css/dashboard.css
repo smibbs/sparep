@@ -246,26 +246,7 @@ body {
     margin: 24px 0;
 }
 
-.loading-spinner {
-    border: 4px solid #555;
-    border-top: 4px solid #007AFF;
-    border-radius: 50%;
-    width: 36px;
-    height: 36px;
-    animation: spin 1s linear infinite;
-    margin-bottom: 12px;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-    color: white;
-    font-size: 1.1rem;
-    font-weight: 500;
-}
+/* Spinner styles moved to css/spinner.css */
 
 .error-state {
     background: #333;

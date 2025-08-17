@@ -10,6 +10,7 @@ import { handleError } from './errorHandler.js';
 import { getSupabaseClient } from './supabase-client.js';
 import { Validator } from './validator.js';
 import TimerManager from './timerManager.js';
+import './spinner.js'; // Centralized spinner system
 
 // Supabase client instance
 let supabase;
@@ -151,37 +152,45 @@ async function transitionToState(newState, message = null) {
             errorMessage.textContent = getUserFriendlyMessage(message);
         }
     }
-    if (message && newState === 'saving') {
-        const savingMessage = document.querySelector('.saving-text');
-        if (savingMessage) {
-            savingMessage.textContent = message;
+    if (newState === 'saving') {
+        const savingMessage = message || 'Saving your progress...';
+        spinnerManager.show('saving-state', {
+            message: savingMessage,
+            type: 'saving'
+        });
+        
+        // Also update legacy element if it exists
+        const savingText = document.querySelector('.saving-text');
+        if (savingText) {
+            savingText.textContent = savingMessage;
         }
     }
     if (newState === 'loading') {
-        // Set dynamic loading message
-        const loadingMessage = document.querySelector('.loading-text');
-        if (loadingMessage) {
-            if (message) {
-                // Use provided message
-                loadingMessage.textContent = message;
-            } else {
-                // Use dynamic message from database
-                try {
-                    if (!appState.dbService) {
-                        console.warn('dbService not available yet');
-                        loadingMessage.textContent = 'Generating your flashcards...';
-                        return;
-                    }
-                    
-                    const dynamicMessage = appState.dbService.getRandomLoadingMessageSync();
-                    loadingMessage.textContent = dynamicMessage;
-                } catch (error) {
-                    console.warn('❌ Failed to get dynamic loading message:', error);
-                    loadingMessage.textContent = 'Generating your flashcards...';
+        // Show loading spinner with appropriate message
+        let loadingMessage = message;
+        if (!loadingMessage) {
+            // Use dynamic message from database
+            try {
+                if (appState.dbService) {
+                    loadingMessage = appState.dbService.getRandomLoadingMessageSync();
+                } else {
+                    loadingMessage = 'Generating your flashcards...';
                 }
+            } catch (error) {
+                console.warn('❌ Failed to get dynamic loading message:', error);
+                loadingMessage = 'Generating your flashcards...';
             }
-        } else {
-            console.warn('Loading message element not found');
+        }
+        
+        spinnerManager.show('loading-state', {
+            message: loadingMessage,
+            type: 'loading'
+        });
+        
+        // Also update legacy element if it exists
+        const loadingText = document.querySelector('.loading-text');
+        if (loadingText) {
+            loadingText.textContent = loadingMessage;
         }
     }
     
@@ -262,10 +271,15 @@ function getUserFriendlyMessage(message) {
 }
 
 // Legacy function for compatibility
-function showLoading(show) {
+function showLoading(show, message) {
     if (show) {
+        spinnerManager.show('loading-state', {
+            message: message || 'Loading...',
+            type: 'loading'
+        });
         transitionToState('loading');
     } else {
+        spinnerManager.hide('loading-state');
         // Don't automatically hide loading - let other functions transition to the appropriate state
     }
 }
@@ -281,6 +295,7 @@ function showContent(show) {
 }
 
 function hideLoading() {
+    spinnerManager.hide('loading-state');
     // Deprecated - use transitionToState() instead
     // Kept for compatibility
 }
@@ -661,8 +676,12 @@ async function displayCurrentCard() {
  */
 async function handleSessionComplete() {
     try {
-        // Start saving state for batch submission
-        await transitionToState('saving', 'Saving your progress...');
+        // Show saving spinner
+        spinnerManager.show('saving-state', {
+            message: 'Saving your progress...',
+            type: 'saving'
+        });
+        
         // Yield to the browser so the spinner can animate
         await new Promise(resolve => {
             if (typeof requestAnimationFrame === 'function') {
