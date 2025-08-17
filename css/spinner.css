@@ -1,0 +1,227 @@
+/**
+ * Centralized Spinner System CSS
+ * Single source of truth for all spinner styles
+ */
+
+/* Container Styles */
+.spinner-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    z-index: 1000;
+}
+
+.spinner-container.spinner-visible {
+    opacity: 1;
+}
+
+.spinner-container.spinner-hiding {
+    opacity: 0;
+}
+
+/* Overlay variant */
+.spinner-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 8px;
+}
+
+/* Content wrapper */
+.spinner-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Spinner Animation */
+.spinner-animation {
+    border-radius: 50%;
+    border-style: solid;
+    animation: spinner-spin 1s linear infinite;
+}
+
+/* Size variants */
+.spinner-small .spinner-animation {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+}
+
+.spinner-medium .spinner-animation {
+    width: 40px;
+    height: 40px;
+    border-width: 3px;
+}
+
+.spinner-large .spinner-animation {
+    width: 56px;
+    height: 56px;
+    border-width: 4px;
+}
+
+/* Type variants (colors) */
+.spinner-loading .spinner-animation {
+    border-color: #333;
+    border-top-color: #007AFF;
+}
+
+.spinner-saving .spinner-animation {
+    border-color: #333;
+    border-top-color: #34C759;
+}
+
+.spinner-uploading .spinner-animation {
+    border-color: #333;
+    border-top-color: #FF9500;
+}
+
+.spinner-processing .spinner-animation {
+    border-color: #333;
+    border-top-color: #AF52DE;
+}
+
+.spinner-error .spinner-animation {
+    border-color: #333;
+    border-top-color: #FF3B30;
+}
+
+/* Message styling */
+.spinner-message {
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    .spinner-overlay {
+        background: rgba(0, 0, 0, 0.9);
+    }
+    
+    .spinner-loading .spinner-animation {
+        border-color: #666;
+        border-top-color: #007AFF;
+    }
+    
+    .spinner-saving .spinner-animation {
+        border-color: #666;
+        border-top-color: #34C759;
+    }
+    
+    .spinner-uploading .spinner-animation {
+        border-color: #666;
+        border-top-color: #FF9500;
+    }
+    
+    .spinner-processing .spinner-animation {
+        border-color: #666;
+        border-top-color: #AF52DE;
+    }
+}
+
+/* Keyframe animation */
+@keyframes spinner-spin {
+    0% { 
+        transform: rotate(0deg); 
+    }
+    100% { 
+        transform: rotate(360deg); 
+    }
+}
+
+/* Legacy compatibility for existing state containers */
+.loading-state .spinner-container,
+.saving-state .spinner-container,
+.error-state .spinner-container {
+    min-height: 300px;
+}
+
+/* Backward compatibility for old spinner markup */
+.loading-spinner,
+.saving-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #333;
+    border-top: 3px solid #007AFF;
+    border-radius: 50%;
+    animation: spinner-spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+.saving-spinner {
+    border-top-color: #34C759;
+}
+
+/* Hide messages when spinner-only class is present */
+.spinner-only .loading-text,
+.spinner-only .saving-text,
+.spinner-only .spinner-message {
+    display: none;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .spinner-content {
+        padding: 16px;
+        gap: 12px;
+    }
+    
+    .spinner-message {
+        font-size: 1rem;
+    }
+    
+    .spinner-medium .spinner-animation {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .spinner-animation {
+        border-width: 4px !important;
+    }
+    
+    .spinner-loading .spinner-animation {
+        border-color: #000;
+        border-top-color: #0066CC;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .spinner-animation {
+        animation: none;
+        border-top-color: transparent;
+        border-right-color: transparent;
+        border-bottom-color: transparent;
+    }
+    
+    .spinner-animation::after {
+        content: '●';
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        color: #007AFF;
+        font-size: 0.7em;
+        animation: spinner-pulse 2s ease-in-out infinite;
+    }
+}
+
+@keyframes spinner-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
