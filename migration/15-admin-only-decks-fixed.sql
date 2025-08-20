@@ -1,5 +1,5 @@
 -- =====================================================
--- Migration 15: Admin-Only Deck Management
+-- Migration 15: Admin-Only Deck Management (Fixed)
 -- =====================================================
 -- This migration restricts deck creation and modification to admins only
 -- and adds a public flag for sharing decks across users.
@@ -93,7 +93,6 @@ JOIN decks d ON d.id = dc.deck_id
 WHERE d.is_active = TRUE;
 
 -- Note: Views inherit RLS from their underlying tables
--- No need to set RLS policies directly on views
 
 -- =====================================================
 -- UPDATE HELPER FUNCTIONS
