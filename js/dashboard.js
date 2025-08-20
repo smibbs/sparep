@@ -376,6 +376,9 @@ function getDashboardFriendlyMessage(message) {
     if (/not logged in|not authenticated/i.test(message)) {
         return 'Session expired. Please log in again.';
     }
+    if (/column.*does not exist|42703/i.test(message)) {
+        return 'Database needs updating. Please refresh the page or contact support if the issue persists.';
+    }
     
     return 'Unable to load your statistics. Please try refreshing the page.';
 }
