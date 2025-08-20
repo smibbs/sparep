@@ -194,7 +194,8 @@ export class ErrorHandler {
      */
     isDeckError(error) {
         return /deck.*not.*found|deck.*required|deck.*id.*missing|invalid.*deck/i.test(error.message) ||
-               /deck.*not.*active|deck.*deleted/i.test(error.message);
+               /deck.*not.*active|deck.*deleted/i.test(error.message) ||
+               /no.*accessible.*decks|contact.*administrator.*to.*assign/i.test(error.message);
     }
 
     /**
@@ -251,7 +252,11 @@ export class ErrorHandler {
                 return 'Invalid study data or rating. Please check your input and try again.';
             
             case 'DECK_ERROR':
-                return 'Deck not found or unavailable. Please select a valid deck.';
+                // Check if it's the new admin-assignment error
+                if (/no.*accessible.*decks|contact.*administrator.*to.*assign/i.test(error.message)) {
+                    return 'No study decks available. Please contact an administrator to assign you a deck for studying.';
+                }
+                return 'Deck not found or unavailable. Please contact an administrator if you need access to study materials.';
             
             case 'COMPOSITE_KEY_ERROR':
                 return 'Card already exists in this deck or missing required deck information.';

@@ -270,29 +270,18 @@ class DatabaseService {
                 if (existingCard) {
                     deckId = existingCard.deck_id;
                 } else {
-                    // Get or create default deck for user
-                    const { data: defaultDecks } = await supabase
+                    // Find any accessible deck for this user (assigned by admin)
+                    const { data: accessibleDecks } = await supabase
                         .from('decks')
                         .select('id')
-                        .eq('user_id', user.id)
+                        .or('user_id.eq.' + user.id + ',is_public.eq.true')
                         .limit(1);
                         
-                    if (defaultDecks && defaultDecks.length > 0) {
-                        deckId = defaultDecks[0].id;
+                    if (accessibleDecks && accessibleDecks.length > 0) {
+                        deckId = accessibleDecks[0].id;
                     } else {
-                        // Create default deck
-                        const { data: newDeck, error: deckError } = await supabase
-                            .from('decks')
-                            .insert({
-                                name: 'Default Deck',
-                                description: 'Auto-created default deck',
-                                user_id: user.id
-                            })
-                            .select('id')
-                            .single();
-                            
-                        if (deckError) throw new Error('Failed to create default deck');
-                        deckId = newDeck.id;
+                        // No accessible decks found - user needs admin to assign a deck
+                        throw new Error('No accessible decks found. Please contact an administrator to assign you a deck for studying.');
                     }
                 }
             }
@@ -1233,40 +1222,28 @@ class DatabaseService {
             
             console.log(`🔧 Found ${missingCards.length} missing progress records for user ${userId}`);
             
-            // Get or create a default deck for this user
+            // Find an accessible deck for this user (assigned by admin or public)
             let defaultDeckId = null;
             try {
-                // First try to find an existing deck for this user
-                const { data: existingDecks, error: deckError } = await supabase
+                // Look for decks assigned to this user or public decks
+                const { data: accessibleDecks, error: deckError } = await supabase
                     .from('decks')
                     .select('id')
-                    .eq('user_id', userId)
+                    .or('user_id.eq.' + userId + ',is_public.eq.true')
                     .limit(1);
                     
                 if (deckError) throw deckError;
                 
-                if (existingDecks && existingDecks.length > 0) {
-                    defaultDeckId = existingDecks[0].id;
+                if (accessibleDecks && accessibleDecks.length > 0) {
+                    defaultDeckId = accessibleDecks[0].id;
+                    console.log(`📦 Using accessible deck: ${defaultDeckId}`);
                 } else {
-                    // Create a default deck for the user
-                    const { data: newDeck, error: createError } = await supabase
-                        .from('decks')
-                        .insert({
-                            name: 'Default Deck',
-                            description: 'Auto-created default deck for study cards',
-                            user_id: userId,
-                            is_active: true
-                        })
-                        .select('id')
-                        .single();
-                        
-                    if (createError) throw createError;
-                    defaultDeckId = newDeck.id;
-                    console.log(`📦 Created default deck: ${defaultDeckId}`);
+                    console.warn('⚠️ No accessible decks found for user. Initialization may fail.');
+                    // Continue without deck_id - this will likely fail but lets error handling show proper message
                 }
             } catch (deckError) {
-                console.error('❌ Could not get/create default deck:', deckError);
-                // Try to proceed without deck_id (might fail but let's see)
+                console.error('❌ Could not find accessible deck:', deckError);
+                // Continue without deck_id - let the downstream error handling deal with it
             }
             
             const now = new Date().toISOString();
@@ -1622,30 +1599,20 @@ class DatabaseService {
                     if (existingRecord) {
                         deckId = existingRecord.deck_id;
                     } else {
-                        // Fallback to user's default deck (create if necessary)
-                        const { data: existingDecks, error: deckError } = await supabase
+                        // Look for any accessible deck (assigned by admin or public)
+                        const { data: accessibleDecks, error: deckError } = await supabase
                             .from('decks')
                             .select('id')
-                            .eq('user_id', user.id)
+                            .or('user_id.eq.' + user.id + ',is_public.eq.true')
                             .limit(1);
 
                         if (deckError) throw deckError;
 
-                        if (existingDecks && existingDecks.length > 0) {
-                            deckId = existingDecks[0].id;
+                        if (accessibleDecks && accessibleDecks.length > 0) {
+                            deckId = accessibleDecks[0].id;
                         } else {
-                            const { data: newDeck, error: createError } = await supabase
-                                .from('decks')
-                                .insert({
-                                    name: 'Default Deck',
-                                    description: 'Auto-created default deck',
-                                    user_id: user.id
-                                })
-                                .select('id')
-                                .single();
-
-                            if (createError) throw createError;
-                            deckId = newDeck.id;
+                            // No accessible decks - user needs admin to assign a deck
+                            throw new Error('No accessible decks found. Please contact an administrator to assign you a deck for studying.');
                         }
                     }
                 } catch (error) {

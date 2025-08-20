@@ -193,17 +193,21 @@ const LOADING_CONFIG = {
     MAX_MESSAGES_TO_FETCH: 5
 };
 
-// Deck Configuration
+// Deck Configuration (Admin-Only)
 const DECK_CONFIG = {
-    DEFAULT_DECK_NAME: 'Default Deck',
-    DEFAULT_DECK_DESCRIPTION: 'Your main study deck. You can create additional decks to organize your learning.',
+    // Admin deck creation defaults
+    DEFAULT_DECK_NAME: 'Study Deck',
+    DEFAULT_DECK_DESCRIPTION: 'Study deck created by administrator.',
     
-    // Validation limits
+    // Validation limits (admin interface)
     MAX_DECK_NAME_LENGTH: 100,
     MAX_DECK_DESCRIPTION_LENGTH: 500,
     
-    // UI limits
-    DECKS_PER_PAGE: 20
+    // Admin UI limits
+    DECKS_PER_PAGE: 20,
+    
+    // User messaging
+    NO_DECKS_MESSAGE: 'No study materials available. Please contact an administrator to access study content.'
 };
 
 // Card Template Configuration
