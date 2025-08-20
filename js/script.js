@@ -604,9 +604,13 @@ async function displayCurrentCard() {
     }
 
     // Update card content and progress info
-    // Fetch subject name separately if not already cached
+    // Use pre-fetched subject name first, fallback to lookup if needed
     let subjectName = 'Unknown Subject';
-    if (currentCard.cards?.subject_id) {
+    if (currentCard.cards?.subject_name) {
+        // Use pre-fetched subject name from session data
+        subjectName = currentCard.cards.subject_name;
+    } else if (currentCard.cards?.subject_id) {
+        // Fallback: fetch subject name if not pre-fetched
         try {
             subjectName = await getSubjectName(currentCard.cards.subject_id);
         } catch (error) {
@@ -626,8 +630,8 @@ async function displayCurrentCard() {
     const flagCardButton = document.getElementById('flag-overlay-button');
     
     // Batch content updates
-    const frontContent = `<div class="last-seen-indicator" id="last-seen-front">${Validator.escapeHtml(lastSeenText)}</div><div class="subject-label">${Validator.escapeHtml(subjectName)}</div><p>${Validator.escapeHtml(currentCard.cards.question)}</p>${progressInfo || ''}`;
-    const backContent = `<div class="last-seen-indicator" id="last-seen-back">${Validator.escapeHtml(lastSeenText)}</div><div class="subject-label">${Validator.escapeHtml(subjectName)}</div><p>${Validator.escapeHtml(currentCard.cards.answer)}</p>`;
+    const frontContent = `<div class="last-seen-indicator" id="last-seen-front">Last seen: ${Validator.escapeHtml(lastSeenText)}</div><div class="subject-label">${Validator.escapeHtml(subjectName)}</div><p>${Validator.escapeHtml(currentCard.cards.question)}</p>${progressInfo || ''}`;
+    const backContent = `<div class="last-seen-indicator" id="last-seen-back">Last seen: ${Validator.escapeHtml(lastSeenText)}</div><div class="subject-label">${Validator.escapeHtml(subjectName)}</div><p>${Validator.escapeHtml(currentCard.cards.answer)}</p>`;
     
     // Update content in one batch
     cardFront.innerHTML = frontContent;
