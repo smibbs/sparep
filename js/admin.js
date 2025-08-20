@@ -1683,20 +1683,34 @@ class AdminService {
                     desired_retention,
                     is_active,
                     is_public,
-                    created_at,
-                    profiles!inner(email, display_name)
+                    created_at
                 `)
                 .order('created_at', { ascending: false })
                 .limit(50);
-
+            
             if (decksError) throw decksError;
+            
+            // Get profile information separately for each deck
+            const decksWithProfiles = [];
+            for (const deck of decks || []) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('email, display_name')
+                    .eq('id', deck.user_id)
+                    .single();
+                    
+                decksWithProfiles.push({
+                    ...deck,
+                    profiles: profile || { email: 'Unknown', display_name: 'Unknown User' }
+                });
+            }
 
             // Get card counts for each deck
-            const deckIds = decks?.map(d => d.id) || [];
+            const deckIds = decksWithProfiles?.map(d => d.id) || [];
 
             // If there are no decks, display an empty list and exit early
             if (deckIds.length === 0) {
-                this.displayDecks([], 'All Active Decks');
+                this.displayDecksWithFilter([], 'all');
                 this.showInfo('No decks found');
                 return;
             }
@@ -1715,7 +1729,7 @@ class AdminService {
             });
 
             // Add card counts to decks
-            const decksWithCounts = decks?.map(deck => ({
+            const decksWithCounts = decksWithProfiles?.map(deck => ({
                 ...deck,
                 card_count: cardCountMap[deck.id] || 0
             }));
@@ -1750,17 +1764,31 @@ class AdminService {
                     desired_retention,
                     is_active,
                     is_public,
-                    created_at,
-                    profiles!inner(email, display_name)
+                    created_at
                 `)
                 .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)
                 .order('created_at', { ascending: false })
                 .limit(20);
-
+            
             if (decksError) throw decksError;
+            
+            // Get profile information separately for each deck
+            const decksWithProfiles = [];
+            for (const deck of decks || []) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('email, display_name')
+                    .eq('id', deck.user_id)
+                    .single();
+                    
+                decksWithProfiles.push({
+                    ...deck,
+                    profiles: profile || { email: 'Unknown', display_name: 'Unknown User' }
+                });
+            }
 
             // Get card counts for filtered decks
-            const deckIds = decks?.map(d => d.id) || [];
+            const deckIds = decksWithProfiles?.map(d => d.id) || [];
             let cardCountMap = {};
             
             if (deckIds.length > 0) {
@@ -1777,7 +1805,7 @@ class AdminService {
             }
 
             // Add card counts to decks
-            const decksWithCounts = decks?.map(deck => ({
+            const decksWithCounts = decksWithProfiles?.map(deck => ({
                 ...deck,
                 card_count: cardCountMap[deck.id] || 0
             }));
@@ -1899,14 +1927,21 @@ class AdminService {
             // Get detailed deck information
             const { data: deck, error: deckError } = await supabase
                 .from('decks')
-                .select(`
-                    *,
-                    profiles!inner(email, display_name, user_tier)
-                `)
+                .select('*')
                 .eq('id', deckId)
                 .single();
 
             if (deckError) throw deckError;
+            
+            // Get profile information separately
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('email, display_name, user_tier')
+                .eq('id', deck.user_id)
+                .single();
+                
+            // Attach profile info to deck
+            deck.profiles = profile || { email: 'Unknown', display_name: 'Unknown User', user_tier: 'free' };
 
             // Get card counts by state using optimized view
             const { data: cardStats, error: statsError } = await supabase
@@ -2215,8 +2250,7 @@ class AdminService {
             let query = supabase
                 .from('decks')
                 .select(`
-                    id, name, description, user_id, is_public, is_active, created_at,
-                    profiles!inner(email, display_name)
+                    id, name, description, user_id, is_public, is_active, created_at
                 `)
                 .order('created_at', { ascending: false });
 
@@ -2230,9 +2264,24 @@ class AdminService {
 
             const { data: decks, error: decksError } = await query.limit(50);
             if (decksError) throw decksError;
+            
+            // Get profile information separately for each deck
+            const decksWithProfiles = [];
+            for (const deck of decks || []) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('email, display_name')
+                    .eq('id', deck.user_id)
+                    .single();
+                    
+                decksWithProfiles.push({
+                    ...deck,
+                    profiles: profile || { email: 'Unknown', display_name: 'Unknown User' }
+                });
+            }
 
             // Get card counts
-            const deckIds = decks?.map(d => d.id) || [];
+            const deckIds = decksWithProfiles?.map(d => d.id) || [];
             let cardCountMap = {};
             
             if (deckIds.length > 0) {
@@ -2249,7 +2298,7 @@ class AdminService {
             }
 
             // Add card counts to decks
-            const decksWithCounts = decks?.map(deck => ({
+            const decksWithCounts = decksWithProfiles?.map(deck => ({
                 ...deck,
                 card_count: cardCountMap[deck.id] || 0
             }));
