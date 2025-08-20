@@ -87,7 +87,7 @@ updated_at   TIMESTAMPTZ DEFAULT NOW()
 ---
 
 ### 3. `decks`
-**Purpose**: Deck-based learning system with individual settings
+**Purpose**: Admin-controlled deck system with public sharing capabilities
 
 #### Key Columns:
 ```sql
@@ -95,6 +95,7 @@ id                        UUID PRIMARY KEY DEFAULT gen_random_uuid()
 name                      VARCHAR NOT NULL
 description               TEXT
 user_id                   UUID NOT NULL → auth.users(id)
+is_public                 BOOLEAN DEFAULT FALSE -- Admin-controlled public access
 daily_new_cards_limit     INTEGER -- NULL = inherit from profile
 daily_review_limit        INTEGER -- NULL = inherit from profile
 desired_retention         DECIMAL(3,2) -- FSRS parameter override
@@ -108,7 +109,9 @@ updated_at                TIMESTAMPTZ DEFAULT NOW()
 ```
 
 #### Key Features:
-- Per-deck customization
+- **Admin-only creation and management** - Users cannot create or modify decks
+- **Public deck system** - Admins can mark decks as public for all users to access
+- Per-deck customization for study parameters
 - FSRS parameter overrides
 - Configurable learning steps
 - Daily limit overrides
@@ -500,6 +503,38 @@ idx_fsrs_params_weights          GIN(weights)
 - **reviews**: Insert-only for users (immutable history)
 - **loading_messages**: Read-only for users, admin-managed
 - **streak_reward_configs**: Read-only for users, admin-managed
+- **decks**: Admin-only creation/modification, users can view public decks (`is_public = TRUE`) and study from assigned decks
+
+---
+
+## Recent Architectural Changes (Admin-Only Deck Model)
+
+### Migration 15: Admin-Only Deck Management
+
+A significant architectural change was implemented to restrict deck creation and management to administrators only:
+
+#### Changes Made:
+1. **Added `is_public` column** to decks table for admin-controlled public sharing
+2. **Removed all user RLS policies** for deck creation, modification, and deletion
+3. **Updated deck access policies**:
+   - Users can view public decks (`is_public = TRUE`)
+   - Users can access decks assigned to them for studying
+   - Only admins can create, modify, or delete decks
+4. **Enhanced admin interface** with comprehensive deck management tools
+5. **Updated frontend** to remove all user-facing deck management UI
+
+#### Impact:
+- **Users** can no longer create, modify, or delete decks directly
+- **Admins** have full control over deck creation and can assign decks to users
+- **Public decks** allow content sharing without giving users management access
+- **Study functionality** remains intact - users can study from assigned or public decks
+- **Subject-based progress** replaces deck-based progress in user interface
+
+#### Benefits:
+- **Centralized content control** - Admins manage all study materials
+- **Public content sharing** - Educational content can be shared across users
+- **Simplified user experience** - Users focus on studying rather than deck management
+- **Security improvements** - Prevents unauthorized deck modification
 
 ---
 
@@ -546,12 +581,13 @@ SELECT process_card_review(
 
 ## Migration Deployment Status
 
-✅ **All 11 migrations successfully applied**
+✅ **All migrations successfully applied** (including Migration 15)
 - Extensions and ENUMs
 - Core tables with relationships  
 - Optimized views
 - Helper functions
 - Sample data loaded
 - RLS policies active
+- **Admin-only deck management** (Migration 15)
 
-The database is fully operational and ready for modern FSRS implementation with deck-based organization, timezone support, and comprehensive analytics.
+The database is fully operational and ready for modern FSRS implementation with admin-controlled deck organization, public content sharing, and comprehensive analytics.
