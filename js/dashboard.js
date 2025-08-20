@@ -44,7 +44,7 @@ export async function getUserStats(userId) {
     
     try {
         // Use optimized views and profile data for better performance
-        const [sessionInfo, deckCounts, userCards] = await Promise.all([
+        const [sessionInfo, dueCards, userCards] = await Promise.all([
             // Get user session info including streak data
             supabase
                 .from('v_user_study_session_info')
@@ -55,11 +55,13 @@ export async function getUserStats(userId) {
                 .eq('user_id', userId)
                 .single(),
             
-            // Get deck-based counts for cards due
+            // Get cards due for review (direct count)
             supabase
-                .from('v_due_counts_by_deck')
-                .select('total_due_count, total_cards')
-                .eq('user_id', userId),
+                .from('user_cards')
+                .select('card_template_id')
+                .eq('user_id', userId)
+                .in('state', ['learning', 'review', 'relearning'])
+                .lte('due_at', new Date().toISOString()),
             
             // Get user cards for accuracy calculation
             supabase
@@ -70,7 +72,7 @@ export async function getUserStats(userId) {
         
         // Extract data with error handling
         const userInfo = sessionInfo.data || {};
-        const decks = deckCounts.data || [];
+        const dueCardsData = dueCards.data || [];
         const cards = userCards.data || [];
         
         // Total cards studied (cards with at least 1 review)
@@ -84,8 +86,8 @@ export async function getUserStats(userId) {
         });
         const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
         
-        // Cards due (sum across all decks)
-        const cardsDue = decks.reduce((sum, deck) => sum + (deck.total_due_count || 0), 0);
+        // Cards due (direct count from user_cards)
+        const cardsDue = dueCardsData.length;
         
         // Use streak from profile (calculated server-side)
         const streak = userInfo.current_daily_streak || 0;
@@ -154,124 +156,83 @@ async function getUserStatsBasic(userId) {
 }
 
 /**
- * Get deck progress breakdown for the user with card state counts
+ * Get subject progress breakdown for the user with card state counts
  * @param {string} userId
- * @returns {Promise<Array<{deck_id: string, deck_name: string, total: number, new: number, learning: number, review: number, other: number, percentages: {new: number, learning: number, review: number, other: number}}>>}
+ * @returns {Promise<Array<{subject_id: string, subject_name: string, total: number, new: number, learning: number, review: number, other: number, percentages: {new: number, learning: number, review: number, other: number}}>>}
  */
-export async function getDeckProgress(userId) {
+export async function getSubjectProgress(userId) {
     const supabase = await getSupabaseClient();
     
     try {
-        // Use the optimized deck counts view for better performance
-        const { data: deckCounts, error } = await supabase
-            .from('v_due_counts_by_deck')
+        // Get all subjects that have cards for this user
+        const { data: progress, error: progressError } = await supabase
+            .from('user_cards')
             .select(`
-                deck_id, deck_name, total_cards,
-                new_count, learning_count, review_count, suspended_count
+                state,
+                card_templates!inner(subject_id, subjects(id, name))
             `)
             .eq('user_id', userId);
             
-        if (error) throw error;
+        if (progressError) throw progressError;
         
-        return (deckCounts || []).map(deck => {
-            const total = deck.total_cards || 0;
-            const newCount = deck.new_count || 0;
-            const learningCount = deck.learning_count || 0; 
-            const reviewCount = deck.review_count || 0;
-            const otherCount = (deck.suspended_count || 0); // suspended cards
+        // Group by subject and count states
+        const subjectMap = {};
+        
+        (progress || []).forEach(p => {
+            const subject = p.card_templates?.subjects;
+            if (!subject) return;
             
-            return {
-                deck_id: deck.deck_id,
-                deck_name: deck.deck_name,
-                total,
-                new: newCount,
-                learning: learningCount,
-                review: reviewCount,
-                other: otherCount,
-                percentages: {
-                    new: total > 0 ? Math.round((newCount / total) * 100) : 0,
-                    learning: total > 0 ? Math.round((learningCount / total) * 100) : 0,
-                    review: total > 0 ? Math.round((reviewCount / total) * 100) : 0,
-                    other: total > 0 ? Math.round((otherCount / total) * 100) : 0
-                }
-            };
+            const sid = subject.id;
+            if (!subjectMap[sid]) {
+                subjectMap[sid] = { 
+                    subject_id: sid, 
+                    subject_name: subject.name, 
+                    total: 0, 
+                    new: 0, 
+                    learning: 0, 
+                    review: 0, 
+                    other: 0 
+                };
+            }
+            
+            subjectMap[sid].total++;
+            
+            // Count by state
+            switch (p.state) {
+                case 'new':
+                    subjectMap[sid].new++;
+                    break;
+                case 'learning':
+                    subjectMap[sid].learning++;
+                    break;
+                case 'review':
+                    subjectMap[sid].review++;
+                    break;
+                default:
+                    // relearning, buried, suspended
+                    subjectMap[sid].other++;
+                    break;
+            }
         });
+        
+        // Calculate percentages for each state
+        return Object.values(subjectMap).map(s => ({
+            ...s,
+            percentages: {
+                new: s.total > 0 ? Math.round((s.new / s.total) * 100) : 0,
+                learning: s.total > 0 ? Math.round((s.learning / s.total) * 100) : 0,
+                review: s.total > 0 ? Math.round((s.review / s.total) * 100) : 0,
+                other: s.total > 0 ? Math.round((s.other / s.total) * 100) : 0
+            }
+        }));
     } catch (error) {
-        console.error('Error getting deck progress:', error);
-        // Fallback to subject-based progress if deck view fails
-        return await getSubjectProgressFallback(userId);
+        console.error('Error getting subject progress:', error);
+        return [];
     }
 }
 
-// Fallback function for subject-based progress (legacy compatibility)
-async function getSubjectProgressFallback(userId) {
-    const supabase = await getSupabaseClient();
-    
-    // Get all subjects that have cards for this user
-    const { data: progress, error: progressError } = await supabase
-        .from('user_cards')
-        .select(`
-            state,
-            card_templates!inner(subject_id, subjects(id, name))
-        `)
-        .eq('user_id', userId);
-        
-    if (progressError) throw progressError;
-    
-    // Group by subject and count states
-    const subjectMap = {};
-    
-    (progress || []).forEach(p => {
-        const subject = p.card_templates?.subjects;
-        if (!subject) return;
-        
-        const sid = subject.id;
-        if (!subjectMap[sid]) {
-            subjectMap[sid] = { 
-                subject_id: sid, 
-                subject_name: subject.name, 
-                total: 0, 
-                new: 0, 
-                learning: 0, 
-                review: 0, 
-                other: 0 
-            };
-        }
-        
-        subjectMap[sid].total++;
-        
-        // Count by state
-        switch (p.state) {
-            case 'new':
-                subjectMap[sid].new++;
-                break;
-            case 'learning':
-                subjectMap[sid].learning++;
-                break;
-            case 'review':
-                subjectMap[sid].review++;
-                break;
-            default:
-                // relearning, buried, suspended
-                subjectMap[sid].other++;
-                break;
-        }
-    });
-    
-    // Calculate percentages for each state
-    return Object.values(subjectMap).map(s => ({
-        ...s,
-        percentages: {
-            new: s.total > 0 ? Math.round((s.new / s.total) * 100) : 0,
-            learning: s.total > 0 ? Math.round((s.learning / s.total) * 100) : 0,
-            review: s.total > 0 ? Math.round((s.review / s.total) * 100) : 0,
-            other: s.total > 0 ? Math.round((s.other / s.total) * 100) : 0
-        }
-    }));
-}
-
-// Keep the original function name for backward compatibility
-export const getSubjectProgress = getDeckProgress;
+// Legacy compatibility - getDeckProgress has been replaced by getSubjectProgress
+export const getDeckProgress = getSubjectProgress;
 
 // Debounce utility
 function debounce(fn, delay) {
@@ -399,9 +360,9 @@ async function updateDashboard() {
         const user = await window.authService.getCurrentUser();
         if (!user) throw new Error('Not logged in');
         // Fetch stats
-        const [userStats, deckProgress] = await Promise.all([
+        const [userStats, subjectProgress] = await Promise.all([
             getUserStats(user.id),
-            getDeckProgress(user.id)
+            getSubjectProgress(user.id)
         ]);
         // Update stat cards
         document.getElementById('total-cards').textContent = userStats.totalStudied;
@@ -411,13 +372,13 @@ async function updateDashboard() {
         // Check if user is admin and show admin link
         await checkAndShowAdminNav(user.id);
         
-        // Update deck progress (or subject progress as fallback)
+        // Update subject progress
         const list = document.getElementById('subject-progress-list');
         list.innerHTML = '';
-        if (deckProgress.length === 0) {
-            list.innerHTML = '<p>No decks found. Create your first deck to start studying!</p>';
+        if (subjectProgress.length === 0) {
+            list.innerHTML = '<p>No study materials available. Contact an administrator to access study content.</p>';
         } else {
-            deckProgress.forEach(s => {
+            subjectProgress.forEach(s => {
                 const div = document.createElement('div');
                 div.className = 'subject-progress-item';
                 
@@ -444,8 +405,8 @@ async function updateDashboard() {
                     }
                 });
                 
-                // Show deck name if available, otherwise use subject name for fallback
-                const displayName = s.deck_name || s.subject_name || 'Unnamed Deck';
+                // Use subject name for display
+                const displayName = s.subject_name || 'Unknown Subject';
                 const safeName = Validator.escapeHtml(displayName);
                 div.innerHTML = `
                     <div class="subject-progress-title"><strong>${safeName}</strong></div>
