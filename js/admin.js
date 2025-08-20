@@ -174,10 +174,58 @@ class AdminService {
                         </div>
                         <div class="admin-section">
                             <h3>Deck Management</h3>
-                            <div class="form-group">
-                                <input type="text" id="deck-search" placeholder="Search decks..." class="form-input">
-                                <button id="search-decks" class="btn btn-primary">Search</button>
-                                <button id="view-all-decks" class="btn btn-secondary">View All</button>
+                            
+                            <!-- Deck Creation Form -->
+                            <div class="deck-creation-form">
+                                <h4>Create New Deck</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="new-deck-name">Deck Name:</label>
+                                        <input type="text" id="new-deck-name" placeholder="Enter deck name" class="form-input" maxlength="100">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-deck-owner">Assign to User:</label>
+                                        <input type="email" id="new-deck-owner" placeholder="User email" class="form-input">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="new-deck-description">Description:</label>
+                                    <textarea id="new-deck-description" placeholder="Deck description" class="form-input" maxlength="500" rows="3"></textarea>
+                                </div>
+                                <div class="form-group checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="new-deck-is-public">
+                                        <span>Make this deck public (visible to all users)</span>
+                                    </label>
+                                </div>
+                                <div class="form-actions">
+                                    <button id="create-deck" class="btn btn-primary">Create Deck</button>
+                                    <button id="clear-deck-form" class="btn btn-secondary">Clear Form</button>
+                                </div>
+                            </div>
+                            
+                            <hr class="admin-divider">
+                            
+                            <!-- Deck Search and List -->
+                            <div class="deck-management-controls">
+                                <h4>Manage Existing Decks</h4>
+                                <div class="form-group">
+                                    <input type="text" id="deck-search" placeholder="Search decks by name or owner..." class="form-input">
+                                    <button id="search-decks" class="btn btn-primary">Search</button>
+                                    <button id="view-all-decks" class="btn btn-secondary">View All</button>
+                                    <button id="refresh-decks" class="btn btn-secondary">Refresh</button>
+                                </div>
+                                <div class="deck-filters">
+                                    <label class="filter-label">
+                                        <input type="radio" name="deck-filter" value="all" checked> All Decks
+                                    </label>
+                                    <label class="filter-label">
+                                        <input type="radio" name="deck-filter" value="public"> Public Only
+                                    </label>
+                                    <label class="filter-label">
+                                        <input type="radio" name="deck-filter" value="private"> Private Only
+                                    </label>
+                                </div>
                             </div>
                             <div id="deck-list" class="deck-list-container"></div>
                         </div>
@@ -512,6 +560,129 @@ class AdminService {
                         background-color: #f8d7da;
                         border-color: #f5c6cb;
                     }
+                    
+                    /* Deck Management Styles */
+                    .deck-creation-form {
+                        background: #f8f9fa;
+                        padding: 20px;
+                        border-radius: 8px;
+                        margin-bottom: 20px;
+                        border: 1px solid #e9ecef;
+                    }
+                    .deck-creation-form h4 {
+                        margin-top: 0;
+                        color: #007bff;
+                        border-bottom: 1px solid #dee2e6;
+                        padding-bottom: 8px;
+                    }
+                    .form-row {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 15px;
+                        margin-bottom: 15px;
+                    }
+                    .form-group {
+                        margin-bottom: 15px;
+                    }
+                    .form-group label {
+                        display: block;
+                        margin-bottom: 5px;
+                        font-weight: 600;
+                        color: #495057;
+                    }
+                    .checkbox-group {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    }
+                    .checkbox-label {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        cursor: pointer;
+                        font-weight: normal !important;
+                    }
+                    .checkbox-label input[type="checkbox"] {
+                        margin: 0;
+                    }
+                    .form-actions {
+                        display: flex;
+                        gap: 10px;
+                        justify-content: flex-start;
+                        margin-top: 20px;
+                    }
+                    .admin-divider {
+                        border: none;
+                        border-top: 2px solid #e9ecef;
+                        margin: 25px 0;
+                    }
+                    .deck-management-controls h4 {
+                        color: #6c757d;
+                        margin-bottom: 15px;
+                    }
+                    .deck-filters {
+                        display: flex;
+                        gap: 20px;
+                        margin-top: 10px;
+                        align-items: center;
+                    }
+                    .filter-label {
+                        display: flex;
+                        align-items: center;
+                        gap: 5px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    }
+                    .deck-status-badge {
+                        display: inline-block;
+                        padding: 4px 8px;
+                        border-radius: 12px;
+                        font-size: 11px;
+                        font-weight: bold;
+                        text-transform: uppercase;
+                    }
+                    .deck-status-badge.public {
+                        background: #d4edda;
+                        color: #155724;
+                    }
+                    .deck-status-badge.private {
+                        background: #fff3cd;
+                        color: #856404;
+                    }
+                    .deck-item {
+                        border: 1px solid #e9ecef;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin-bottom: 15px;
+                        background: white;
+                    }
+                    .deck-item-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 10px;
+                    }
+                    .deck-item-title {
+                        font-weight: bold;
+                        color: #495057;
+                        margin: 0;
+                    }
+                    .deck-item-meta {
+                        font-size: 12px;
+                        color: #6c757d;
+                        margin: 5px 0;
+                    }
+                    .deck-item-actions {
+                        display: flex;
+                        gap: 8px;
+                        margin-top: 10px;
+                        flex-wrap: wrap;
+                    }
+                    .btn-xs {
+                        padding: 4px 8px;
+                        font-size: 11px;
+                        line-height: 1;
+                    }
                 `;
                 document.head.appendChild(styles);
             }
@@ -570,6 +741,26 @@ class AdminService {
 
         document.getElementById('view-all-decks')?.addEventListener('click', () => {
             this.loadAllDecks();
+        });
+        
+        document.getElementById('refresh-decks')?.addEventListener('click', () => {
+            this.loadAllDecks();
+        });
+
+        // New deck creation actions
+        document.getElementById('create-deck')?.addEventListener('click', () => {
+            this.createDeck();
+        });
+
+        document.getElementById('clear-deck-form')?.addEventListener('click', () => {
+            this.clearDeckForm();
+        });
+        
+        // Deck filter radio buttons
+        document.querySelectorAll('input[name="deck-filter"]')?.forEach(radio => {
+            radio.addEventListener('change', () => {
+                this.filterDecks(radio.value);
+            });
         });
 
         // Subject management actions
@@ -1491,6 +1682,7 @@ class AdminService {
                     daily_review_limit,
                     desired_retention,
                     is_active,
+                    is_public,
                     created_at,
                     profiles!inner(email, display_name)
                 `)
@@ -1528,7 +1720,7 @@ class AdminService {
                 card_count: cardCountMap[deck.id] || 0
             }));
 
-            this.displayDecks(decksWithCounts || [], 'All Active Decks');
+            this.displayDecksWithFilter(decksWithCounts || [], 'all');
         } catch (error) {
             console.error('Error loading all decks:', error);
             this.showError('Failed to load decks');
@@ -1557,6 +1749,7 @@ class AdminService {
                     daily_review_limit,
                     desired_retention,
                     is_active,
+                    is_public,
                     created_at,
                     profiles!inner(email, display_name)
                 `)
@@ -1589,7 +1782,7 @@ class AdminService {
                 card_count: cardCountMap[deck.id] || 0
             }));
 
-            this.displayDecks(decksWithCounts || [], `Search Results for "${searchTerm}"`);
+            this.displayDecksWithFilter(decksWithCounts || [], 'search', searchTerm);
         } catch (error) {
             console.error('Error searching decks:', error);
             this.showError('Failed to search decks');
@@ -1685,12 +1878,13 @@ class AdminService {
 
             this.showSuccess(`Deck ${newStatus ? 'activated' : 'deactivated'} successfully`);
             
-            // Refresh the deck list
+            // Refresh the current view
             const searchTerm = document.getElementById('deck-search')?.value?.trim();
             if (searchTerm) {
                 this.searchDecks();
             } else {
-                this.loadAllDecks();
+                const checkedFilter = document.querySelector('input[name="deck-filter"]:checked')?.value || 'all';
+                this.filterDecks(checkedFilter);
             }
         } catch (error) {
             console.error('Error toggling deck status:', error);
@@ -1929,6 +2123,302 @@ class AdminService {
         }
 
         document.body.appendChild(modal);
+    }
+
+    // ===================================================
+    // NEW DECK MANAGEMENT FUNCTIONS
+    // ===================================================
+
+    /**
+     * Create a new deck with admin privileges
+     */
+    async createDeck() {
+        try {
+            // Verify admin access
+            const isAdminVerified = await this.verifyAdminAccessSecure();
+            if (!isAdminVerified) {
+                this.showError('Admin verification failed. Please refresh the page and try again.');
+                return;
+            }
+
+            // Get form values
+            const name = document.getElementById('new-deck-name')?.value?.trim();
+            const description = document.getElementById('new-deck-description')?.value?.trim();
+            const ownerEmail = document.getElementById('new-deck-owner')?.value?.trim();
+            const isPublic = document.getElementById('new-deck-is-public')?.checked || false;
+
+            // Validation
+            if (!name) {
+                this.showError('Deck name is required.');
+                return;
+            }
+            if (!ownerEmail) {
+                this.showError('Owner email is required.');
+                return;
+            }
+
+            const supabase = await this.getSupabase();
+            
+            // Find the user by email
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('email', ownerEmail)
+                .single();
+                
+            if (profileError || !profile) {
+                this.showError('User not found with that email address.');
+                return;
+            }
+
+            // Create the deck
+            const { data: newDeck, error: createError } = await supabase
+                .from('decks')
+                .insert({
+                    name: name,
+                    description: description || 'Deck created by administrator.',
+                    user_id: profile.id,
+                    is_public: isPublic
+                })
+                .select()
+                .single();
+
+            if (createError) throw createError;
+
+            this.showSuccess(`Deck "${name}" created successfully and assigned to ${ownerEmail}`);
+            this.clearDeckForm();
+            this.loadAllDecks(); // Refresh the deck list
+            
+        } catch (error) {
+            console.error('Error creating deck:', error);
+            this.showError(`Failed to create deck: ${error.message}`);
+        }
+    }
+
+    /**
+     * Clear the deck creation form
+     */
+    clearDeckForm() {
+        document.getElementById('new-deck-name').value = '';
+        document.getElementById('new-deck-description').value = '';
+        document.getElementById('new-deck-owner').value = '';
+        document.getElementById('new-deck-is-public').checked = false;
+    }
+
+    /**
+     * Filter decks by type (all/public/private)
+     */
+    async filterDecks(filterType) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            let query = supabase
+                .from('decks')
+                .select(`
+                    id, name, description, user_id, is_public, is_active, created_at,
+                    profiles!inner(email, display_name)
+                `)
+                .order('created_at', { ascending: false });
+
+            // Apply filter
+            if (filterType === 'public') {
+                query = query.eq('is_public', true);
+            } else if (filterType === 'private') {
+                query = query.eq('is_public', false);
+            }
+            // 'all' doesn't need additional filtering
+
+            const { data: decks, error: decksError } = await query.limit(50);
+            if (decksError) throw decksError;
+
+            // Get card counts
+            const deckIds = decks?.map(d => d.id) || [];
+            let cardCountMap = {};
+            
+            if (deckIds.length > 0) {
+                const { data: cardCounts, error: countError } = await supabase
+                    .from('user_cards')
+                    .select('deck_id')
+                    .in('deck_id', deckIds);
+
+                if (countError) throw countError;
+
+                cardCounts?.forEach(card => {
+                    cardCountMap[card.deck_id] = (cardCountMap[card.deck_id] || 0) + 1;
+                });
+            }
+
+            // Add card counts to decks
+            const decksWithCounts = decks?.map(deck => ({
+                ...deck,
+                card_count: cardCountMap[deck.id] || 0
+            }));
+
+            this.displayDecksWithFilter(decksWithCounts || [], filterType);
+        } catch (error) {
+            console.error('Error filtering decks:', error);
+            this.showError('Failed to filter decks');
+        }
+    }
+
+    /**
+     * Display decks with enhanced information and controls
+     */
+    displayDecksWithFilter(decks, filterType = 'all', searchTerm = null) {
+        const container = document.getElementById('deck-list');
+        if (!container) return;
+
+        if (decks.length === 0) {
+            const emptyMessage = filterType === 'search' ? 
+                `No decks found for "${searchTerm}"` :
+                `No ${filterType === 'all' ? '' : filterType + ' '}decks found.`;
+            container.innerHTML = `<p class="text-muted">${emptyMessage}</p>`;
+            return;
+        }
+
+        let title;
+        if (filterType === 'search') {
+            title = `Search Results for "${searchTerm}" (${decks.length})`;
+        } else {
+            title = `${filterType === 'all' ? 'All' : filterType.charAt(0).toUpperCase() + filterType.slice(1)} Decks (${decks.length})`;
+        }
+        let html = `<h5>${title}</h5>`;
+        
+        decks.forEach(deck => {
+            const statusBadge = deck.is_public ? 
+                '<span class="deck-status-badge public">Public</span>' : 
+                '<span class="deck-status-badge private">Private</span>';
+            
+            const activeBadge = !deck.is_active ? 
+                '<span class="deck-status-badge" style="background:#f8d7da;color:#721c24;">Inactive</span>' : '';
+
+            html += `
+                <div class="deck-item ${!deck.is_active ? 'inactive' : ''}">
+                    <div class="deck-item-header">
+                        <h6 class="deck-item-title">${this.escapeHtml(deck.name)}</h6>
+                        <div>
+                            ${statusBadge}
+                            ${activeBadge}
+                        </div>
+                    </div>
+                    ${deck.description ? `<p class="deck-item-meta"><strong>Description:</strong> ${this.escapeHtml(deck.description)}</p>` : ''}
+                    <div class="deck-item-meta">
+                        <strong>Owner:</strong> ${this.escapeHtml(deck.profiles.display_name || deck.profiles.email)}<br>
+                        <strong>Cards:</strong> ${deck.card_count}<br>
+                        <strong>Created:</strong> ${new Date(deck.created_at).toLocaleDateString()}
+                    </div>
+                    <div class="deck-item-actions">
+                        <button class="btn btn-xs ${deck.is_public ? 'btn-warning' : 'btn-success'}" 
+                                onclick="adminService.toggleDeckPublicStatus('${deck.id}', ${!deck.is_public})">
+                            Make ${deck.is_public ? 'Private' : 'Public'}
+                        </button>
+                        <button class="btn btn-xs ${deck.is_active ? 'btn-warning' : 'btn-success'}" 
+                                onclick="adminService.toggleDeckStatus('${deck.id}', ${!deck.is_active})">
+                            ${deck.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button class="btn btn-xs btn-info" 
+                                onclick="adminService.editDeck('${deck.id}')">
+                            Edit
+                        </button>
+                        <button class="btn btn-xs btn-info" 
+                                onclick="adminService.viewDeckDetails('${deck.id}')">
+                            Details
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    }
+
+    /**
+     * Toggle deck public/private status
+     */
+    async toggleDeckPublicStatus(deckId, makePublic) {
+        try {
+            const isAdminVerified = await this.verifyAdminAccessSecure();
+            if (!isAdminVerified) {
+                this.showError('Admin verification failed.');
+                return;
+            }
+
+            const supabase = await this.getSupabase();
+            
+            const { error } = await supabase
+                .from('decks')
+                .update({ is_public: makePublic })
+                .eq('id', deckId);
+
+            if (error) throw error;
+
+            this.showSuccess(`Deck ${makePublic ? 'made public' : 'made private'} successfully`);
+            
+            // Refresh current view
+            const checkedFilter = document.querySelector('input[name="deck-filter"]:checked')?.value || 'all';
+            this.filterDecks(checkedFilter);
+        } catch (error) {
+            console.error('Error toggling deck public status:', error);
+            this.showError(`Failed to update deck: ${error.message}`);
+        }
+    }
+
+    /**
+     * Edit deck (opens a simple prompt for now - could be enhanced to a modal)
+     */
+    async editDeck(deckId) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            // Get current deck data
+            const { data: deck, error: fetchError } = await supabase
+                .from('decks')
+                .select('name, description')
+                .eq('id', deckId)
+                .single();
+                
+            if (fetchError) throw fetchError;
+            
+            // Simple prompt editing (could be enhanced to a modal form)
+            const newName = prompt('Edit deck name:', deck.name);
+            if (newName === null) return; // User cancelled
+            
+            const newDescription = prompt('Edit deck description:', deck.description || '');
+            if (newDescription === null) return; // User cancelled
+            
+            if (!newName.trim()) {
+                this.showError('Deck name cannot be empty.');
+                return;
+            }
+
+            // Verify admin access
+            const isAdminVerified = await this.verifyAdminAccessSecure();
+            if (!isAdminVerified) {
+                this.showError('Admin verification failed.');
+                return;
+            }
+
+            // Update deck
+            const { error: updateError } = await supabase
+                .from('decks')
+                .update({ 
+                    name: newName.trim(), 
+                    description: newDescription?.trim() || null 
+                })
+                .eq('id', deckId);
+
+            if (updateError) throw updateError;
+
+            this.showSuccess('Deck updated successfully');
+            
+            // Refresh current view
+            const checkedFilter = document.querySelector('input[name="deck-filter"]:checked')?.value || 'all';
+            this.filterDecks(checkedFilter);
+            
+        } catch (error) {
+            console.error('Error editing deck:', error);
+            this.showError(`Failed to edit deck: ${error.message}`);
+        }
     }
 
     // Migration functionality removed for security
