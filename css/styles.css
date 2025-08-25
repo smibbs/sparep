@@ -1448,4 +1448,38 @@ body {
     .schedule-chart {
         margin-bottom: 20px;
     }
+}
+
+/* Hot card pulsing glow animation */
+.card.hot {
+    border: 2px solid #ff4444;
+    box-shadow: 
+        0 10px 20px rgba(0, 0, 0, 0.3), 
+        0 2px 6px rgba(0, 0, 0, 0.2),
+        0 0 20px rgba(255, 68, 68, 0.4);
+    animation: hotCardPulse 2s ease-in-out infinite;
+}
+
+@keyframes hotCardPulse {
+    0% {
+        border-color: #ff4444;
+        box-shadow: 
+            0 10px 20px rgba(0, 0, 0, 0.3), 
+            0 2px 6px rgba(0, 0, 0, 0.2),
+            0 0 20px rgba(255, 68, 68, 0.4);
+    }
+    50% {
+        border-color: #ff6b35;
+        box-shadow: 
+            0 10px 20px rgba(0, 0, 0, 0.3), 
+            0 2px 6px rgba(0, 0, 0, 0.2),
+            0 0 30px rgba(255, 107, 53, 0.6);
+    }
+    100% {
+        border-color: #ff4444;
+        box-shadow: 
+            0 10px 20px rgba(0, 0, 0, 0.3), 
+            0 2px 6px rgba(0, 0, 0, 0.2),
+            0 0 20px rgba(255, 68, 68, 0.4);
+    }
 } 

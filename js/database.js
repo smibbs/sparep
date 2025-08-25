@@ -160,6 +160,7 @@ class DatabaseService {
                     id,
                     question,
                     answer,
+                    tags,
                     flagged_for_review
                 )
             `;
@@ -190,6 +191,7 @@ class DatabaseService {
                     id: card.card_template_id,
                     question: card.card_templates.question,
                     answer: card.card_templates.answer,
+                    tags: card.card_templates.tags,
                     stability: card.stability,
                     difficulty: card.difficulty
                 };
@@ -568,7 +570,7 @@ class DatabaseService {
             if (cardTemplateIds.length > 0) {
                 const { data: templates, error: templatesError } = await supabase
                     .from('card_templates')
-                    .select('id, question, answer, subject_id, subsection, flagged_for_review')
+                    .select('id, question, answer, tags, subject_id, subsection, flagged_for_review')
                     .in('id', cardTemplateIds);
                 
                 if (templatesError) throw templatesError;

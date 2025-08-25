@@ -640,6 +640,14 @@ async function displayCurrentCard() {
     // Reset card state and update UI in one batch
     if (card) {
         card.classList.remove('revealed');
+        
+        // Check if card has "hot" tag and apply CSS class
+        const hasHotTag = currentCard.cards?.tags && Array.isArray(currentCard.cards.tags) && currentCard.cards.tags.includes('hot');
+        if (hasHotTag) {
+            card.classList.add('hot');
+        } else {
+            card.classList.remove('hot');
+        }
     }
     
     // Batch all button state changes
@@ -1749,9 +1757,20 @@ function formatTimeAgo(lastReviewDate) {
 function updateCardDisplay(card) {
     const frontContent = document.querySelector('.card-front p');
     const backContent = document.querySelector('.card-back p');
+    const cardElement = document.querySelector('.card');
     
     frontContent.textContent = card.question;
     backContent.textContent = card.answer;
+    
+    // Check if card has "hot" tag and apply CSS class
+    if (cardElement) {
+        const hasHotTag = card.tags && Array.isArray(card.tags) && card.tags.includes('hot');
+        if (hasHotTag) {
+            cardElement.classList.add('hot');
+        } else {
+            cardElement.classList.remove('hot');
+        }
+    }
     
     // Update progress display
     currentCardSpan.textContent = card.position || '?';

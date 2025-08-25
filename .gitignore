@@ -93,5 +93,6 @@ schema.sql
 # package-lock.json
 # yarn.lock
 
-# Claude Code documentation file
-CLAUDE.md 
+# Claude Code documentation files
+CLAUDE.md
+FSRS Implementation.md 
