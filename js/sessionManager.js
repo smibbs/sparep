@@ -222,7 +222,8 @@ For the best experience, consider using Safari in normal mode or another browser
                     answer: card.answer,
                     id: card.card_template_id,
                     subject_name: card.subject_name,
-                    deck_name: card.deck_name
+                    deck_name: card.deck_name,
+                    tags: card.tags
                 },
                 stability: card.stability || 1.0,
                 difficulty: card.difficulty || 5.0,
@@ -399,7 +400,8 @@ For the best experience, consider using Safari in normal mode or another browser
                     answer: card.answer,
                     id: card.card_template_id,
                     subject_name: card.subject_name,
-                    deck_name: card.deck_name
+                    deck_name: card.deck_name,
+                    tags: card.tags
                 },
                 stability: card.stability || 1.0,
                 difficulty: card.difficulty || 5.0,
