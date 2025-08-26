@@ -119,43 +119,68 @@
     <script src="js/supabase-client.js" type="module"></script>
 
     <script type="module">
+        import adminGuard from './js/admin-guard.js';
         import auth from './js/auth.js';
+
+        // IMMEDIATE ADMIN PROTECTION - Runs before any content loads
+        (async function immediateAdminProtection() {
+            try {
+                // Guard will redirect unauthorized users before this returns
+                const accessGranted = await adminGuard.protect({
+                    redirectOnFail: 'app', // Redirect to main app instead of login for UX
+                    showLoading: false     // Use our custom loading UI
+                });
+
+                if (accessGranted) {
+                    // Access granted - initialize deck designer
+                    await initDeckDesigner();
+                }
+            } catch (error) {
+                console.error('[DeckDesigner] Protection check failed:', error);
+                // Guard will handle redirect on error
+            }
+        })();
 
         async function initDeckDesigner() {
             try {
-                const isAdmin = await auth.verifyAdminAccess();
+                // Show our loading state
+                document.getElementById('access-loading').classList.remove('hidden');
+                document.getElementById('access-denied').classList.add('hidden');
+                document.getElementById('deck-designer-content').classList.add('hidden');
 
-                if (!isAdmin) {
-                    document.getElementById('access-loading').classList.add('hidden');
-                    document.getElementById('access-denied').classList.remove('hidden');
-                    return;
-                }
-
+                // Load deck designer service
                 const { default: DeckDesigner } = await import('./js/deck-designer.js');
                 const deckDesigner = new DeckDesigner();
 
+                // Set up deck designer interface
+                window.deckDesigner = deckDesigner;
+                deckDesigner.initialize();
+
+                // Start periodic validation using AdminGuard
+                adminGuard.startPeriodicValidation(5, 2); // 5 minutes, max 2 failures
+
+                // Set up logout handler
+                const logoutBtn = document.getElementById('access-logout-button');
+                logoutBtn?.addEventListener('click', async () => {
+                    try {
+                        await auth.signOut();
+                    } catch (error) {
+                        console.error('Logout error:', error);
+                        // Still redirect on error
+                        adminGuard.redirectToLogin('Logout completed');
+                    }
+                });
+
+                // Show deck designer content
                 document.getElementById('access-loading').classList.add('hidden');
                 document.getElementById('deck-designer-content').classList.remove('hidden');
 
-                window.deckDesigner = deckDesigner;
-
-                deckDesigner.initialize();
-
-                // Logout button handler
-                const logoutBtn = document.getElementById('access-logout-button');
-                logoutBtn?.addEventListener('click', () => {
-                    auth.signOut().then(() => {
-                        window.location.href = 'login.html';
-                    });
-                });
             } catch (error) {
                 console.error('Error initializing deck designer:', error);
                 document.getElementById('access-loading').classList.add('hidden');
                 document.getElementById('access-denied').classList.remove('hidden');
             }
         }
-
-        initDeckDesigner();
     </script>
 </body>
 </html>
