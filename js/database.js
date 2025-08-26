@@ -739,9 +739,10 @@ class DatabaseService {
      * Get due cards with strict limit for hybrid sessions
      * @param {string} userId - The user's ID
      * @param {number} maxCards - Maximum number of due cards to return
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of due cards, ordered by FSRS priority
      */
-    async getDueCardsWithLimit(userId, maxCards) {
+    async getDueCardsWithLimit(userId, maxCards, deckId = null) {
         try {
             validateUserId(userId, 'getting due cards with limit');
             
@@ -762,10 +763,12 @@ class DatabaseService {
                 .select('*')
                 .eq('user_id', userId);
 
-            // Filter out flagged cards for non-admin users
-            if (!isAdmin) {
-                dueQuery = dueQuery.eq('flagged_for_review', false);
+            // Filter by specific deck if provided
+            if (deckId) {
+                dueQuery = dueQuery.eq('deck_id', deckId);
             }
+
+            // Note: flagged_for_review filtering is already handled in the v_due_user_cards view
 
             const { data: dueCards, error: dueError } = await dueQuery
                 .order('due_at', { ascending: true })  // FSRS priority: most overdue first
@@ -785,19 +788,27 @@ class DatabaseService {
      * @param {string} userId - The user's ID
      * @param {number} minCards - Minimum number of new cards desired
      * @param {number} maxCards - Maximum number of new cards to return
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of new cards
      */
-    async getNewCardsWithLimit(userId, minCards, maxCards) {
+    async getNewCardsWithLimit(userId, minCards, maxCards, deckId = null) {
         try {
             validateUserId(userId, 'getting new cards with limit');
             
             const supabase = await this.getSupabase();
 
             // Get new cards from the view
-            const { data: newCards, error: newError } = await supabase
+            let newQuery = supabase
                 .from('v_new_user_cards')
                 .select('*')
-                .eq('user_id', userId)
+                .eq('user_id', userId);
+
+            // Filter by specific deck if provided
+            if (deckId) {
+                newQuery = newQuery.eq('deck_id', deckId);
+            }
+
+            const { data: newCards, error: newError } = await newQuery
                 .order('added_at', { ascending: true })  // Oldest new cards first
                 .limit(maxCards);
                 
@@ -814,16 +825,17 @@ class DatabaseService {
      * Get recently reviewed cards as fallback for sessions
      * @param {string} userId - The user's ID
      * @param {number} limit - Maximum number of fallback cards
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of recently reviewed cards
      */
-    async getRecentlyReviewedCards(userId, limit) {
+    async getRecentlyReviewedCards(userId, limit, deckId = null) {
         try {
             validateUserId(userId, 'getting recently reviewed cards');
             
             const supabase = await this.getSupabase();
 
             // Get cards that were reviewed recently but aren't due yet
-            const { data: fallbackCards, error: fallbackError } = await supabase
+            let fallbackQuery = supabase
                 .from('user_cards')
                 .select(`
                     user_id,
@@ -858,7 +870,14 @@ class DatabaseService {
                 .eq('state', 'review')
                 .gt('due_at', new Date().toISOString())  // Not due yet
                 .eq('card_templates.flagged_for_review', false)
-                .eq('decks.is_active', true)
+                .eq('decks.is_active', true);
+
+            // Filter by specific deck if provided
+            if (deckId) {
+                fallbackQuery = fallbackQuery.eq('deck_id', deckId);
+            }
+
+            const { data: fallbackCards, error: fallbackError } = await fallbackQuery
                 .order('last_reviewed_at', { ascending: false })  // Most recently reviewed first
                 .limit(limit);
 
@@ -892,6 +911,34 @@ class DatabaseService {
             return formattedCards;
         } catch (error) {
             const handledError = handleError(error, 'getRecentlyReviewedCards');
+            throw new Error(handledError.userMessage);
+        }
+    }
+
+    /**
+     * Get available decks with card counts for deck selection
+     * @param {string} userId - The user's ID
+     * @returns {Promise<Array>} Array of decks with card counts
+     */
+    async getDecksWithCounts(userId) {
+        try {
+            validateUserId(userId, 'getting decks with counts');
+            
+            const supabase = await this.getSupabase();
+
+            // Use the optimized view that respects RLS policies
+            // Users will see public decks, admins will see all decks
+            const { data: decks, error } = await supabase
+                .from('v_due_counts_by_deck')
+                .select('*')
+                .eq('user_id', userId)
+                .order('deck_name');
+                
+            if (error) throw error;
+            
+            return decks || [];
+        } catch (error) {
+            const handledError = handleError(error, 'getDecksWithCounts');
             throw new Error(handledError.userMessage);
         }
     }
@@ -1001,19 +1048,23 @@ class DatabaseService {
      * Get adaptive session cards with balanced due/new ratio based on user progression
      * @param {string} userId - The user's ID
      * @param {number} sessionSize - Desired session size
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Object>} Session cards with metadata
      */
-    async getAdaptiveSessionCards(userId, sessionSize = ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE) {
+    async getAdaptiveSessionCards(userId, sessionSize = ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE, deckId = null) {
         try {
             validateUserId(userId, 'getting adaptive session cards');
+
+            // Determine if we're in strict deck mode (deck-specific session)
+            const strictDeckMode = deckId !== null;
 
             // Get user's learning stage
             const userStage = await this.getUserLearningStage(userId);
             
-            // Get available card counts
+            // Get available card counts (with optional deck filtering)
             const [dueCards, newCards] = await Promise.all([
-                this.getDueCardsWithLimit(userId, sessionSize), // Get up to full session of due cards for counting
-                this.getNewCardsWithLimit(userId, 1, sessionSize) // Get up to full session of new cards for counting
+                this.getDueCardsWithLimit(userId, sessionSize, deckId), // Get up to full session of due cards for counting
+                this.getNewCardsWithLimit(userId, 1, sessionSize, deckId) // Get up to full session of new cards for counting
             ]);
 
             // Calculate adaptive ratios
@@ -1028,6 +1079,8 @@ class DatabaseService {
             const sessionCards = [];
             const metadata = {
                 userStage: userStage.stage,
+                strictDeckMode,
+                deckId,
                 ratios,
                 cardSources: {
                     due: 0,
@@ -1046,8 +1099,8 @@ class DatabaseService {
             sessionCards.push(...selectedNewCards);
             metadata.cardSources.new = selectedNewCards.length;
 
-            // Add fallback cards if we haven't reached session size
-            if (sessionCards.length < sessionSize && ratios.maxFallback > 0) {
+            // Add fallback cards if we haven't reached session size (ONLY for general sessions, not deck-specific)
+            if (!strictDeckMode && sessionCards.length < sessionSize && ratios.maxFallback > 0) {
                 if (ADAPTIVE_SESSION_CONFIG.ENABLE_FALLBACK_CARDS) {
                     // First try additional due cards
                     const additionalDueCards = dueCards.slice(ratios.actualDue, dueCards.length);
@@ -1064,18 +1117,18 @@ class DatabaseService {
                         metadata.cardSources.new += additionalNewNeeded;
                     }
                     
-                    // Finally try recently reviewed cards as last resort
+                    // Finally try recently reviewed cards as last resort (only for general sessions)
                     const finalStillNeeded = sessionSize - sessionCards.length;
                     if (finalStillNeeded > 0) {
-                        const fallbackCards = await this.getRecentlyReviewedCards(userId, finalStillNeeded);
+                        const fallbackCards = await this.getRecentlyReviewedCards(userId, finalStillNeeded, deckId);
                         sessionCards.push(...fallbackCards);
                         metadata.cardSources.fallback = fallbackCards.length;
                     }
                 }
             }
 
-            // Ensure minimum session size
-            if (sessionCards.length < ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE) {
+            // Ensure minimum session size (only for general sessions, not deck-specific)
+            if (!strictDeckMode && sessionCards.length < ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE) {
                 console.warn(`Session size ${sessionCards.length} below minimum ${ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE}`);
             }
 
