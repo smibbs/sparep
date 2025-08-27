@@ -61,10 +61,10 @@ function renderDeckCard(deck) {
     // Generate status indicators
     let statusIndicators = '';
     if (isPublic) {
-        statusIndicators += '<span class="deck-status public" title="Public deck">🌍</span>';
+        statusIndicators += '<span class="deck-status public" title="Public deck"></span>';
     }
     if (hasDueCards) {
-        statusIndicators += '<span class="deck-status due" title="Has cards due for review">⏰</span>';
+        statusIndicators += '<span class="deck-status due" title="Has cards due for review"></span>';
     }
     
     return `

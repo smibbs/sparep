@@ -1,10 +1,6 @@
 /* Deck Selection Page Styles */
 
-#deck-selection-container {
-    min-height: 100vh;
-    padding: 20px;
-    background: var(--background-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-}
+/* Deck selection uses standard app-container from styles.css */
 
 #deck-selection-content {
     max-width: 1200px;
@@ -27,10 +23,10 @@
 
 .study-all-card {
     display: block;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    border: none;
+    background: linear-gradient(135deg, #007AFF 0%, #0056b3 100%);
+    border: 1px solid #3d3f3f;
     border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     transition: all 0.3s ease;
     text-decoration: none;
     color: white;
@@ -41,9 +37,10 @@
 
 .study-all-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 12px 40px rgba(0, 122, 255, 0.2);
     text-decoration: none;
     color: white;
+    background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
 }
 
 .study-all-card::before {
@@ -125,29 +122,29 @@
 
 /* Individual Deck Cards */
 .deck-card {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
+    background: #1f2121;
+    border: 1px solid #3d3f3f;
     border-radius: 16px;
     padding: 24px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     transition: all 0.3s ease;
     text-decoration: none;
-    color: var(--text-color, #333);
+    color: white;
     display: block;
     position: relative;
-    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .deck-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
     text-decoration: none;
-    color: var(--text-color, #333);
-    background: rgba(255, 255, 255, 1);
+    color: white;
+    background: #2a2b2b;
+    border-color: #555;
 }
 
 .deck-card:focus {
-    outline: 2px solid var(--primary-color, #667eea);
+    outline: 2px solid #007AFF;
     outline-offset: 2px;
 }
 
@@ -164,7 +161,7 @@
 }
 
 .deck-description {
-    color: var(--text-light, #666);
+    color: rgba(255, 255, 255, 0.7);
     font-size: 0.95rem;
     line-height: 1.4;
     margin: 0 0 16px 0;
@@ -190,19 +187,19 @@
 }
 
 .stat-label {
-    color: var(--text-light, #666);
+    color: rgba(255, 255, 255, 0.7);
     font-weight: 500;
 }
 
 .stat-value {
     font-weight: 600;
-    color: var(--text-color, #333);
+    color: white;
     min-width: 24px;
     text-align: center;
 }
 
 .stat-value.has-due {
-    color: var(--accent-color, #ff6b6b);
+    color: #007AFF;
     font-weight: 700;
 }
 
@@ -214,7 +211,7 @@
 
 .deck-card.empty-deck:hover {
     transform: none;
-    background: rgba(255, 255, 255, 0.95);
+    background: #1f2121;
 }
 
 .empty-deck-overlay {
@@ -246,14 +243,14 @@
 
 /* Loading Skeleton for Deck Cards */
 .deck-card.skeleton {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(5px);
+    background: rgba(31, 33, 33, 0.5);
+    border: 1px solid rgba(61, 63, 63, 0.3);
     pointer-events: none;
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 .skeleton-text {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
     display: inline-block;
 }
@@ -356,8 +353,8 @@
 /* High contrast mode support */
 @media (prefers-contrast: high) {
     .deck-card {
-        border: 2px solid var(--text-color, #333);
-        background: white;
+        border: 2px solid white;
+        background: #000;
     }
     
     .study-all-card {
