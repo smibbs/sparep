@@ -258,43 +258,12 @@ class DatabaseService {
             validateRating(rating, 'review submission');
             validateResponseTime(responseTime, 'review submission');
 
-            // Get or find the deck_id for this card
-            let deckId = reviewData.deck_id;
-            if (!deckId) {
-                // Try to find existing user_cards record to get deck_id
-                const { data: existingCard } = await supabase
-                    .from('user_cards')
-                    .select('deck_id')
-                    .eq('user_id', user.id)
-                    .eq('card_template_id', card_template_id)
-                    .single();
-                    
-                if (existingCard) {
-                    deckId = existingCard.deck_id;
-                } else {
-                    // Find any accessible deck for this user (assigned by admin)
-                    const { data: accessibleDecks } = await supabase
-                        .from('decks')
-                        .select('id')
-                        .or('user_id.eq.' + user.id + ',is_public.eq.true')
-                        .limit(1);
-                        
-                    if (accessibleDecks && accessibleDecks.length > 0) {
-                        deckId = accessibleDecks[0].id;
-                    } else {
-                        // No accessible decks found - user needs admin to assign a deck
-                        throw new Error('No accessible decks found. Please contact an administrator to assign you a deck for studying.');
-                    }
-                }
-            }
-
-            // Fetch current progress with deck_id
+            // Fetch current progress (no deck_id needed in new structure)
             const { data: currentProgress, error: progressError } = await supabase
                 .from('user_cards')
-                .select('user_id, card_template_id, deck_id, state, due_at, reps, total_reviews, difficulty, stability, correct_reviews, incorrect_reviews, lapses, last_reviewed_at, created_at, updated_at')
+                .select('user_id, card_template_id, state, due_at, reps, total_reviews, difficulty, stability, correct_reviews, incorrect_reviews, lapses, last_reviewed_at, created_at, updated_at')
                 .eq('user_id', user.id)
                 .eq('card_template_id', card_template_id)
-                .eq('deck_id', deckId)
                 .single();
 
             if (progressError && progressError.code !== 'PGRST116') {
@@ -340,13 +309,12 @@ class DatabaseService {
                 nextState = rating === 0 ? 'learning' : 'review';
             }
 
-            // Update user_cards with proper composite key
+            // Update user_cards with new primary key structure (no deck_id)
             const { error: updateError } = await supabase
                 .from('user_cards')
                 .upsert({
                     user_id: user.id,
                     card_template_id: card_template_id,
-                    deck_id: deckId,
                     stability: newStability,
                     difficulty: newDifficulty,
                     last_reviewed_at: now,
@@ -362,20 +330,19 @@ class DatabaseService {
                     scheduled_days: reviewResult.scheduledDays || 0,
                     updated_at: now
                 }, {
-                    onConflict: 'user_id,card_template_id,deck_id'
+                    onConflict: 'user_id,card_template_id'
                 });
 
             if (updateError) {
                 throw updateError;
             }
 
-            // Record the review in reviews table with all required fields
+            // Record the review in reviews table (deck_id removed in new structure)
             const { error: reviewError } = await supabase
                 .from('reviews')
                 .insert({
                     user_id: user.id,
                     card_template_id: card_template_id,
-                    deck_id: deckId,
                     rating: rating,
                     response_time_ms: responseTime,
                     state_before: currentState,
@@ -763,7 +730,7 @@ class DatabaseService {
                 .select('*')
                 .eq('user_id', userId);
 
-            // Filter by specific deck if provided
+            // Filter by specific deck if provided (deck_id now comes from card_templates via the view)
             if (deckId) {
                 dueQuery = dueQuery.eq('deck_id', deckId);
             }
@@ -803,7 +770,7 @@ class DatabaseService {
                 .select('*')
                 .eq('user_id', userId);
 
-            // Filter by specific deck if provided
+            // Filter by specific deck if provided (deck_id now comes from card_templates via the view)
             if (deckId) {
                 newQuery = newQuery.eq('deck_id', deckId);
             }
@@ -1152,19 +1119,16 @@ class DatabaseService {
     }
 
     /**
-     * Initializes progress tracking for a user-card-deck combination
+     * Initializes progress tracking for a user-card combination (deck_id no longer needed)
      * @param {string} user_id - The user's ID
      * @param {string} card_template_id - The card template ID
-     * @param {string} deck_id - The deck ID (required for composite primary key)
+     * @param {string} deck_id - Legacy parameter, ignored in new structure
      * @returns {Promise<Object>} The created progress record
      */
-    async initializeUserProgress(user_id, card_template_id, deck_id) {
+    async initializeUserProgress(user_id, card_template_id, deck_id = null) {
         try {
             if (!card_template_id) {
                 return null;
-            }
-            if (!deck_id) {
-                throw new Error('deck_id is required for card initialization');
             }
             
             const supabase = await this.getSupabase();
@@ -1172,7 +1136,6 @@ class DatabaseService {
             const initialProgress = {
                 user_id: user_id,
                 card_template_id: card_template_id,
-                deck_id: deck_id,  // Required for composite primary key
                 stability: 0.0000,  // Default FSRS stability
                 difficulty: 5.0000, // Default FSRS difficulty
                 elapsed_days: 0,
@@ -1204,25 +1167,20 @@ class DatabaseService {
     }
 
     /**
-     * Gets user's progress for a specific card in a specific deck
+     * Gets user's progress for a specific card (deck_id no longer needed)
      * @param {string} user_id - The user's ID
      * @param {string} card_template_id - The card template ID
-     * @param {string} deck_id - The deck ID (required for composite primary key)
+     * @param {string} deck_id - Legacy parameter, ignored in new structure
      * @returns {Promise<Object>} The user's progress for the card
      */
-    async getUserProgress(user_id, card_template_id, deck_id) {
+    async getUserProgress(user_id, card_template_id, deck_id = null) {
         try {
-            if (!deck_id) {
-                throw new Error('deck_id is required for getUserProgress');
-            }
-            
             const supabase = await this.getSupabase();
             const { data, error } = await supabase
                 .from('user_cards')
-                .select('user_id, card_template_id, deck_id, state, due_at, reps, total_reviews, difficulty, stability, correct_reviews, incorrect_reviews, lapses, last_reviewed_at, last_rating, average_response_time_ms, created_at, updated_at')
+                .select('user_id, card_template_id, state, due_at, reps, total_reviews, difficulty, stability, correct_reviews, incorrect_reviews, lapses, last_reviewed_at, last_rating, average_response_time_ms, created_at, updated_at')
                 .eq('user_id', user_id)
                 .eq('card_template_id', card_template_id)
-                .eq('deck_id', deck_id)
                 .single();
 
             if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "not found"
@@ -1640,40 +1598,8 @@ class DatabaseService {
                 const cardInSession = sessionData.cards.find(c => c.card_template_id === cardId);
                 if (!cardInSession) continue;
                 
-                // Get deck_id from existing user_cards record or use user's default deck
-                let deckId = null;
-                try {
-                    // First try to get deck_id from existing user_cards record
-                    const { data: existingRecord } = await supabase
-                        .from('user_cards')
-                        .select('deck_id')
-                        .eq('user_id', user.id)
-                        .eq('card_template_id', cardId)
-                        .single();
-
-                    if (existingRecord) {
-                        deckId = existingRecord.deck_id;
-                    } else {
-                        // Look for any accessible deck (assigned by admin or public)
-                        const { data: accessibleDecks, error: deckError } = await supabase
-                            .from('decks')
-                            .select('id')
-                            .or('user_id.eq.' + user.id + ',is_public.eq.true')
-                            .limit(1);
-
-                        if (deckError) throw deckError;
-
-                        if (accessibleDecks && accessibleDecks.length > 0) {
-                            deckId = accessibleDecks[0].id;
-                        } else {
-                            // No accessible decks - user needs admin to assign a deck
-                            throw new Error('No accessible decks found. Please contact an administrator to assign you a deck for studying.');
-                        }
-                    }
-                } catch (error) {
-                    console.warn('Failed to get deck_id for card:', cardId, error);
-                    continue; // Skip this card if we can't get deck_id
-                }
+                // deck_id is no longer needed with the new global deck assignment structure
+                // Cards get their deck assignment from card_templates.deck_id globally
 
                 // Use existing progress or defaults for new cards
                 
@@ -1749,14 +1675,12 @@ class DatabaseService {
                 const incorrectReviews = allRatings.filter(r => r.rating < 2).length;
                 const lapses = allRatings.filter(r => r.rating === 0).length;
 
-                // Update progress record
+                // Update progress record (no deck_id needed in new structure)
                 progressUpdates.push({
                     user_id: user.id,
                     card_template_id: cardId,
-                    deck_id: deckId,
                     stability: newStability,
                     difficulty: newDifficulty,
-                    
                     last_reviewed_at: now,
                     due_at: nextReviewDate.toISOString(),
                     reps: (cardInSession.reps || 0) + totalReviews,
@@ -1783,7 +1707,6 @@ class DatabaseService {
                     reviewRecords.push({
                         user_id: user.id,
                         card_template_id: cardId,
-                        deck_id: deckId,
                         rating: rating.rating,
                         response_time_ms: rating.responseTime,
                         stability_before: currentStability,
@@ -2304,7 +2227,7 @@ async function initializeUserProgress(userId) {
         // 2. Initialize cards in that deck
         // But this should be handled at a higher level in the application
         
-        throw new Error('Card initialization requires a deck_id. Use the deck-based card creation flow instead.');
+        throw new Error('Card initialization no longer requires deck_id. Use DatabaseService.initializeUserProgress(user_id, card_template_id) instead.');
 
     } catch (error) {
         const handledError = handleError(error, 'initializeUserProgress_standalone');
