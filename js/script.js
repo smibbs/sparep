@@ -1105,6 +1105,8 @@ function getProgressInfo(card) {
  * Initialize or load a session
  */
 async function loadSession() {
+    console.log(`🚀 loadSession() called at ${new Date().toISOString()}`);
+    
     // Simple race condition prevention with timestamp
     const callTime = Date.now();
     
@@ -1127,12 +1129,51 @@ async function loadSession() {
         if (!appState.user) {
             throw new Error('No user found');
         }
+        
+        console.log(`👤 User found: ${appState.user.email}`);
+        console.log(`🔧 Session loading proceeding...`);
 
         // Start loading state
         await transitionToState('loading');
+        console.log(`⏳ Transitioned to loading state`);
 
-        // Try to load existing session from storage first (only if not explicitly starting new)
-        if (!appState.forceNewSession && appState.sessionManager.loadSession()) {
+        // Parse URL parameters to check for deck selection
+        const urlParams = new URLSearchParams(window.location.search);
+        const deckId = urlParams.get('deck');
+        
+        console.log(`🔍 URL Parameters: ${window.location.search}`);
+        console.log(`🎯 Parsed deckId: ${deckId ? `'${deckId}'` : 'null (general session)'}`);
+        
+        // Check if there's an existing session and what type it is
+        const hasExistingSession = appState.sessionManager.hasSession();
+        const existingSessionDeckId = hasExistingSession ? appState.sessionManager.getSessionDeckId() : null;
+        
+        // Force new session if:
+        // 1. Explicitly requested (appState.forceNewSession)
+        // 2. Requesting a specific deck (deckId !== null)
+        // 3. Session type mismatch (going from deck-specific to general or vice versa)
+        // 4. Legacy session without metadata (needs upgrade)
+        const sessionTypeMismatch = (deckId !== existingSessionDeckId);
+        const isLegacySession = hasExistingSession && !appState.sessionManager.sessionData?.metadata;
+        const shouldForceNewSession = appState.forceNewSession || (deckId !== null) || sessionTypeMismatch || isLegacySession;
+        
+        console.log(`🔄 Session analysis:`);
+        console.log(`  - Current URL deckId: ${deckId ? `'${deckId}'` : 'null (general)'}`);
+        console.log(`  - Existing session deckId: ${existingSessionDeckId ? `'${existingSessionDeckId}'` : 'null (general)'}`);
+        console.log(`  - Has existing session: ${hasExistingSession}`);
+        if (hasExistingSession) {
+            console.log(`  - Session metadata:`, appState.sessionManager.sessionData?.metadata);
+            if (appState.sessionManager.sessionData) {
+                console.log(`  - Session card count: ${appState.sessionManager.sessionData.cards?.length || 0}`);
+            }
+        }
+        console.log(`  - Session type mismatch: ${sessionTypeMismatch}`);
+        console.log(`  - Is legacy session: ${isLegacySession}`);
+        console.log(`  - Should force new session: ${shouldForceNewSession}`);
+        
+        // Try to load existing session from storage first (only if session type matches)
+        if (!shouldForceNewSession && appState.sessionManager.loadSession()) {
+            console.log(`💾 Found existing session in storage`);
             // Session loaded from storage, get current card
             appState.currentCard = appState.sessionManager.getCurrentCard();
             
@@ -1161,15 +1202,20 @@ async function loadSession() {
                 await handleSessionComplete();
                 return;
             }
+        } else {
+            console.log(`🆕 No existing session found or forced new session - creating new session`);
         }
         
         // Clear force new session flag AND clear any stale session data
         appState.forceNewSession = false;
         appState.isCompleted = false; // Reset completion state
         appState.sessionManager.clearSession();
+        console.log(`🧹 Cleared session state`);
 
         // Ensure user profile exists before doing any operations
+        console.log(`👥 Ensuring user profile exists...`);
         await appState.dbService.ensureUserProfileExists(appState.user.id);
+        console.log(`✅ User profile confirmed`);
 
         // Initialize progress for missing cards (this will find new cards in card_templates)
         try {
@@ -1204,9 +1250,10 @@ async function loadSession() {
         }
 
         // Initialize new session with configured number of cards
+        // (deckId was already parsed earlier in the function)
         
         try {
-            await appState.sessionManager.initializeSession(appState.user.id, appState.dbService);
+            await appState.sessionManager.initializeSession(appState.user.id, appState.dbService, deckId);
             
             // No need to reset milestone tracking - it's based on daily totals now
         } catch (error) {

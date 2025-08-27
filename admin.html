@@ -35,6 +35,7 @@
                 <nav class="admin-header-controls">
                     <button id="toggle-analytics" class="btn btn-primary">Stats</button>
                     <button id="toggle-management" class="btn btn-secondary">Flagged</button>
+                    <a href="deck-designer.html" class="btn btn-success">Deck Designer</a>
                 </nav>
             </header>
 
@@ -177,80 +178,73 @@
     <script src="js/supabase-client.js" type="module"></script>
 
     <script type="module">
+        import adminGuard from './js/admin-guard.js';
         import auth from './js/auth.js';
+
+        // IMMEDIATE ADMIN PROTECTION - Runs before any content loads
+        (async function immediateAdminProtection() {
+            try {
+                // Guard will redirect unauthorized users before this returns
+                const accessGranted = await adminGuard.protect({
+                    redirectOnFail: 'app', // Redirect to main app instead of login for UX
+                    showLoading: false     // Use our custom loading UI
+                });
+
+                if (accessGranted) {
+                    // Access granted - initialize admin interface
+                    await initAdminPage();
+                }
+            } catch (error) {
+                console.error('[Admin] Protection check failed:', error);
+                // Guard will handle redirect on error
+            }
+        })();
 
         async function initAdminPage() {
             try {
-                const isAdmin = await auth.verifyAdminAccess();
+                // Show our loading state
+                document.getElementById('access-loading').classList.remove('hidden');
+                document.getElementById('access-denied').classList.add('hidden');
+                document.getElementById('admin-content').classList.add('hidden');
 
-                if (!isAdmin) {
-                    document.getElementById('access-loading').classList.add('hidden');
-                    document.getElementById('access-denied').classList.remove('hidden');
-                    return;
-                }
-
+                // Load admin services
                 const { default: AdminService } = await import('./js/admin.js');
                 const adminService = new AdminService(false);
 
-                document.getElementById('access-loading').classList.add('hidden');
-                document.getElementById('admin-content').classList.remove('hidden');
-
+                // Initialize slide menu
                 const { default: slideMenu } = await import('./js/slideMenu.js');
                 await slideMenu.initialize();
 
+                // Set up admin interface
                 window.adminService = adminService;
-
                 adminService.setupEventListeners();
                 adminService.loadFlaggedCards();
 
-                startPeriodicAdminValidation(auth);
+                // Start periodic validation using AdminGuard
+                adminGuard.startPeriodicValidation(5, 2); // 5 minutes, max 2 failures
 
+                // Set up logout handler
                 const logoutBtn = document.getElementById('access-logout-button');
-                logoutBtn?.addEventListener('click', () => {
-                    auth.signOut().then(() => {
-                        window.location.href = 'login.html';
-                    });
+                logoutBtn?.addEventListener('click', async () => {
+                    try {
+                        await auth.signOut();
+                    } catch (error) {
+                        console.error('Logout error:', error);
+                        // Still redirect on error
+                        adminGuard.redirectToLogin('Logout completed');
+                    }
                 });
+
+                // Show admin content
+                document.getElementById('access-loading').classList.add('hidden');
+                document.getElementById('admin-content').classList.remove('hidden');
+
             } catch (error) {
                 console.error('Error initializing admin page:', error);
                 document.getElementById('access-loading').classList.add('hidden');
                 document.getElementById('access-denied').classList.remove('hidden');
             }
         }
-
-        function startPeriodicAdminValidation(auth) {
-            let validationFailures = 0;
-            const MAX_FAILURES = 2;
-            const VALIDATION_INTERVAL = 5 * 60 * 1000; // 5 minutes
-
-            const validateAdminStatus = async () => {
-                try {
-                    const isAdminValid = await auth.verifyAdminAccess();
-
-                    if (!isAdminValid) {
-                        validationFailures++;
-                        if (validationFailures >= MAX_FAILURES) {
-                            alert('Your admin session has expired. Please log in again.');
-                            window.location.href = 'login.html';
-                            return;
-                        }
-                    } else {
-                        validationFailures = 0;
-                    }
-                } catch (error) {
-                    validationFailures++;
-                    if (validationFailures >= MAX_FAILURES) {
-                        alert('Unable to verify admin access. Please log in again.');
-                        window.location.href = 'login.html';
-                    }
-                }
-            };
-
-            setTimeout(validateAdminStatus, 30000);
-            setInterval(validateAdminStatus, VALIDATION_INTERVAL);
-        }
-
-        initAdminPage();
     </script>
 </body>
 </html>

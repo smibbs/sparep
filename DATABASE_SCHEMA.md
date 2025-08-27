@@ -82,7 +82,8 @@ Template definitions for flashcards with community features.
 | `question` | `text` | NOT NULL, CHECK length(trim(question)) > 0 | Card front content |
 | `answer` | `text` | NOT NULL, CHECK length(trim(answer)) > 0 | Card back content |
 | `subject_id` | `uuid` | NULL, FK to subjects.id | Associated subject |
-| `subsection` | `varchar` | NULL | Subject subsection |
+| `subsection` | `varchar` | NULL | Subject subsection (legacy) |
+| `path` | `ltree` | NULL | Hierarchical path (e.g., 1.7.2.1 = Book 1, Section 7, Subsection 2, Item 1) |
 | `tags` | `text[]` | NULL | Search/organization tags |
 | `creator_id` | `uuid` | NULL, FK to auth.users | Template creator |
 | `is_public` | `boolean` | NOT NULL, DEFAULT false | Public availability |
@@ -249,6 +250,37 @@ Dynamic loading messages for improved user experience.
 | `show_on_new_cards` | `boolean` | DEFAULT true | New cards display |
 | `created_at` | `timestamptz` | NOT NULL, DEFAULT now() | Creation time |
 | `updated_at` | `timestamptz` | NOT NULL, DEFAULT now() | Last update time |
+
+## Hierarchical Path System
+
+The `card_templates.path` column uses PostgreSQL's LTREE type for efficient hierarchical categorization based on book sections.
+
+### Path Format Examples:
+- `1` = Book 1
+- `1.7` = Book 1, Section 7 (Firearms and Gun Crime)
+- `1.7.2` = Book 1, Section 7, Subsection 2 (Definitions)  
+- `1.7.2.1` = Book 1, Section 7, Subsection 2, Item 1 (Firearm Definition)
+
+### Common Query Patterns:
+```sql
+-- Get all cards in firearms section (1.7) and subsections
+SELECT * FROM card_templates WHERE path <@ '1.7'::ltree;
+
+-- Get cards exactly at section level (depth 2)  
+SELECT * FROM card_templates WHERE nlevel(path) = 2;
+
+-- Get all definition cards (1.7.2.*)
+SELECT * FROM card_templates WHERE path ~ '1.7.2.*'::lquery;
+
+-- Get hierarchy info for a path
+SELECT * FROM get_path_hierarchy_info('1.7.2.1'::ltree);
+```
+
+### Migration Strategy:
+- **Subjects**: Use 2-level hierarchy (e.g., `1.7` = "Firearms and Gun Crime")
+- **Cards**: Full hierarchy in `path` column (e.g., `1.7.2.1`)
+- **Legacy**: `subsection` VARCHAR preserved for backward compatibility
+- **Population**: Use `migrate_subsection_to_path()` to convert existing data
 
 ## Custom Types & Enums
 
@@ -441,7 +473,7 @@ Comprehensive user study session data:
 - `get_deck_daily_limits()`: Deck-specific limits
 - `process_card_review()`: Complete review processing
 
-### Card & Study Functions (15 functions)
+### Card & Study Functions (21 functions)
 - `get_new_cards_for_user()`: Fetch new cards for study
 - `get_due_cards_for_user()`: Fetch cards for review
 - `add_card_to_deck()`: Add template to user deck
@@ -457,6 +489,12 @@ Comprehensive user study session data:
 - `get_card_counts_by_deck()`: Deck statistics
 - `initialize_card_progress()`: Setup new card progress
 - `increment_daily_reviews()`: Update daily counter
+- `search_cards_by_path()`: Hierarchical path-based card search
+- `get_cards_by_depth()`: Cards at specific hierarchy depth
+- `validate_book_path()`: Path format validation
+- `convert_to_book_path()`: String to LTREE conversion
+- `get_path_hierarchy_info()`: Path structure analysis
+- `migrate_subsection_to_path()`: Legacy data migration
 
 ### Streak & Gamification Functions (8 functions)
 - `update_user_streak()`: Process streak updates
@@ -524,11 +562,15 @@ Comprehensive user study session data:
 - `idx_reviews_user_card_deck`: Multi-dimensional analysis
 - Plus standard foreign key indexes
 
-#### `card_templates` - Search Optimized (9 indexes)
+#### `card_templates` - Search Optimized (13 indexes)
 - `idx_card_templates_question_fts`: Full-text search on questions
 - `idx_card_templates_answer_fts`: Full-text search on answers
 - `idx_card_templates_public_unflagged`: Optimized public access
 - `idx_card_templates_tags`: Tag-based filtering (GIN index)
+- `idx_card_templates_path_gist`: Hierarchical path queries (GiST index)
+- `idx_card_templates_path_btree`: Exact path matches and sorting
+- `idx_card_templates_subject_path`: Combined subject and path queries
+- `idx_card_templates_public_path`: Public cards with path filtering
 - Plus standard foreign key and status indexes
 
 #### Other Key Indexes

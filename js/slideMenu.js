@@ -93,6 +93,9 @@ export class SlideMenu {
                 <a href="index.html" class="slide-menu-item ${currentPage === 'index' ? 'current-page' : ''}" data-page="study">
                     Study Now
                 </a>
+                <a href="deck-selection.html" class="slide-menu-item ${currentPage === 'deck-selection' ? 'current-page' : ''}" data-page="deck-selection">
+                    Select Deck
+                </a>
                 <a href="dashboard.html" class="slide-menu-item ${currentPage === 'dashboard' ? 'current-page' : ''}" data-page="dashboard">
                     Dashboard
                 </a>
@@ -369,6 +372,7 @@ export class SlideMenu {
         if (filename.includes('dashboard')) return 'dashboard';
         if (filename.includes('admin')) return 'admin';
         if (filename.includes('profile')) return 'profile';
+        if (filename.includes('deck-selection')) return 'deck-selection';
         if (filename.includes('index') || filename === '' || filename === '/') return 'index';
         
         return 'other';

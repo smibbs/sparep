@@ -258,43 +258,12 @@ class DatabaseService {
             validateRating(rating, 'review submission');
             validateResponseTime(responseTime, 'review submission');
 
-            // Get or find the deck_id for this card
-            let deckId = reviewData.deck_id;
-            if (!deckId) {
-                // Try to find existing user_cards record to get deck_id
-                const { data: existingCard } = await supabase
-                    .from('user_cards')
-                    .select('deck_id')
-                    .eq('user_id', user.id)
-                    .eq('card_template_id', card_template_id)
-                    .single();
-                    
-                if (existingCard) {
-                    deckId = existingCard.deck_id;
-                } else {
-                    // Find any accessible deck for this user (assigned by admin)
-                    const { data: accessibleDecks } = await supabase
-                        .from('decks')
-                        .select('id')
-                        .or('user_id.eq.' + user.id + ',is_public.eq.true')
-                        .limit(1);
-                        
-                    if (accessibleDecks && accessibleDecks.length > 0) {
-                        deckId = accessibleDecks[0].id;
-                    } else {
-                        // No accessible decks found - user needs admin to assign a deck
-                        throw new Error('No accessible decks found. Please contact an administrator to assign you a deck for studying.');
-                    }
-                }
-            }
-
-            // Fetch current progress with deck_id
+            // Fetch current progress (no deck_id needed in new structure)
             const { data: currentProgress, error: progressError } = await supabase
                 .from('user_cards')
-                .select('user_id, card_template_id, deck_id, state, due_at, reps, total_reviews, difficulty, stability, correct_reviews, incorrect_reviews, lapses, last_reviewed_at, created_at, updated_at')
+                .select('user_id, card_template_id, state, due_at, reps, total_reviews, difficulty, stability, correct_reviews, incorrect_reviews, lapses, last_reviewed_at, created_at, updated_at')
                 .eq('user_id', user.id)
                 .eq('card_template_id', card_template_id)
-                .eq('deck_id', deckId)
                 .single();
 
             if (progressError && progressError.code !== 'PGRST116') {
@@ -340,13 +309,12 @@ class DatabaseService {
                 nextState = rating === 0 ? 'learning' : 'review';
             }
 
-            // Update user_cards with proper composite key
+            // Update user_cards with new primary key structure (no deck_id)
             const { error: updateError } = await supabase
                 .from('user_cards')
                 .upsert({
                     user_id: user.id,
                     card_template_id: card_template_id,
-                    deck_id: deckId,
                     stability: newStability,
                     difficulty: newDifficulty,
                     last_reviewed_at: now,
@@ -362,20 +330,19 @@ class DatabaseService {
                     scheduled_days: reviewResult.scheduledDays || 0,
                     updated_at: now
                 }, {
-                    onConflict: 'user_id,card_template_id,deck_id'
+                    onConflict: 'user_id,card_template_id'
                 });
 
             if (updateError) {
                 throw updateError;
             }
 
-            // Record the review in reviews table with all required fields
+            // Record the review in reviews table (deck_id removed in new structure)
             const { error: reviewError } = await supabase
                 .from('reviews')
                 .insert({
                     user_id: user.id,
                     card_template_id: card_template_id,
-                    deck_id: deckId,
                     rating: rating,
                     response_time_ms: responseTime,
                     state_before: currentState,
@@ -739,9 +706,10 @@ class DatabaseService {
      * Get due cards with strict limit for hybrid sessions
      * @param {string} userId - The user's ID
      * @param {number} maxCards - Maximum number of due cards to return
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of due cards, ordered by FSRS priority
      */
-    async getDueCardsWithLimit(userId, maxCards) {
+    async getDueCardsWithLimit(userId, maxCards, deckId = null) {
         try {
             validateUserId(userId, 'getting due cards with limit');
             
@@ -762,10 +730,12 @@ class DatabaseService {
                 .select('*')
                 .eq('user_id', userId);
 
-            // Filter out flagged cards for non-admin users
-            if (!isAdmin) {
-                dueQuery = dueQuery.eq('flagged_for_review', false);
+            // Filter by specific deck if provided (deck_id now comes from card_templates via the view)
+            if (deckId) {
+                dueQuery = dueQuery.eq('deck_id', deckId);
             }
+
+            // Note: flagged_for_review filtering is already handled in the v_due_user_cards view
 
             const { data: dueCards, error: dueError } = await dueQuery
                 .order('due_at', { ascending: true })  // FSRS priority: most overdue first
@@ -785,19 +755,27 @@ class DatabaseService {
      * @param {string} userId - The user's ID
      * @param {number} minCards - Minimum number of new cards desired
      * @param {number} maxCards - Maximum number of new cards to return
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of new cards
      */
-    async getNewCardsWithLimit(userId, minCards, maxCards) {
+    async getNewCardsWithLimit(userId, minCards, maxCards, deckId = null) {
         try {
             validateUserId(userId, 'getting new cards with limit');
             
             const supabase = await this.getSupabase();
 
             // Get new cards from the view
-            const { data: newCards, error: newError } = await supabase
+            let newQuery = supabase
                 .from('v_new_user_cards')
                 .select('*')
-                .eq('user_id', userId)
+                .eq('user_id', userId);
+
+            // Filter by specific deck if provided (deck_id now comes from card_templates via the view)
+            if (deckId) {
+                newQuery = newQuery.eq('deck_id', deckId);
+            }
+
+            const { data: newCards, error: newError } = await newQuery
                 .order('added_at', { ascending: true })  // Oldest new cards first
                 .limit(maxCards);
                 
@@ -814,16 +792,17 @@ class DatabaseService {
      * Get recently reviewed cards as fallback for sessions
      * @param {string} userId - The user's ID
      * @param {number} limit - Maximum number of fallback cards
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of recently reviewed cards
      */
-    async getRecentlyReviewedCards(userId, limit) {
+    async getRecentlyReviewedCards(userId, limit, deckId = null) {
         try {
             validateUserId(userId, 'getting recently reviewed cards');
             
             const supabase = await this.getSupabase();
 
             // Get cards that were reviewed recently but aren't due yet
-            const { data: fallbackCards, error: fallbackError } = await supabase
+            let fallbackQuery = supabase
                 .from('user_cards')
                 .select(`
                     user_id,
@@ -858,7 +837,14 @@ class DatabaseService {
                 .eq('state', 'review')
                 .gt('due_at', new Date().toISOString())  // Not due yet
                 .eq('card_templates.flagged_for_review', false)
-                .eq('decks.is_active', true)
+                .eq('decks.is_active', true);
+
+            // Filter by specific deck if provided
+            if (deckId) {
+                fallbackQuery = fallbackQuery.eq('deck_id', deckId);
+            }
+
+            const { data: fallbackCards, error: fallbackError } = await fallbackQuery
                 .order('last_reviewed_at', { ascending: false })  // Most recently reviewed first
                 .limit(limit);
 
@@ -892,6 +878,34 @@ class DatabaseService {
             return formattedCards;
         } catch (error) {
             const handledError = handleError(error, 'getRecentlyReviewedCards');
+            throw new Error(handledError.userMessage);
+        }
+    }
+
+    /**
+     * Get available decks with card counts for deck selection
+     * @param {string} userId - The user's ID
+     * @returns {Promise<Array>} Array of decks with card counts
+     */
+    async getDecksWithCounts(userId) {
+        try {
+            validateUserId(userId, 'getting decks with counts');
+            
+            const supabase = await this.getSupabase();
+
+            // Use the optimized view that respects RLS policies
+            // Users will see public decks, admins will see all decks
+            const { data: decks, error } = await supabase
+                .from('v_due_counts_by_deck')
+                .select('*')
+                .eq('user_id', userId)
+                .order('deck_name');
+                
+            if (error) throw error;
+            
+            return decks || [];
+        } catch (error) {
+            const handledError = handleError(error, 'getDecksWithCounts');
             throw new Error(handledError.userMessage);
         }
     }
@@ -1001,19 +1015,23 @@ class DatabaseService {
      * Get adaptive session cards with balanced due/new ratio based on user progression
      * @param {string} userId - The user's ID
      * @param {number} sessionSize - Desired session size
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Object>} Session cards with metadata
      */
-    async getAdaptiveSessionCards(userId, sessionSize = ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE) {
+    async getAdaptiveSessionCards(userId, sessionSize = ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE, deckId = null) {
         try {
             validateUserId(userId, 'getting adaptive session cards');
+
+            // Determine if we're in strict deck mode (deck-specific session)
+            const strictDeckMode = deckId !== null;
 
             // Get user's learning stage
             const userStage = await this.getUserLearningStage(userId);
             
-            // Get available card counts
+            // Get available card counts (with optional deck filtering)
             const [dueCards, newCards] = await Promise.all([
-                this.getDueCardsWithLimit(userId, sessionSize), // Get up to full session of due cards for counting
-                this.getNewCardsWithLimit(userId, 1, sessionSize) // Get up to full session of new cards for counting
+                this.getDueCardsWithLimit(userId, sessionSize, deckId), // Get up to full session of due cards for counting
+                this.getNewCardsWithLimit(userId, 1, sessionSize, deckId) // Get up to full session of new cards for counting
             ]);
 
             // Calculate adaptive ratios
@@ -1028,6 +1046,8 @@ class DatabaseService {
             const sessionCards = [];
             const metadata = {
                 userStage: userStage.stage,
+                strictDeckMode,
+                deckId,
                 ratios,
                 cardSources: {
                     due: 0,
@@ -1046,8 +1066,8 @@ class DatabaseService {
             sessionCards.push(...selectedNewCards);
             metadata.cardSources.new = selectedNewCards.length;
 
-            // Add fallback cards if we haven't reached session size
-            if (sessionCards.length < sessionSize && ratios.maxFallback > 0) {
+            // Add fallback cards if we haven't reached session size (ONLY for general sessions, not deck-specific)
+            if (!strictDeckMode && sessionCards.length < sessionSize && ratios.maxFallback > 0) {
                 if (ADAPTIVE_SESSION_CONFIG.ENABLE_FALLBACK_CARDS) {
                     // First try additional due cards
                     const additionalDueCards = dueCards.slice(ratios.actualDue, dueCards.length);
@@ -1064,18 +1084,18 @@ class DatabaseService {
                         metadata.cardSources.new += additionalNewNeeded;
                     }
                     
-                    // Finally try recently reviewed cards as last resort
+                    // Finally try recently reviewed cards as last resort (only for general sessions)
                     const finalStillNeeded = sessionSize - sessionCards.length;
                     if (finalStillNeeded > 0) {
-                        const fallbackCards = await this.getRecentlyReviewedCards(userId, finalStillNeeded);
+                        const fallbackCards = await this.getRecentlyReviewedCards(userId, finalStillNeeded, deckId);
                         sessionCards.push(...fallbackCards);
                         metadata.cardSources.fallback = fallbackCards.length;
                     }
                 }
             }
 
-            // Ensure minimum session size
-            if (sessionCards.length < ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE) {
+            // Ensure minimum session size (only for general sessions, not deck-specific)
+            if (!strictDeckMode && sessionCards.length < ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE) {
                 console.warn(`Session size ${sessionCards.length} below minimum ${ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE}`);
             }
 
@@ -1099,19 +1119,16 @@ class DatabaseService {
     }
 
     /**
-     * Initializes progress tracking for a user-card-deck combination
+     * Initializes progress tracking for a user-card combination (deck_id no longer needed)
      * @param {string} user_id - The user's ID
      * @param {string} card_template_id - The card template ID
-     * @param {string} deck_id - The deck ID (required for composite primary key)
+     * @param {string} deck_id - Legacy parameter, ignored in new structure
      * @returns {Promise<Object>} The created progress record
      */
-    async initializeUserProgress(user_id, card_template_id, deck_id) {
+    async initializeUserProgress(user_id, card_template_id, deck_id = null) {
         try {
             if (!card_template_id) {
                 return null;
-            }
-            if (!deck_id) {
-                throw new Error('deck_id is required for card initialization');
             }
             
             const supabase = await this.getSupabase();
@@ -1119,7 +1136,6 @@ class DatabaseService {
             const initialProgress = {
                 user_id: user_id,
                 card_template_id: card_template_id,
-                deck_id: deck_id,  // Required for composite primary key
                 stability: 0.0000,  // Default FSRS stability
                 difficulty: 5.0000, // Default FSRS difficulty
                 elapsed_days: 0,
@@ -1151,25 +1167,20 @@ class DatabaseService {
     }
 
     /**
-     * Gets user's progress for a specific card in a specific deck
+     * Gets user's progress for a specific card (deck_id no longer needed)
      * @param {string} user_id - The user's ID
      * @param {string} card_template_id - The card template ID
-     * @param {string} deck_id - The deck ID (required for composite primary key)
+     * @param {string} deck_id - Legacy parameter, ignored in new structure
      * @returns {Promise<Object>} The user's progress for the card
      */
-    async getUserProgress(user_id, card_template_id, deck_id) {
+    async getUserProgress(user_id, card_template_id, deck_id = null) {
         try {
-            if (!deck_id) {
-                throw new Error('deck_id is required for getUserProgress');
-            }
-            
             const supabase = await this.getSupabase();
             const { data, error } = await supabase
                 .from('user_cards')
-                .select('user_id, card_template_id, deck_id, state, due_at, reps, total_reviews, difficulty, stability, correct_reviews, incorrect_reviews, lapses, last_reviewed_at, last_rating, average_response_time_ms, created_at, updated_at')
+                .select('user_id, card_template_id, state, due_at, reps, total_reviews, difficulty, stability, correct_reviews, incorrect_reviews, lapses, last_reviewed_at, last_rating, average_response_time_ms, created_at, updated_at')
                 .eq('user_id', user_id)
                 .eq('card_template_id', card_template_id)
-                .eq('deck_id', deck_id)
                 .single();
 
             if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "not found"
@@ -1587,40 +1598,8 @@ class DatabaseService {
                 const cardInSession = sessionData.cards.find(c => c.card_template_id === cardId);
                 if (!cardInSession) continue;
                 
-                // Get deck_id from existing user_cards record or use user's default deck
-                let deckId = null;
-                try {
-                    // First try to get deck_id from existing user_cards record
-                    const { data: existingRecord } = await supabase
-                        .from('user_cards')
-                        .select('deck_id')
-                        .eq('user_id', user.id)
-                        .eq('card_template_id', cardId)
-                        .single();
-
-                    if (existingRecord) {
-                        deckId = existingRecord.deck_id;
-                    } else {
-                        // Look for any accessible deck (assigned by admin or public)
-                        const { data: accessibleDecks, error: deckError } = await supabase
-                            .from('decks')
-                            .select('id')
-                            .or('user_id.eq.' + user.id + ',is_public.eq.true')
-                            .limit(1);
-
-                        if (deckError) throw deckError;
-
-                        if (accessibleDecks && accessibleDecks.length > 0) {
-                            deckId = accessibleDecks[0].id;
-                        } else {
-                            // No accessible decks - user needs admin to assign a deck
-                            throw new Error('No accessible decks found. Please contact an administrator to assign you a deck for studying.');
-                        }
-                    }
-                } catch (error) {
-                    console.warn('Failed to get deck_id for card:', cardId, error);
-                    continue; // Skip this card if we can't get deck_id
-                }
+                // deck_id is no longer needed with the new global deck assignment structure
+                // Cards get their deck assignment from card_templates.deck_id globally
 
                 // Use existing progress or defaults for new cards
                 
@@ -1696,14 +1675,12 @@ class DatabaseService {
                 const incorrectReviews = allRatings.filter(r => r.rating < 2).length;
                 const lapses = allRatings.filter(r => r.rating === 0).length;
 
-                // Update progress record
+                // Update progress record (no deck_id needed in new structure)
                 progressUpdates.push({
                     user_id: user.id,
                     card_template_id: cardId,
-                    deck_id: deckId,
                     stability: newStability,
                     difficulty: newDifficulty,
-                    
                     last_reviewed_at: now,
                     due_at: nextReviewDate.toISOString(),
                     reps: (cardInSession.reps || 0) + totalReviews,
@@ -1730,7 +1707,6 @@ class DatabaseService {
                     reviewRecords.push({
                         user_id: user.id,
                         card_template_id: cardId,
-                        deck_id: deckId,
                         rating: rating.rating,
                         response_time_ms: rating.responseTime,
                         stability_before: currentStability,
@@ -2251,7 +2227,7 @@ async function initializeUserProgress(userId) {
         // 2. Initialize cards in that deck
         // But this should be handled at a higher level in the application
         
-        throw new Error('Card initialization requires a deck_id. Use the deck-based card creation flow instead.');
+        throw new Error('Card initialization no longer requires deck_id. Use DatabaseService.initializeUserProgress(user_id, card_template_id) instead.');
 
     } catch (error) {
         const handledError = handleError(error, 'initializeUserProgress_standalone');

@@ -135,12 +135,13 @@ For the best experience, consider using Safari in normal mode or another browser
      * Initialize a new session with configured number of cards
      * @param {string} userId - The user's ID
      * @param {Object} dbService - Database service instance
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<boolean>} Success status
      */
-    async initializeSession(userId, dbService) {
+    async initializeSession(userId, dbService, deckId = null) {
         try {
-            // Load cards for the session
-            const cards = await this.loadSessionCards(userId, dbService);
+            // Load cards for the session (with optional deck filtering)
+            const cards = await this.loadSessionCards(userId, dbService, deckId);
             if (!cards || cards.length === 0) {
                 throw new Error('No cards available for session');
             }
@@ -154,7 +155,11 @@ For the best experience, consider using Safari in normal mode or another browser
                 ratings: {}, // cardId -> array of rating objects
                 completedCards: new Set(), // Cards marked complete after receiving a 0-3 rating
                 currentCardIndex: 0,
-                sessionStartTime: new Date().toISOString()
+                sessionStartTime: new Date().toISOString(),
+                metadata: {
+                    deckId: deckId, // Store deck ID for session type detection
+                    sessionType: deckId ? 'deck-specific' : 'general'
+                }
             };
 
             // Save to session storage
@@ -171,16 +176,24 @@ For the best experience, consider using Safari in normal mode or another browser
      * Load cards for the session using adaptive hybrid selection
      * @param {string} userId - The user's ID
      * @param {Object} dbService - Database service instance
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of cards with session metadata
      */
-    async loadSessionCards(userId, dbService) {
+    async loadSessionCards(userId, dbService, deckId = null) {
         try {
-            // Use the new adaptive session cards method
-            const sessionResult = await dbService.getAdaptiveSessionCards(userId, ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE);
+            // Strict deck mode: use larger session size to get all available cards from the deck
+            const strictDeckMode = deckId !== null;
+            const sessionSize = strictDeckMode ? 100 : ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE; // Use 100 for deck-specific, 10 for general
+            
+            console.log(`🎯 Session size target: ${sessionSize} (strict deck mode: ${strictDeckMode})`);
+            
+            // Use the new adaptive session cards method (with optional deck filtering)
+            const sessionResult = await dbService.getAdaptiveSessionCards(userId, sessionSize, deckId);
             const { cards, metadata } = sessionResult;
 
-            console.log(`📋 SessionManager: Loaded ${cards.length} cards using adaptive selection`);
+            console.log(`📋 SessionManager: Loaded ${cards.length} cards using adaptive selection${deckId ? ` (STRICT DECK MODE: ${deckId})` : ' (all decks)'}`);
             console.log(`🎯 User stage: ${metadata.userStage}`);
+            console.log(`🔒 Strict deck mode: ${metadata.strictDeckMode ? 'ENABLED - no cross-deck fallbacks' : 'DISABLED - fallbacks allowed'}`);
             console.log(`📊 Card sources: ${metadata.cardSources.due} due, ${metadata.cardSources.new} new, ${metadata.cardSources.fallback} fallback`);
             console.log(`📈 Achieved ratios: ${metadata.achievedRatios.duePercentage}% due, ${metadata.achievedRatios.newPercentage}% new, ${metadata.achievedRatios.fallbackPercentage}% fallback`);
 
@@ -188,15 +201,29 @@ For the best experience, consider using Safari in normal mode or another browser
                 console.log('🔍 Sample adaptive card:', cards[0]);
             }
 
+            // Verify deck isolation in strict mode
+            if (metadata.strictDeckMode && cards.length > 0) {
+                const deckIds = [...new Set(cards.map(card => card.deck_id))];
+                if (deckIds.length > 1) {
+                    console.error(`🚨 DECK ISOLATION VIOLATION: Found cards from ${deckIds.length} different decks:`, deckIds);
+                } else if (deckIds[0] !== deckId) {
+                    console.error(`🚨 DECK MISMATCH: Expected deck ${deckId}, but got cards from deck ${deckIds[0]}`);
+                } else {
+                    console.log(`✅ Deck isolation verified: All ${cards.length} cards belong to deck ${deckId}`);
+                }
+            }
+
             // Transform cards to match expected session format
             const formattedCards = cards.map(card => ({
                 card_template_id: card.card_template_id,
+                deck_id: card.deck_id, // Include deck_id for verification
                 cards: {
                     question: card.question,
                     answer: card.answer,
                     id: card.card_template_id,
                     subject_name: card.subject_name,
-                    deck_name: card.deck_name
+                    deck_name: card.deck_name,
+                    tags: card.tags
                 },
                 stability: card.stability || 1.0,
                 difficulty: card.difficulty || 5.0,
@@ -215,6 +242,12 @@ For the best experience, consider using Safari in normal mode or another browser
 
             if (DEBUG && formattedCards.length > 0) {
                 console.log('🔧 Sample formatted card:', formattedCards[0]);
+            }
+
+            // Additional deck verification after formatting
+            if (metadata.strictDeckMode && formattedCards.length > 0) {
+                const formattedDeckIds = [...new Set(formattedCards.map(card => card.deck_id))];
+                console.log(`🔧 Post-formatting deck verification: Found cards from decks: ${formattedDeckIds.join(', ')}`);
             }
 
             // Apply client-side shuffling to randomize presentation order
@@ -253,7 +286,7 @@ For the best experience, consider using Safari in normal mode or another browser
             console.error('Failed to load adaptive session cards:', error);
             // Fallback to legacy method if adaptive fails
             console.warn('Falling back to legacy card selection method...');
-            return this.loadLegacySessionCards(userId, dbService);
+            return this.loadLegacySessionCards(userId, dbService, deckId);
         }
     }
 
@@ -298,27 +331,50 @@ For the best experience, consider using Safari in normal mode or another browser
      * Legacy card loading method as fallback
      * @param {string} userId - The user's ID
      * @param {Object} dbService - Database service instance
+     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of cards using legacy method
      */
-    async loadLegacySessionCards(userId, dbService) {
+    async loadLegacySessionCards(userId, dbService, deckId = null) {
         try {
-            // Get up to configured session size due cards
-            const dueCards = await dbService.getCardsDue(userId);
+            console.log(`🔄 Legacy fallback mode${deckId ? ` with deck filtering: ${deckId}` : ' (all decks)'}`);
+            
+            // Strict deck mode: use larger limits to get all available cards from the deck
+            const strictDeckMode = deckId !== null;
+            const sessionSize = strictDeckMode ? 100 : SESSION_CONFIG.CARDS_PER_SESSION; // Use 100 for deck-specific, 10 for general
+            
+            console.log(`🎯 Legacy session size target: ${sessionSize} (strict deck mode: ${strictDeckMode})`);
+            
+            // Use deck-aware methods with appropriate limits
+            const dueCards = await dbService.getDueCardsWithLimit(userId, sessionSize, deckId);
             console.log(`📋 SessionManager (Legacy): Found ${dueCards.length} due cards`);
+            
+            // In strict deck mode, use all available cards; in general mode, limit to target size
+            const targetSessionSize = strictDeckMode ? Math.max(dueCards.length, sessionSize) : sessionSize;
+            
+            console.log(`🔒 Legacy strict deck mode: ${strictDeckMode ? 'ENABLED - using available cards only' : 'DISABLED - filling to target size'}`);
             
             // Determine if we already have enough due cards
             let limitedDueCards = dueCards;
             let formattedNewCards = [];
-            if (dueCards.length >= SESSION_CONFIG.CARDS_PER_SESSION) {
-                limitedDueCards = dueCards.slice(0, SESSION_CONFIG.CARDS_PER_SESSION);
-            } else {
-                // If we need more cards, get new ones
-                const newCardsNeeded = SESSION_CONFIG.CARDS_PER_SESSION - dueCards.length;
-                const newCards = await dbService.getNewCards(userId, newCardsNeeded);
+            if (dueCards.length >= targetSessionSize) {
+                limitedDueCards = dueCards.slice(0, targetSessionSize);
+            } else if (!strictDeckMode) {
+                // Only try to fill session with new cards if NOT in strict deck mode
+                const newCardsNeeded = targetSessionSize - dueCards.length;
+                const newCards = await dbService.getNewCardsWithLimit(userId, 1, newCardsNeeded, deckId);
                 console.log(`🆕 SessionManager (Legacy): Found ${newCards.length} new cards`);
+                formattedNewCards = newCards;
+            } else {
+                // In strict deck mode, get new cards but don't force session size
+                const availableNewCards = await dbService.getNewCardsWithLimit(userId, 1, sessionSize, deckId);
+                console.log(`🆕 SessionManager (Legacy Strict): Found ${availableNewCards.length} new cards from target deck`);
+                formattedNewCards = availableNewCards;
 
-                // Transform new cards to match expected format
-                formattedNewCards = newCards.map(card => ({
+            }
+            
+            // Transform new cards to match expected format (if any)
+            if (formattedNewCards.length > 0) {
+                formattedNewCards = formattedNewCards.map(card => ({
                     card_template_id: card.card_template_id || card.id,
                     cards: {
                         question: card.question,
@@ -344,7 +400,8 @@ For the best experience, consider using Safari in normal mode or another browser
                     answer: card.answer,
                     id: card.card_template_id,
                     subject_name: card.subject_name,
-                    deck_name: card.deck_name
+                    deck_name: card.deck_name,
+                    tags: card.tags
                 },
                 stability: card.stability || 1.0,
                 difficulty: card.difficulty || 5.0,
@@ -797,6 +854,59 @@ For the best experience, consider using Safari in normal mode or another browser
             this.clearSession();
         }
         return false;
+    }
+
+    /**
+     * Check if a session exists in storage or memory
+     * @returns {boolean} True if session exists
+     */
+    hasSession() {
+        // First check memory
+        if (this.sessionData && this.sessionData.cards && this.sessionData.cards.length > 0) {
+            return true;
+        }
+        
+        // If not in memory, check storage
+        try {
+            const stored = this.getFromStorage(this.sessionStorageKey);
+            if (stored) {
+                const parsedData = typeof stored === 'string' ? JSON.parse(stored) : stored;
+                return !!(parsedData && parsedData.cards && parsedData.cards.length > 0);
+            }
+        } catch (error) {
+            console.warn('Error checking session storage:', error);
+        }
+        
+        return false;
+    }
+
+    /**
+     * Get the deck ID from the current session (if any)
+     * @returns {string|null} Deck ID or null for general sessions
+     */
+    getSessionDeckId() {
+        // First check memory
+        if (this.sessionData?.metadata) {
+            return this.sessionData.metadata.deckId || null;
+        }
+        
+        // If not in memory, check storage
+        try {
+            const stored = this.getFromStorage(this.sessionStorageKey);
+            if (stored) {
+                const parsedData = typeof stored === 'string' ? JSON.parse(stored) : stored;
+                if (parsedData?.metadata) {
+                    return parsedData.metadata.deckId || null;
+                } else {
+                    console.warn('🔄 Legacy session detected in storage without metadata - treating as general session');
+                    return null;
+                }
+            }
+        } catch (error) {
+            console.warn('Error checking session deck ID from storage:', error);
+        }
+        
+        return null;
     }
 
     /**

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deck Designer - nanotopic</title>
+    <link rel="stylesheet" href="css/styles.css?v=6">
+    <link rel="stylesheet" href="css/admin.css?v=7">
+    <link rel="stylesheet" href="css/spinner.css?v=1">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Access Control Loading State -->
+        <div id="access-loading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Checking admin access...</p>
+        </div>
+
+        <!-- Access Denied State -->
+        <div id="access-denied" class="error-state hidden">
+            <div class="error-content">
+                <p class="error-text">Access denied. Admin privileges required.</p>
+                <div class="error-actions">
+                    <a href="admin.html" class="nav-button">Back to Admin Dashboard</a>
+                    <button id="access-logout-button" class="nav-button">Sign Out</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deck Designer Content -->
+        <div id="deck-designer-content" class="admin-content hidden">
+            <header class="admin-header">
+                <h1>Deck Designer</h1>
+                <nav class="admin-header-controls">
+                    <a href="admin.html" class="btn btn-secondary">← Back to Admin</a>
+                    <button id="refresh-decks" class="btn btn-primary">Refresh</button>
+                </nav>
+            </header>
+
+            <!-- Create New Deck Section -->
+            <section class="admin-main-section">
+                <div class="admin-section">
+                    <h3>Create New Deck</h3>
+                    <div class="deck-creation-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="deck-name">Deck Name:</label>
+                                <input type="text" id="deck-name" placeholder="Enter deck name (e.g., DECK1)" class="form-input" maxlength="100">
+                            </div>
+                            <div class="form-group">
+                                <label for="deck-description">Description:</label>
+                                <textarea id="deck-description" placeholder="Deck description" class="form-input" maxlength="500" rows="2"></textarea>
+                            </div>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="deck-is-public">
+                                <span>Make this deck public (all users can study from it)</span>
+                            </label>
+                        </div>
+                        <div class="form-actions">
+                            <button id="create-deck" class="btn btn-success">Create Deck</button>
+                            <button id="clear-form" class="btn btn-secondary">Clear Form</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Add Cards by Path Section -->
+            <section class="admin-main-section">
+                <div class="admin-section">
+                    <h3>Add Cards by LTREE Path</h3>
+                    <div class="path-management-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="target-deck">Select Deck:</label>
+                                <select id="target-deck" class="form-select">
+                                    <option value="">Select a deck...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="card-path">LTREE Path:</label>
+                                <input type="text" id="card-path" placeholder="Enter path (e.g., 7.1.3)" class="form-input">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button id="preview-cards" class="btn btn-primary">Preview Cards</button>
+                            <button id="add-cards-to-deck" class="btn btn-success" disabled>Add All Cards</button>
+                        </div>
+                        
+                        <!-- Preview Results -->
+                        <div id="card-preview" class="card-preview-container hidden">
+                            <h4>Cards to be added:</h4>
+                            <div id="preview-summary" class="preview-summary"></div>
+                            <div id="preview-list" class="preview-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Existing Decks Management -->
+            <section class="admin-main-section">
+                <div class="admin-section">
+                    <h3>Existing Decks</h3>
+                    <div id="deck-list" class="deck-list-container">
+                        <div class="loading-spinner"></div>
+                        <p>Loading decks...</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Configuration Loader -->
+    <script src="js/config-loader.js" data-config-path="config/"></script>
+    <!-- Supabase Client Initialization -->
+    <script src="js/supabase-client.js" type="module"></script>
+
+    <script type="module">
+        import adminGuard from './js/admin-guard.js';
+        import auth from './js/auth.js';
+
+        // IMMEDIATE ADMIN PROTECTION - Runs before any content loads
+        (async function immediateAdminProtection() {
+            try {
+                // Guard will redirect unauthorized users before this returns
+                const accessGranted = await adminGuard.protect({
+                    redirectOnFail: 'app', // Redirect to main app instead of login for UX
+                    showLoading: false     // Use our custom loading UI
+                });
+
+                if (accessGranted) {
+                    // Access granted - initialize deck designer
+                    await initDeckDesigner();
+                }
+            } catch (error) {
+                console.error('[DeckDesigner] Protection check failed:', error);
+                // Guard will handle redirect on error
+            }
+        })();
+
+        async function initDeckDesigner() {
+            try {
+                // Show our loading state
+                document.getElementById('access-loading').classList.remove('hidden');
+                document.getElementById('access-denied').classList.add('hidden');
+                document.getElementById('deck-designer-content').classList.add('hidden');
+
+                // Load deck designer service
+                const { default: DeckDesigner } = await import('./js/deck-designer.js');
+                const deckDesigner = new DeckDesigner();
+
+                // Set up deck designer interface
+                window.deckDesigner = deckDesigner;
+                deckDesigner.initialize();
+
+                // Start periodic validation using AdminGuard
+                adminGuard.startPeriodicValidation(5, 2); // 5 minutes, max 2 failures
+
+                // Set up logout handler
+                const logoutBtn = document.getElementById('access-logout-button');
+                logoutBtn?.addEventListener('click', async () => {
+                    try {
+                        await auth.signOut();
+                    } catch (error) {
+                        console.error('Logout error:', error);
+                        // Still redirect on error
+                        adminGuard.redirectToLogin('Logout completed');
+                    }
+                });
+
+                // Show deck designer content
+                document.getElementById('access-loading').classList.add('hidden');
+                document.getElementById('deck-designer-content').classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Error initializing deck designer:', error);
+                document.getElementById('access-loading').classList.add('hidden');
+                document.getElementById('access-denied').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
