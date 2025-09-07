@@ -204,7 +204,7 @@ export class ErrorHandler {
     isCompositeKeyError(error) {
         return /duplicate.*key.*value|violates.*unique.*constraint/i.test(error.message) ||
                /user_cards_pkey|primary.*key.*violation/i.test(error.message) ||
-               /missing.*deck_id|deck_id.*required/i.test(error.message);
+               false; // Phase 1: deck_id no longer required
     }
 
     /**

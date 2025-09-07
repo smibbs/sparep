@@ -174,60 +174,11 @@ class AdminService {
                         </div>
                         <div class="admin-section">
                             <h3>Deck Management</h3>
-                            
-                            <!-- Deck Creation Form -->
-                            <div class="deck-creation-form">
-                                <h4>Create New Deck</h4>
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label for="new-deck-name">Deck Name:</label>
-                                        <input type="text" id="new-deck-name" placeholder="Enter deck name" class="form-input" maxlength="100">
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="new-deck-owner">Assign to User:</label>
-                                        <input type="email" id="new-deck-owner" placeholder="User email" class="form-input">
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label for="new-deck-description">Description:</label>
-                                    <textarea id="new-deck-description" placeholder="Deck description" class="form-input" maxlength="500" rows="3"></textarea>
-                                </div>
-                                <div class="form-group checkbox-group">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="new-deck-is-public">
-                                        <span>Make this deck public (visible to all users)</span>
-                                    </label>
-                                </div>
-                                <div class="form-actions">
-                                    <button id="create-deck" class="btn btn-primary">Create Deck</button>
-                                    <button id="clear-deck-form" class="btn btn-secondary">Clear Form</button>
-                                </div>
+                            <div class="admin-notice">
+                                <h4>🚧 Phase 1: Deck Management Disabled</h4>
+                                <p>Deck management features have been temporarily disabled as part of the Phase 1 deck detachment process. Cards are now globally accessible without deck restrictions.</p>
+                                <p>Deck management will be restored in a future phase with improved functionality.</p>
                             </div>
-                            
-                            <hr class="admin-divider">
-                            
-                            <!-- Deck Search and List -->
-                            <div class="deck-management-controls">
-                                <h4>Manage Existing Decks</h4>
-                                <div class="form-group">
-                                    <input type="text" id="deck-search" placeholder="Search decks by name or owner..." class="form-input">
-                                    <button id="search-decks" class="btn btn-primary">Search</button>
-                                    <button id="view-all-decks" class="btn btn-secondary">View All</button>
-                                    <button id="refresh-decks" class="btn btn-secondary">Refresh</button>
-                                </div>
-                                <div class="deck-filters">
-                                    <label class="filter-label">
-                                        <input type="radio" name="deck-filter" value="all" checked> All Decks
-                                    </label>
-                                    <label class="filter-label">
-                                        <input type="radio" name="deck-filter" value="public"> Public Only
-                                    </label>
-                                    <label class="filter-label">
-                                        <input type="radio" name="deck-filter" value="private"> Private Only
-                                    </label>
-                                </div>
-                            </div>
-                            <div id="deck-list" class="deck-list-container"></div>
                         </div>
                         <div class="admin-section">
                             <h3>Card Management</h3>
@@ -734,34 +685,29 @@ class AdminService {
             this.updateUserTier();
         });
 
-        // Deck management actions
-        document.getElementById('search-decks')?.addEventListener('click', () => {
-            this.searchDecks();
-        });
-
-        document.getElementById('view-all-decks')?.addEventListener('click', () => {
-            this.loadAllDecks();
-        });
+        // Phase 1: Deck management actions disabled
+        // document.getElementById('search-decks')?.addEventListener('click', () => {
+        //     this.searchDecks();
+        // });
+        // document.getElementById('view-all-decks')?.addEventListener('click', () => {
+        //     this.loadAllDecks();
+        // });
+        // document.getElementById('refresh-decks')?.addEventListener('click', () => {
+        //     this.loadAllDecks();
+        // });
+        // document.getElementById('create-deck')?.addEventListener('click', () => {
+        //     this.createDeck();
+        // });
+        // document.getElementById('clear-deck-form')?.addEventListener('click', () => {
+        //     this.clearDeckForm();
+        // });
         
-        document.getElementById('refresh-decks')?.addEventListener('click', () => {
-            this.loadAllDecks();
-        });
-
-        // New deck creation actions
-        document.getElementById('create-deck')?.addEventListener('click', () => {
-            this.createDeck();
-        });
-
-        document.getElementById('clear-deck-form')?.addEventListener('click', () => {
-            this.clearDeckForm();
-        });
-        
-        // Deck filter radio buttons
-        document.querySelectorAll('input[name="deck-filter"]')?.forEach(radio => {
-            radio.addEventListener('change', () => {
-                this.filterDecks(radio.value);
-            });
-        });
+        // Phase 1: Deck filter radio buttons disabled
+        // document.querySelectorAll('input[name="deck-filter"]')?.forEach(radio => {
+        //     radio.addEventListener('change', () => {
+        //         this.filterDecks(radio.value);
+        //     });
+        // });
 
         // Subject management actions
         document.getElementById('refresh-subjects')?.addEventListener('click', () => {

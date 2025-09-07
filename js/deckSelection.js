@@ -265,6 +265,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Initialize navigation controller
     navigationController = new NavigationController();
     
-    setupDeckSelectionEvents();
-    loadDeckSelection();
+    // Phase 1: Deck selection disabled - redirect to main study page
+    console.log('🔄 Deck selection disabled in Phase 1 - redirecting to main study page');
+    window.location.href = 'index.html';
 });
