@@ -1962,6 +1962,55 @@ class DatabaseService {
     }
 
     /**
+     * Check if user has reached daily review limit (for free users)
+     * @param {string} userId - User ID
+     * @returns {Promise<Object>} Limit check result with limitReached boolean and user info
+     */
+    async checkDailyReviewLimit(userId) {
+        try {
+            const supabase = await this.getSupabase();
+            
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('user_tier, reviews_today, last_review_date')
+                .eq('id', userId)
+                .single();
+            
+            if (error) {
+                console.error('Error fetching user profile for limit check:', error);
+                return { limitReached: false, tier: 'free', reviewsToday: 0, limit: SESSION_CONFIG.FREE_USER_DAILY_LIMIT };
+            }
+            
+            const userTier = profile?.user_tier || 'free';
+            
+            // Only enforce limits for free users
+            if (userTier !== 'free') {
+                return { limitReached: false, tier: userTier, reviewsToday: 0, limit: 9999 };
+            }
+            
+            // Check if it's still the same day
+            const today = new Date().toISOString().split('T')[0];
+            const lastReviewDate = profile.last_review_date;
+            const reviewsToday = (lastReviewDate === today) ? (profile.reviews_today || 0) : 0;
+            
+            // Check if free user has reached daily limit
+            const dailyLimit = SESSION_CONFIG.FREE_USER_DAILY_LIMIT;
+            const limitReached = reviewsToday >= dailyLimit;
+            
+            return {
+                limitReached,
+                tier: userTier,
+                reviewsToday,
+                limit: dailyLimit
+            };
+        } catch (error) {
+            console.error('Error checking daily review limit:', error);
+            // Default to not limited in case of error
+            return { limitReached: false, tier: 'free', reviewsToday: 0, limit: SESSION_CONFIG.FREE_USER_DAILY_LIMIT };
+        }
+    }
+
+    /**
      * Get current reviews_today count for a user
      * @param {string} userId - User ID
      * @returns {Promise<number>} Current reviews_today count
