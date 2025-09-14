@@ -1211,6 +1211,20 @@ async function loadSession() {
             // Continue anyway - some cards might still be available
         }
         
+        // Check daily review limit BEFORE attempting to create session
+        console.log(`🔍 Checking daily review limit for user...`);
+        const limitCheck = await appState.dbService.checkDailyReviewLimit(appState.user.id);
+        
+        if (limitCheck.limitReached) {
+            console.log(`🚫 Daily review limit reached: ${limitCheck.reviewsToday}/${limitCheck.limit} for ${limitCheck.tier} user`);
+            showContent(true);
+            restoreCardStructure();
+            showDailyLimitMessage(limitCheck);
+            return;
+        }
+        
+        console.log(`✅ Daily limit check passed: ${limitCheck.reviewsToday}/${limitCheck.limit} reviews today (${limitCheck.tier} user)`);
+
         // Initialize new session with server-side daily limit enforcement
         // Phase 6: Support subject path filtering from URL parameters
         const urlParams = new URLSearchParams(window.location.search);
@@ -1666,7 +1680,20 @@ async function handleRating(event) {
         const responseTime = appState.cardTimer.stop();
 
         // Record the rating using server-side session manager
-        await appState.sessionManager.recordRating(rating, responseTime);
+        try {
+            await appState.sessionManager.recordRating(rating, responseTime);
+        } catch (error) {
+            // Handle daily limit reached error
+            if (error.message === 'Daily limit reached' && error.limitInfo) {
+                console.log(`🚫 Daily review limit reached during rating: ${error.limitInfo.reviewsToday}/${error.limitInfo.limit}`);
+                showContent(true);
+                restoreCardStructure();
+                showDailyLimitMessage(error.limitInfo);
+                return;
+            }
+            // Re-throw other errors
+            throw error;
+        }
 
         // Increment session reviewed count
         appState.sessionReviewedCount++;

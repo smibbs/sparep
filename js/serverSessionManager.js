@@ -136,6 +136,12 @@ class ServerSessionManager {
                     // Idempotency - review already recorded
                     console.warn('Review already exists for this card in this session');
                     return true;
+                } else if (data.error === 'daily_limit_reached') {
+                    // Daily limit reached - create proper error with limit info
+                    const error = new Error('Daily limit reached');
+                    error.limitReached = true;
+                    error.limitInfo = data.limit_info;
+                    throw error;
                 } else if (data.error === 'unauthorized' || data.error === 'session_not_found') {
                     // Session issues
                     const error = new Error(data.message || 'Session error');
