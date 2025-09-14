@@ -3,6 +3,7 @@ import { RATING, calculateNextReview, updateStability, updateDifficulty } from '
 import database from './database.js';
 import auth from './auth.js';
 import SessionManager from './sessionManager.js';
+import ServerSessionManager from './serverSessionManager.js';
 import { SESSION_CONFIG } from './config.js';
 import NavigationController from './navigation.js';
 import slideMenu from './slideMenu.js';
@@ -83,7 +84,7 @@ const appState = {
     user: null,
     dbService: database,  // Use the default database instance
     authService: auth,    // Use the default auth instance
-    sessionManager: new SessionManager(), // Session management
+    sessionManager: new ServerSessionManager(), // Server-side session management
     isCompleted: false,      // Track if session is completed
     cardInnerClickHandler: null, // Store reference to card-inner click handler
     forceNewSession: false, // Flag to force new session creation
@@ -706,8 +707,15 @@ async function handleSessionComplete() {
         // Get session data BEFORE clearing for completion statistics
         const sessionData = appState.sessionManager.getSessionData();
         
-        // Submit batch to database
-        await appState.dbService.submitBatchReviews(sessionData);
+        // For server sessions, load ratings from reviews table for completion display
+        if (appState.sessionManager instanceof ServerSessionManager) {
+            await appState.sessionManager.loadRatingsFromReviews();
+            // Update session data with loaded ratings
+            sessionData.ratings = appState.sessionManager.sessionData.ratings;
+        } else {
+            // For client sessions (legacy), submit batch to database
+            await appState.dbService.submitBatchReviews(sessionData);
+        }
         
         // Clear the session
         appState.sessionManager.clearSession();
@@ -989,9 +997,9 @@ async function showSessionCompleteMessage(sessionData) {
                     <div class="completion-wrapper">
                         <div class="completion-message">
                             <h2>Session Complete!</h2>
-                            <p>You've completed your ${SESSION_CONFIG.CARDS_PER_SESSION}-card session.</p>
-                            <p>Your daily review limit has been reached.</p>
-                            <p>Come back tomorrow for more cards!</p>
+                            <p>You've completed your 10-card session for today.</p>
+                            <p>Free users can complete 1 session per day (10 cards total).</p>
+                            <p>Come back tomorrow for your next session!</p>
                             
                             <div class="session-stats">
                                 ${ratingChart}
@@ -1007,7 +1015,7 @@ async function showSessionCompleteMessage(sessionData) {
                     <div class="completion-wrapper">
                         <div class="completion-message">
                             <h2>Session Complete!</h2>
-                            <p>You've completed ${SESSION_CONFIG.CARDS_PER_SESSION} cards in this session.</p>
+                            <p>You've completed 10 cards in this session.</p>
                             
                             <div class="session-stats">
                                 ${ratingChart}
@@ -1017,6 +1025,7 @@ async function showSessionCompleteMessage(sessionData) {
                             
                             <div class="session-actions">
                                 <button id="new-session-button" class="nav-button">Start New Session</button>
+                                <!-- Phase 1: Deck selection disabled -->
                             </div>
                         </div>
                     </div>
@@ -1060,7 +1069,7 @@ async function showSessionCompleteMessage(sessionData) {
                 <div class="completion-wrapper">
                     <div class="completion-message">
                         <h2>Session Complete!</h2>
-                        <p>You've completed your study session.</p>
+                        <p>You've completed your 10-card study session.</p>
                         
                         <div class="session-stats">
                             ${ratingChart}
@@ -1137,29 +1146,20 @@ async function loadSession() {
         await transitionToState('loading');
         console.log(`⏳ Transitioned to loading state`);
 
-        // Parse URL parameters to check for deck selection
-        const urlParams = new URLSearchParams(window.location.search);
-        const deckId = urlParams.get('deck');
+        // Phase 1: No deck selection needed - all sessions are general
+        console.log(`🎯 Phase 1: Global card access - no deck selection needed`);
         
-        console.log(`🔍 URL Parameters: ${window.location.search}`);
-        console.log(`🎯 Parsed deckId: ${deckId ? `'${deckId}'` : 'null (general session)'}`);
-        
-        // Check if there's an existing session and what type it is
+        // Check if there's an existing session
         const hasExistingSession = appState.sessionManager.hasSession();
         const existingSessionDeckId = hasExistingSession ? appState.sessionManager.getSessionDeckId() : null;
         
         // Force new session if:
         // 1. Explicitly requested (appState.forceNewSession)
-        // 2. Requesting a specific deck (deckId !== null)
-        // 3. Session type mismatch (going from deck-specific to general or vice versa)
-        // 4. Legacy session without metadata (needs upgrade)
-        const sessionTypeMismatch = (deckId !== existingSessionDeckId);
+        // 2. Legacy session without metadata (needs upgrade)
         const isLegacySession = hasExistingSession && !appState.sessionManager.sessionData?.metadata;
-        const shouldForceNewSession = appState.forceNewSession || (deckId !== null) || sessionTypeMismatch || isLegacySession;
+        const shouldForceNewSession = appState.forceNewSession || isLegacySession;
         
         console.log(`🔄 Session analysis:`);
-        console.log(`  - Current URL deckId: ${deckId ? `'${deckId}'` : 'null (general)'}`);
-        console.log(`  - Existing session deckId: ${existingSessionDeckId ? `'${existingSessionDeckId}'` : 'null (general)'}`);
         console.log(`  - Has existing session: ${hasExistingSession}`);
         if (hasExistingSession) {
             console.log(`  - Session metadata:`, appState.sessionManager.sessionData?.metadata);
@@ -1167,7 +1167,6 @@ async function loadSession() {
                 console.log(`  - Session card count: ${appState.sessionManager.sessionData.cards?.length || 0}`);
             }
         }
-        console.log(`  - Session type mismatch: ${sessionTypeMismatch}`);
         console.log(`  - Is legacy session: ${isLegacySession}`);
         console.log(`  - Should force new session: ${shouldForceNewSession}`);
         
@@ -1225,38 +1224,42 @@ async function loadSession() {
             // Continue anyway - some cards might still be available
         }
         
-        // Check daily limit for free users before starting new session
-        const userProfile = await appState.authService.getUserProfile(true);
-        const userTier = userProfile?.user_tier || 'free';
+        // Initialize new session with server-side daily limit enforcement
+        // Phase 6: Support subject path filtering from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const subjectPath = urlParams.get('subject');
+        const sessionOptions = subjectPath ? { subjectPath } : {};
         
-        if (userTier === 'free') {
-            const today = new Date().toDateString();
-            const lastReviewDate = userProfile?.last_review_date ? 
-                new Date(userProfile.last_review_date).toDateString() : null;
-            
-            const reviewsToday = (lastReviewDate === today) ? 
-                (userProfile.reviews_today || 0) : 0;
-            
-            if (reviewsToday >= SESSION_CONFIG.FREE_USER_DAILY_LIMIT) {
-                showContent(true);
-                showDailyLimitMessage({ 
-                    limitReached: true, 
-                    tier: 'free', 
-                    reviewsToday, 
-                    limit: SESSION_CONFIG.FREE_USER_DAILY_LIMIT 
-                });
-                return;
-            }
+        if (subjectPath) {
+            console.log(`🎯 Creating subject-specific session for path: ${subjectPath}`);
         }
-
-        // Initialize new session with configured number of cards
-        // (deckId was already parsed earlier in the function)
         
         try {
-            await appState.sessionManager.initializeSession(appState.user.id, appState.dbService, deckId);
+            await appState.sessionManager.initializeSession(appState.user.id, appState.dbService, sessionOptions);
+            
+            // Phase 6: Shuffle and finalize session order if newly created
+            if (appState.sessionManager.sessionData?.status === 'created') {
+                console.log('🔀 New session created - shuffling and finalizing order');
+                await appState.sessionManager.shuffleAndFinalize(true);
+                console.log('✅ Session order finalized');
+            } else if (appState.sessionManager.sessionData?.status === 'active') {
+                console.log('📋 Resuming active session with existing order');
+            }
             
             // No need to reset milestone tracking - it's based on daily totals now
         } catch (error) {
+            if (error.limitReached) {
+                // Server-side daily limit reached
+                showContent(true);
+                restoreCardStructure();
+                showDailyLimitMessage({
+                    limitReached: true,
+                    tier: error.limitInfo.tier,
+                    reviewsToday: error.limitInfo.reviewsToday,
+                    limit: error.limitInfo.limit
+                });
+                return;
+            }
             if (error.message.includes('No cards available')) {
                 showContent(true);
                 restoreCardStructure(); // Restore original HTML structure
@@ -1658,9 +1661,10 @@ function handleFlip() {
 }
 
 async function handleRating(event) {
+    const button = event.target;
+    const rating = parseInt(button.dataset.rating);
+    
     try {
-        const button = event.target;
-        const rating = parseInt(button.dataset.rating);
         if (!rating || !appState.currentCard) return;
 
         // Defensive logging for card_template_id and user_id
@@ -1687,11 +1691,8 @@ async function handleRating(event) {
         // Get active viewing time from timer
         const responseTime = appState.cardTimer.stop();
 
-        // Record the rating in the session manager (local cache)
-        const recordSuccess = appState.sessionManager.recordRating(rating, responseTime);
-        if (!recordSuccess) {
-            throw new Error('Failed to record rating in session manager');
-        }
+        // Record the rating using server-side session manager
+        await appState.sessionManager.recordRating(rating, responseTime);
 
         // Increment session reviewed count
         appState.sessionReviewedCount++;
@@ -1741,8 +1742,21 @@ async function handleRating(event) {
         console.error('Current card:', appState.currentCard);
         console.error('Session data:', appState.sessionManager.getSessionData());
         
-        // More specific error messages
-        if (error.message.includes('Failed to record rating in session manager')) {
+        // Handle server-side daily limit errors during answer submission
+        if (error.limitReached) {
+            // Daily limit reached during answer submission - show limit message
+            restoreCardStructure();
+            showDailyLimitMessage({
+                limitReached: true,
+                tier: error.limitInfo.tier,
+                reviewsToday: error.limitInfo.reviewsToday,
+                limit: error.limitInfo.limit
+            });
+            return; // Don't re-enable buttons since we're showing limit message
+        }
+        
+        // More specific error messages for other errors
+        if (error.message.includes('Failed to submit answer')) {
             showError('Failed to save your rating. Please try again.');
         } else if (error.message.includes('Session state error')) {
             showError('Session state error. Please refresh the page to continue.');
@@ -1952,7 +1966,7 @@ function showDailyLimitMessage(limitInfo) {
             <div class="daily-limit-message">
                 <h2>Daily Limit Reached! ⏰</h2>
                 <p>You've completed <strong>${reviewsToday}</strong> out of <strong>${limit}</strong> daily reviews as a ${tier} user.</p>
-                <p>Come back tomorrow for more flashcard practice!</p>
+                <p>Come back after 00:00 (Europe/London) for more flashcard practice!</p>
                 <div class="upgrade-info">
                     <p><strong>Want unlimited reviews?</strong></p>
                     <p>Upgrade to a paid account for unlimited daily reviews and access to premium features.</p>

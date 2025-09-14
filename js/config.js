@@ -42,9 +42,9 @@ const DAILY_LIMITS = {
     DEFAULT_NEW_CARDS: 20,
     DEFAULT_REVIEWS: 100,
     
-    // Tier-based limits for free users (enforcement)
-    FREE_USER_NEW_CARDS_LIMIT: 20,
-    FREE_USER_REVIEWS_LIMIT: 100,
+    // Tier-based limits for free users (enforcement) - 1 session = 10 cards total
+    FREE_USER_NEW_CARDS_LIMIT: 10,  // 10 cards max per session
+    FREE_USER_REVIEWS_LIMIT: 10,    // 10 cards max per session
     
     // Paid/admin users (effectively unlimited)
     PAID_USER_LIMIT: 9999,
@@ -56,15 +56,15 @@ const SESSION_CONFIG = {
     CARDS_PER_SESSION: 10,
     
     // Legacy daily limits (deprecated - use DAILY_LIMITS instead)
-    FREE_USER_DAILY_LIMIT: 100,  // Updated to match database
+    FREE_USER_DAILY_LIMIT: 10,   // 1 session = 10 cards per day
     PAID_USER_DAILY_LIMIT: 9999,
     ADMIN_USER_DAILY_LIMIT: 9999,
     
-    // Session management (legacy)
+    // Session management (updated for fixed 10-card sessions)
     MAX_SESSIONS_PER_DAY: {
-        free: 10,  // 100 cards ÷ 10 cards per session
-        paid: 999,
-        admin: 999
+        free: 1,   // 1 session per day (10 cards total)
+        paid: 999, // Unlimited sessions
+        admin: 999 // Unlimited sessions
     }
 };
 

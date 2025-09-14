@@ -1,0 +1,263 @@
+## Phase 1 — Deck Detach (Non-Breaking)
+
+**Tasks**
+
+-  Drop FKs from `user_cards.deck_id`, `user_sessions.deck_id`, `card_deck_assignments`.
+    
+-  Keep columns but make them nullable.
+    
+-  Restrict `user_sessions.session_type` to `'daily_free' | 'general_unlimited'`.
+    
+-  Remove deck references in code (queries, UI).
+    
+
+**Suggested Commit**
+
+`db: drop deck foreign keys, keep columns nullable refactor: remove deck references in codebase`
+
+**Test**
+
+-  Start a session in staging → no deck required.
+    
+-  Legacy rows with deck IDs don’t break queries.
+    
+
+---
+
+## Phase 2 — Subjects & Path Integrity
+
+**Tasks**
+
+-  Ensure `subjects.path` is unique (ltree) with index.
+    
+-  Add/verify trigger: when `card_templates.path` is set, `subject_id` auto-populates.
+    
+-  Add validation: `subject_id` must equal subject with matching `path`.
+    
+-  Audit: report any `card_templates.path` without a matching subject.
+    
+
+**Suggested Commit**
+
+`db: enforce card_templates.path -> subjects.path -> subject_id mapping`
+
+**Test**
+
+-  Insert card with valid path → `subject_id` auto-fills.
+    
+-  Insert card with non-existent path → fails.
+    
+
+---
+
+## Phase 3 — Candidate Surfaces
+
+**Tasks**
+
+-  Create `v_due_user_cards` view (due cards).
+    
+-  Create `get_new_user_cards()` function (new cards).
+    
+-  Include `subject_path`, `question`, `answer`.
+    
+-  Apply RLS: users see only their rows; admin bypass.
+    
+
+**Suggested Commit**
+
+`db: add v_due_user_cards view and get_new_user_cards function with RLS`
+
+**Test**
+
+-  Normal user: sees only their due/new cards.
+    
+-  Admin: sees all cards.
+    
+-  Flagged cards excluded.
+    
+
+---
+
+## Phase 4 — Sessions V2 (Two-Step Flow)
+
+**Tasks**
+
+-  Extend `user_sessions`: add `intended_count`, `seed`, `cards`, `status`, `subject_path`.
+    
+-  RPC `create_session(subject_path, type)`
+    
+    - Enforce free tier (1/day).
+        
+    - Select up to 7 due + fill new to 10.
+        
+    - Store deterministic pre-shuffle order + seed.
+        
+    - Prevent multiple active sessions.
+        
+-  RPC `finalize_session_order(session_id, ordered_ids)`
+    
+    - Validate permutation.
+        
+    - Persist final order + mark session active.
+        
+
+**Suggested Commit**
+
+`db: add sessions v2 fields and RPCs for create/finalize session`
+
+**Test**
+
+-  Free user: limited to 1 session/day.
+    
+-  Paid user: unlimited sessions.
+    
+-  Session shorter if not enough cards.
+    
+-  Resuming gives same card order.
+    
+
+---
+
+## Phase 5 — Reviews & FSRS Server Function
+
+**Tasks**
+
+-  RPC `record_review(session_id, card_id, rating, response_time_ms)`.
+    
+-  In transaction: lock/UPSERT user_card, compute FSRS, insert into reviews, update user_card.
+    
+-  Add unique `(session_id, card_id)` index in reviews.
+    
+-  Enforce optimistic locking via `updated_at`.
+    
+
+**Suggested Commit**
+
+`db: implement record_review RPC with FSRS update and idempotency`
+
+**Test**
+
+-  Submit review → row inserted, user_card updated.
+    
+-  Retry same review → no duplicate.
+    
+-  Two tabs reviewing same card → one succeeds, one fails gracefully.
+    
+
+---
+
+## Phase 6 — Frontend Integration
+
+**Tasks**
+
+-  Update `database.js`:
+    
+    - `createSession({ type, subjectPath? })`.
+        
+    - Shuffle locally → `finalizeSessionOrder`.
+        
+    - `getActiveSession()`.
+        
+    - `submitReview()`.
+        
+-  Support resumable sessions.
+    
+-  Free tier UX: enforce 1 session/day.
+    
+
+**Suggested Commit**
+
+`feat: integrate sessions v2 flow into database.js and UI`
+
+**Test**
+
+-  Start and complete session → works end-to-end.
+    
+-  Resume incomplete session → same order.
+    
+-  Free user blocked after 1 session/day.
+    
+
+---
+
+## Phase 7 — Testing & Validation
+
+**Tasks**
+
+-  Unit tests for FSRS function.
+    
+-  Integration tests for session lifecycle.
+    
+-  Performance test queries with large dataset.
+    
+-  Validate RLS security.
+    
+
+**Suggested Commit**
+
+`test: add unit and integration tests for sessions v2 and fsrs`
+
+**Test**
+
+-  All tests green in CI.
+    
+
+---
+
+## Phase 8 — Rollout
+
+**Tasks**
+
+-  Deploy to staging → soak test.
+    
+-  Deploy to production.
+    
+-  Monitor error logs + session stats.
+    
+
+**Suggested Commit**
+
+`chore: rollout sessions v2 to staging and production`
+
+**Test**
+
+-  No spike in errors.
+    
+-  Free/paid/admin tiers respected.
+    
+
+---
+
+## Phase 9 — Cleanup
+
+**Tasks**
+
+-  Drop `decks`, `card_deck_assignments`, and deck columns.
+    
+-  Remove dead code paths.
+    
+
+**Suggested Commit**
+
+`db: drop decks and related columns after sessions v2 migration`
+
+**Test**
+
+-  Schema has no deck artifacts.
+    
+-  App still functions as expected.
+    
+
+---
+
+**Final State**
+
+- Decks fully removed.
+    
+- Cards always tied to subjects via enforced path mapping.
+    
+- Sessions are deterministic, resumable, reproducible.
+    
+- Reviews computed server-side with FSRS.
+    
+- Free/paid/admin tiers enforced consistently.

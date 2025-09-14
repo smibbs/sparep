@@ -258,7 +258,7 @@ class DatabaseService {
             validateRating(rating, 'review submission');
             validateResponseTime(responseTime, 'review submission');
 
-            // Fetch current progress (no deck_id needed in new structure)
+            // Fetch current progress
             const { data: currentProgress, error: progressError } = await supabase
                 .from('user_cards')
                 .select('user_id, card_template_id, state, due_at, reps, total_reviews, difficulty, stability, correct_reviews, incorrect_reviews, lapses, last_reviewed_at, created_at, updated_at')
@@ -309,7 +309,7 @@ class DatabaseService {
                 nextState = rating === 0 ? 'learning' : 'review';
             }
 
-            // Update user_cards with new primary key structure (no deck_id)
+            // Update user_cards
             const { error: updateError } = await supabase
                 .from('user_cards')
                 .upsert({
@@ -337,7 +337,7 @@ class DatabaseService {
                 throw updateError;
             }
 
-            // Record the review in reviews table (deck_id removed in new structure)
+            // Record the review in reviews table
             const { error: reviewError } = await supabase
                 .from('reviews')
                 .insert({
@@ -451,7 +451,6 @@ class DatabaseService {
             
             return newCards && newCards.length > 0 ? {
                 card_template_id: newCards[0].card_template_id,
-                deck_id: newCards[0].deck_id,
                 question: newCards[0].question,
                 answer: newCards[0].answer,
                 stability: 1.0,
@@ -706,10 +705,9 @@ class DatabaseService {
      * Get due cards with strict limit for hybrid sessions
      * @param {string} userId - The user's ID
      * @param {number} maxCards - Maximum number of due cards to return
-     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of due cards, ordered by FSRS priority
      */
-    async getDueCardsWithLimit(userId, maxCards, deckId = null) {
+    async getDueCardsWithLimit(userId, maxCards) {
         try {
             validateUserId(userId, 'getting due cards with limit');
             
@@ -730,10 +728,7 @@ class DatabaseService {
                 .select('*')
                 .eq('user_id', userId);
 
-            // Filter by specific deck if provided (deck_id now comes from card_templates via the view)
-            if (deckId) {
-                dueQuery = dueQuery.eq('deck_id', deckId);
-            }
+            // No deck filtering needed - global card access
 
             // Note: flagged_for_review filtering is already handled in the v_due_user_cards view
 
@@ -755,10 +750,9 @@ class DatabaseService {
      * @param {string} userId - The user's ID
      * @param {number} minCards - Minimum number of new cards desired
      * @param {number} maxCards - Maximum number of new cards to return
-     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of new cards
      */
-    async getNewCardsWithLimit(userId, minCards, maxCards, deckId = null) {
+    async getNewCardsWithLimit(userId, minCards, maxCards) {
         try {
             validateUserId(userId, 'getting new cards with limit');
             
@@ -770,10 +764,7 @@ class DatabaseService {
                 .select('*')
                 .eq('user_id', userId);
 
-            // Filter by specific deck if provided (deck_id now comes from card_templates via the view)
-            if (deckId) {
-                newQuery = newQuery.eq('deck_id', deckId);
-            }
+            // No deck filtering needed - global card access
 
             const { data: newCards, error: newError } = await newQuery
                 .order('added_at', { ascending: true })  // Oldest new cards first
@@ -792,10 +783,9 @@ class DatabaseService {
      * Get recently reviewed cards as fallback for sessions
      * @param {string} userId - The user's ID
      * @param {number} limit - Maximum number of fallback cards
-     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Array>} Array of recently reviewed cards
      */
-    async getRecentlyReviewedCards(userId, limit, deckId = null) {
+    async getRecentlyReviewedCards(userId, limit) {
         try {
             validateUserId(userId, 'getting recently reviewed cards');
             
@@ -807,7 +797,6 @@ class DatabaseService {
                 .select(`
                     user_id,
                     card_template_id,
-                    deck_id,
                     state,
                     stability,
                     difficulty,
@@ -827,22 +816,14 @@ class DatabaseService {
                         subsection,
                         flagged_for_review,
                         subjects (name)
-                    ),
-                    decks!inner (
-                        name,
-                        is_active
                     )
                 `)
                 .eq('user_id', userId)
                 .eq('state', 'review')
                 .gt('due_at', new Date().toISOString())  // Not due yet
-                .eq('card_templates.flagged_for_review', false)
-                .eq('decks.is_active', true);
+                .eq('card_templates.flagged_for_review', false);
 
-            // Filter by specific deck if provided
-            if (deckId) {
-                fallbackQuery = fallbackQuery.eq('deck_id', deckId);
-            }
+            // No deck filtering needed - global card access
 
             const { data: fallbackCards, error: fallbackError } = await fallbackQuery
                 .order('last_reviewed_at', { ascending: false })  // Most recently reviewed first
@@ -854,13 +835,11 @@ class DatabaseService {
             const formattedCards = (fallbackCards || []).map(card => ({
                 user_id: card.user_id,
                 card_template_id: card.card_template_id,
-                deck_id: card.deck_id,
                 question: card.card_templates.question,
                 answer: card.card_templates.answer,
                 tags: card.card_templates.tags,
                 subsection: card.card_templates.subsection,
                 subject_name: card.card_templates.subjects?.name,
-                deck_name: card.decks.name,
                 state: card.state,
                 stability: card.stability,
                 difficulty: card.difficulty,
@@ -1015,23 +994,19 @@ class DatabaseService {
      * Get adaptive session cards with balanced due/new ratio based on user progression
      * @param {string} userId - The user's ID
      * @param {number} sessionSize - Desired session size
-     * @param {string} deckId - Optional deck ID to filter cards by specific deck
      * @returns {Promise<Object>} Session cards with metadata
      */
-    async getAdaptiveSessionCards(userId, sessionSize = ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE, deckId = null) {
+    async getAdaptiveSessionCards(userId, sessionSize = ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE) {
         try {
             validateUserId(userId, 'getting adaptive session cards');
-
-            // Determine if we're in strict deck mode (deck-specific session)
-            const strictDeckMode = deckId !== null;
 
             // Get user's learning stage
             const userStage = await this.getUserLearningStage(userId);
             
-            // Get available card counts (with optional deck filtering)
+            // Get available card counts
             const [dueCards, newCards] = await Promise.all([
-                this.getDueCardsWithLimit(userId, sessionSize, deckId), // Get up to full session of due cards for counting
-                this.getNewCardsWithLimit(userId, 1, sessionSize, deckId) // Get up to full session of new cards for counting
+                this.getDueCardsWithLimit(userId, sessionSize), // Get up to full session of due cards for counting
+                this.getNewCardsWithLimit(userId, 1, sessionSize) // Get up to full session of new cards for counting
             ]);
 
             // Calculate adaptive ratios
@@ -1046,8 +1021,6 @@ class DatabaseService {
             const sessionCards = [];
             const metadata = {
                 userStage: userStage.stage,
-                strictDeckMode,
-                deckId,
                 ratios,
                 cardSources: {
                     due: 0,
@@ -1066,8 +1039,8 @@ class DatabaseService {
             sessionCards.push(...selectedNewCards);
             metadata.cardSources.new = selectedNewCards.length;
 
-            // Add fallback cards if we haven't reached session size (ONLY for general sessions, not deck-specific)
-            if (!strictDeckMode && sessionCards.length < sessionSize && ratios.maxFallback > 0) {
+            // Add fallback cards if we haven't reached session size
+            if (sessionCards.length < sessionSize && ratios.maxFallback > 0) {
                 if (ADAPTIVE_SESSION_CONFIG.ENABLE_FALLBACK_CARDS) {
                     // First try additional due cards
                     const additionalDueCards = dueCards.slice(ratios.actualDue, dueCards.length);
@@ -1087,15 +1060,15 @@ class DatabaseService {
                     // Finally try recently reviewed cards as last resort (only for general sessions)
                     const finalStillNeeded = sessionSize - sessionCards.length;
                     if (finalStillNeeded > 0) {
-                        const fallbackCards = await this.getRecentlyReviewedCards(userId, finalStillNeeded, deckId);
+                        const fallbackCards = await this.getRecentlyReviewedCards(userId, finalStillNeeded);
                         sessionCards.push(...fallbackCards);
                         metadata.cardSources.fallback = fallbackCards.length;
                     }
                 }
             }
 
-            // Ensure minimum session size (only for general sessions, not deck-specific)
-            if (!strictDeckMode && sessionCards.length < ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE) {
+            // Ensure minimum session size
+            if (sessionCards.length < ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE) {
                 console.warn(`Session size ${sessionCards.length} below minimum ${ADAPTIVE_SESSION_CONFIG.MIN_SESSION_SIZE}`);
             }
 
@@ -1119,13 +1092,12 @@ class DatabaseService {
     }
 
     /**
-     * Initializes progress tracking for a user-card combination (deck_id no longer needed)
+     * Initializes progress tracking for a user-card combination
      * @param {string} user_id - The user's ID
      * @param {string} card_template_id - The card template ID
-     * @param {string} deck_id - Legacy parameter, ignored in new structure
      * @returns {Promise<Object>} The created progress record
      */
-    async initializeUserProgress(user_id, card_template_id, deck_id = null) {
+    async initializeUserProgress(user_id, card_template_id) {
         try {
             if (!card_template_id) {
                 return null;
@@ -1167,13 +1139,12 @@ class DatabaseService {
     }
 
     /**
-     * Gets user's progress for a specific card (deck_id no longer needed)
+     * Gets user's progress for a specific card
      * @param {string} user_id - The user's ID
      * @param {string} card_template_id - The card template ID
-     * @param {string} deck_id - Legacy parameter, ignored in new structure
      * @returns {Promise<Object>} The user's progress for the card
      */
-    async getUserProgress(user_id, card_template_id, deck_id = null) {
+    async getUserProgress(user_id, card_template_id) {
         try {
             const supabase = await this.getSupabase();
             const { data, error } = await supabase
@@ -1251,12 +1222,12 @@ class DatabaseService {
                     defaultDeckId = accessibleDecks[0].id;
                     console.log(`📦 Using accessible deck: ${defaultDeckId}`);
                 } else {
-                    console.warn('⚠️ No accessible decks found for user. Initialization may fail.');
-                    // Continue without deck_id - this will likely fail but lets error handling show proper message
+                    console.warn('⚠️ No accessible decks found for user.');
+                    // Continue without deck requirement - cards are now globally accessible
                 }
             } catch (deckError) {
                 console.error('❌ Could not find accessible deck:', deckError);
-                // Continue without deck_id - let the downstream error handling deal with it
+                // Continue without deck requirement - cards are now globally accessible
             }
             
             const now = new Date().toISOString();
@@ -1265,7 +1236,6 @@ class DatabaseService {
             const progressRecords = missingCards.map(card => ({
                 user_id: userId,
                 card_template_id: card.id,
-                deck_id: defaultDeckId, // Use the default deck
                 stability: 1.0,
                 difficulty: 5.0,
                 state: 'new',
@@ -1598,8 +1568,7 @@ class DatabaseService {
                 const cardInSession = sessionData.cards.find(c => c.card_template_id === cardId);
                 if (!cardInSession) continue;
                 
-                // deck_id is no longer needed with the new global deck assignment structure
-                // Cards get their deck assignment from card_templates.deck_id globally
+                // Cards are now globally accessible without deck restrictions
 
                 // Use existing progress or defaults for new cards
                 
@@ -1675,7 +1644,7 @@ class DatabaseService {
                 const incorrectReviews = allRatings.filter(r => r.rating < 2).length;
                 const lapses = allRatings.filter(r => r.rating === 0).length;
 
-                // Update progress record (no deck_id needed in new structure)
+                // Update progress record
                 progressUpdates.push({
                     user_id: user.id,
                     card_template_id: cardId,
@@ -2145,6 +2114,230 @@ class DatabaseService {
             };
         }
     }
+
+    // =====================================================
+    // PHASE 6 - Frontend Integration Functions
+    // =====================================================
+
+    /**
+     * Create a new session with optional subject filtering
+     * @param {Object} options - Session creation options
+     * @param {string} options.type - Session type (daily_free, general_unlimited, subject_specific)
+     * @param {string} options.subjectPath - Optional subject path for filtering
+     * @returns {Promise<Object>} Session creation result
+     */
+    async createSession({ type = 'general_unlimited', subjectPath = null } = {}) {
+        return await withErrorHandling(async () => {
+            const supabase = await this.getSupabase();
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (!user) {
+                throw new Error('User not authenticated');
+            }
+
+            console.log(`🚀 Creating session: type=${type}, subjectPath=${subjectPath || 'none'}`);
+
+            // Call Phase 4 RPC with subject path support
+            const { data, error } = await supabase.rpc('get_or_create_user_session', {
+                p_user_id: user.id,
+                p_deck_id: null, // Phase 5: No deck support
+                p_subject_path: subjectPath
+            });
+
+            if (error) {
+                console.error('Create session RPC error:', error);
+                throw new Error(`Failed to create session: ${error.message}`);
+            }
+
+            if (!data.success) {
+                if (data.limit_reached) {
+                    return {
+                        success: false,
+                        error: 'DAILY_LIMIT_REACHED',
+                        limitReached: true,
+                        limitInfo: {
+                            tier: data.tier,
+                            reviewsToday: data.reviews_today,
+                            limit: data.limit
+                        },
+                        message: 'Daily session limit reached. Come back tomorrow!'
+                    };
+                }
+                throw new Error(data.message || 'Failed to create session');
+            }
+
+            console.log(`✅ Session created: ${data.session_id} with ${data.cards_data?.length || 0} cards`);
+
+            return {
+                success: true,
+                sessionId: data.session_id,
+                cards: data.cards_data || [],
+                maxCards: data.max_cards,
+                currentIndex: data.current_index || 0,
+                submittedCount: data.submitted_count || 0,
+                sessionType: data.session_type,
+                subjectPath: data.subject_path,
+                status: data.status,
+                seed: data.seed,
+                isNewSession: data.is_new_session
+            };
+        }, 'createSession');
+    }
+
+    /**
+     * Get active session for the current user
+     * @returns {Promise<Object|null>} Active session data or null if none exists
+     */
+    async getActiveSession() {
+        return await withErrorHandling(async () => {
+            const supabase = await this.getSupabase();
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (!user) {
+                throw new Error('User not authenticated');
+            }
+
+            console.log(`🔍 Looking for active session for user ${user.id}`);
+
+            // Query user_sessions table for active sessions
+            const { data: sessions, error } = await supabase
+                .from('user_sessions')
+                .select('*')
+                .eq('user_id', user.id)
+                .in('status', ['created', 'active'])
+                .eq('session_date', new Date().toISOString().split('T')[0])
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (error) {
+                console.error('Get active session query error:', error);
+                throw new Error(`Failed to get active session: ${error.message}`);
+            }
+
+            if (!sessions || sessions.length === 0) {
+                console.log('📭 No active sessions found');
+                return null;
+            }
+
+            const session = sessions[0];
+            console.log(`✅ Found active session: ${session.id} (status: ${session.status})`);
+
+            return {
+                sessionId: session.id,
+                cards: session.cards_data || [],
+                maxCards: session.max_cards,
+                currentIndex: session.current_index || 0,
+                submittedCount: session.submitted_count || 0,
+                sessionType: session.session_type,
+                subjectPath: session.subject_path,
+                status: session.status,
+                seed: session.seed,
+                isNewSession: false,
+                createdAt: session.created_at
+            };
+        }, 'getActiveSession');
+    }
+
+    /**
+     * Submit a review for a card in a session
+     * @param {string} sessionId - Session ID
+     * @param {string} cardId - Card template ID
+     * @param {number} rating - Rating (0-3)
+     * @param {number} responseTime - Response time in milliseconds
+     * @returns {Promise<Object>} Review submission result
+     */
+    async submitReview(sessionId, cardId, rating, responseTime) {
+        return await withErrorHandling(async () => {
+            validateUserId(sessionId, 'submitReview sessionId');
+            validateCardId(cardId, 'submitReview cardId');
+            validateRating(rating, 'submitReview rating');
+            validateResponseTime(responseTime, 'submitReview responseTime');
+
+            console.log(`📝 Submitting review: session=${sessionId}, card=${cardId}, rating=${rating}`);
+
+            const supabase = await this.getSupabase();
+
+            // Call Phase 5 record_review RPC
+            const { data, error } = await supabase.rpc('record_review', {
+                p_session_id: sessionId,
+                p_card_template_id: cardId,
+                p_rating: rating,
+                p_response_time_ms: responseTime
+            });
+
+            if (error) {
+                console.error('Submit review RPC error:', error);
+                throw new Error(`Failed to submit review: ${error.message}`);
+            }
+
+            if (!data.success) {
+                if (data.error === 'review_already_exists') {
+                    console.warn('Review already exists - idempotent operation');
+                    return {
+                        success: true,
+                        duplicate: true,
+                        message: 'Review already recorded'
+                    };
+                }
+                throw new Error(data.message || 'Failed to submit review');
+            }
+
+            console.log(`✅ Review submitted successfully: ${data.review_id}`);
+
+            return {
+                success: true,
+                reviewId: data.review_id,
+                sessionId: data.session_id,
+                newState: data.new_state,
+                newDueAt: data.new_due_at,
+                sessionProgress: data.session_progress
+            };
+        }, 'submitReview');
+    }
+
+    /**
+     * Finalize session order after client-side shuffling
+     * @param {string} sessionId - Session ID
+     * @param {Array<string>} orderedIds - Card template IDs in final order
+     * @returns {Promise<Object>} Finalization result
+     */
+    async finalizeSessionOrder(sessionId, orderedIds) {
+        return await withErrorHandling(async () => {
+            validateUserId(sessionId, 'finalizeSessionOrder sessionId');
+            
+            if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+                throw new Error('orderedIds must be a non-empty array');
+            }
+
+            console.log(`🔀 Finalizing session order: ${sessionId} with ${orderedIds.length} cards`);
+
+            const supabase = await this.getSupabase();
+
+            // Call Phase 4 finalize_session_order RPC
+            const { data, error } = await supabase.rpc('finalize_session_order', {
+                p_session_id: sessionId,
+                p_ordered_card_ids: orderedIds
+            });
+
+            if (error) {
+                console.error('Finalize session order RPC error:', error);
+                throw new Error(`Failed to finalize session order: ${error.message}`);
+            }
+
+            if (!data.success) {
+                throw new Error(data.message || 'Failed to finalize session order');
+            }
+
+            console.log(`✅ Session order finalized: ${sessionId}`);
+
+            return {
+                success: true,
+                sessionId: data.session_id,
+                status: data.status,
+                message: data.message
+            };
+        }, 'finalizeSessionOrder');
+    }
 }
 
 // Export the DatabaseService class and create a default instance
@@ -2206,28 +2399,28 @@ document.addEventListener('DOMContentLoaded', initDatabaseService);
  * Initialize progress records for a new user (DEPRECATED)
  * 
  * ⚠️  IMPORTANT: This function is deprecated as it doesn't handle the new
- *     composite primary key (user_id, card_template_id, deck_id) properly.
+ *     composite primary key (user_id, card_template_id) properly.
  * 
- *     Cards must now be added to specific decks. Use the database service's
- *     initializeUserProgress(user_id, card_template_id, deck_id) instead.
+ *     Use the database service's
+ *     initializeUserProgress(user_id, card_template_id) instead.
  * 
  * @param {string} userId - The user's ID
  * @returns {Promise<void>}
- * @deprecated Use DatabaseService.initializeUserProgress(user_id, card_template_id, deck_id)
+ * @deprecated Use DatabaseService.initializeUserProgress(user_id, card_template_id)
  */
 async function initializeUserProgress(userId) {
     try {
-        console.warn('initializeUserProgress standalone function is deprecated. Cards must be added to specific decks.');
+        console.warn('initializeUserProgress standalone function is deprecated.');
         
-        // This function can no longer work properly due to the composite primary key
-        // requiring deck_id. New users should create cards within specific decks.
+        // This function can no longer work properly due to the new architecture.
+        // New users should use the database service directly.
         
         // For backward compatibility, we could:
         // 1. Get the user's default deck
         // 2. Initialize cards in that deck
         // But this should be handled at a higher level in the application
         
-        throw new Error('Card initialization no longer requires deck_id. Use DatabaseService.initializeUserProgress(user_id, card_template_id) instead.');
+        throw new Error('Card initialization has changed. Use DatabaseService.initializeUserProgress(user_id, card_template_id) instead.');
 
     } catch (error) {
         const handledError = handleError(error, 'initializeUserProgress_standalone');

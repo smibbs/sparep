@@ -181,9 +181,9 @@ For the best experience, consider using Safari in normal mode or another browser
      */
     async loadSessionCards(userId, dbService, deckId = null) {
         try {
-            // Strict deck mode: use larger session size to get all available cards from the deck
+            // Fixed 10-card sessions for both general and deck-specific modes
             const strictDeckMode = deckId !== null;
-            const sessionSize = strictDeckMode ? 100 : ADAPTIVE_SESSION_CONFIG.PREFER_SESSION_SIZE; // Use 100 for deck-specific, 10 for general
+            const sessionSize = SESSION_CONFIG.CARDS_PER_SESSION; // Always use 10 cards per session
             
             console.log(`🎯 Session size target: ${sessionSize} (strict deck mode: ${strictDeckMode})`);
             
@@ -201,22 +201,12 @@ For the best experience, consider using Safari in normal mode or another browser
                 console.log('🔍 Sample adaptive card:', cards[0]);
             }
 
-            // Verify deck isolation in strict mode
-            if (metadata.strictDeckMode && cards.length > 0) {
-                const deckIds = [...new Set(cards.map(card => card.deck_id))];
-                if (deckIds.length > 1) {
-                    console.error(`🚨 DECK ISOLATION VIOLATION: Found cards from ${deckIds.length} different decks:`, deckIds);
-                } else if (deckIds[0] !== deckId) {
-                    console.error(`🚨 DECK MISMATCH: Expected deck ${deckId}, but got cards from deck ${deckIds[0]}`);
-                } else {
-                    console.log(`✅ Deck isolation verified: All ${cards.length} cards belong to deck ${deckId}`);
-                }
-            }
+            // Global card access - no deck isolation needed
 
             // Transform cards to match expected session format
             const formattedCards = cards.map(card => ({
                 card_template_id: card.card_template_id,
-                deck_id: card.deck_id, // Include deck_id for verification
+                // deck_id no longer needed - cards are globally accessible
                 cards: {
                     question: card.question,
                     answer: card.answer,
@@ -244,11 +234,7 @@ For the best experience, consider using Safari in normal mode or another browser
                 console.log('🔧 Sample formatted card:', formattedCards[0]);
             }
 
-            // Additional deck verification after formatting
-            if (metadata.strictDeckMode && formattedCards.length > 0) {
-                const formattedDeckIds = [...new Set(formattedCards.map(card => card.deck_id))];
-                console.log(`🔧 Post-formatting deck verification: Found cards from decks: ${formattedDeckIds.join(', ')}`);
-            }
+            // No additional verification needed - global card access
 
             // Apply client-side shuffling to randomize presentation order
             const shuffledCards = this.shuffleCards(formattedCards);
@@ -338,9 +324,9 @@ For the best experience, consider using Safari in normal mode or another browser
         try {
             console.log(`🔄 Legacy fallback mode${deckId ? ` with deck filtering: ${deckId}` : ' (all decks)'}`);
             
-            // Strict deck mode: use larger limits to get all available cards from the deck
+            // Fixed 10-card sessions for both general and deck-specific modes
             const strictDeckMode = deckId !== null;
-            const sessionSize = strictDeckMode ? 100 : SESSION_CONFIG.CARDS_PER_SESSION; // Use 100 for deck-specific, 10 for general
+            const sessionSize = SESSION_CONFIG.CARDS_PER_SESSION; // Always use 10 cards per session
             
             console.log(`🎯 Legacy session size target: ${sessionSize} (strict deck mode: ${strictDeckMode})`);
             
@@ -348,10 +334,10 @@ For the best experience, consider using Safari in normal mode or another browser
             const dueCards = await dbService.getDueCardsWithLimit(userId, sessionSize, deckId);
             console.log(`📋 SessionManager (Legacy): Found ${dueCards.length} due cards`);
             
-            // In strict deck mode, use all available cards; in general mode, limit to target size
-            const targetSessionSize = strictDeckMode ? Math.max(dueCards.length, sessionSize) : sessionSize;
+            // Always limit to exactly 10 cards per session
+            const targetSessionSize = sessionSize; // Fixed 10 cards regardless of mode
             
-            console.log(`🔒 Legacy strict deck mode: ${strictDeckMode ? 'ENABLED - using available cards only' : 'DISABLED - filling to target size'}`);
+            console.log(`🔒 Fixed 10-card session mode: ${strictDeckMode ? 'deck-specific' : 'general'} - using exactly ${targetSessionSize} cards`);
             
             // Determine if we already have enough due cards
             let limitedDueCards = dueCards;
@@ -365,11 +351,11 @@ For the best experience, consider using Safari in normal mode or another browser
                 console.log(`🆕 SessionManager (Legacy): Found ${newCards.length} new cards`);
                 formattedNewCards = newCards;
             } else {
-                // In strict deck mode, get new cards but don't force session size
-                const availableNewCards = await dbService.getNewCardsWithLimit(userId, 1, sessionSize, deckId);
-                console.log(`🆕 SessionManager (Legacy Strict): Found ${availableNewCards.length} new cards from target deck`);
+                // In strict deck mode, fill remaining slots up to 10 cards
+                const newCardsNeeded = Math.max(0, targetSessionSize - dueCards.length);
+                const availableNewCards = await dbService.getNewCardsWithLimit(userId, 1, newCardsNeeded, deckId);
+                console.log(`🆕 SessionManager (Legacy Strict): Found ${availableNewCards.length} new cards from target deck (needed ${newCardsNeeded})`);
                 formattedNewCards = availableNewCards;
-
             }
             
             // Transform new cards to match expected format (if any)
