@@ -1225,9 +1225,26 @@ async function loadSession() {
         }
         
         // Initialize new session with server-side daily limit enforcement
+        // Phase 6: Support subject path filtering from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const subjectPath = urlParams.get('subject');
+        const sessionOptions = subjectPath ? { subjectPath } : {};
+        
+        if (subjectPath) {
+            console.log(`🎯 Creating subject-specific session for path: ${subjectPath}`);
+        }
         
         try {
-            await appState.sessionManager.initializeSession(appState.user.id, appState.dbService);
+            await appState.sessionManager.initializeSession(appState.user.id, appState.dbService, sessionOptions);
+            
+            // Phase 6: Shuffle and finalize session order if newly created
+            if (appState.sessionManager.sessionData?.status === 'created') {
+                console.log('🔀 New session created - shuffling and finalizing order');
+                await appState.sessionManager.shuffleAndFinalize(true);
+                console.log('✅ Session order finalized');
+            } else if (appState.sessionManager.sessionData?.status === 'active') {
+                console.log('📋 Resuming active session with existing order');
+            }
             
             // No need to reset milestone tracking - it's based on daily totals now
         } catch (error) {

@@ -2114,6 +2114,230 @@ class DatabaseService {
             };
         }
     }
+
+    // =====================================================
+    // PHASE 6 - Frontend Integration Functions
+    // =====================================================
+
+    /**
+     * Create a new session with optional subject filtering
+     * @param {Object} options - Session creation options
+     * @param {string} options.type - Session type (daily_free, general_unlimited, subject_specific)
+     * @param {string} options.subjectPath - Optional subject path for filtering
+     * @returns {Promise<Object>} Session creation result
+     */
+    async createSession({ type = 'general_unlimited', subjectPath = null } = {}) {
+        return await withErrorHandling(async () => {
+            const supabase = await this.getSupabase();
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (!user) {
+                throw new Error('User not authenticated');
+            }
+
+            console.log(`🚀 Creating session: type=${type}, subjectPath=${subjectPath || 'none'}`);
+
+            // Call Phase 4 RPC with subject path support
+            const { data, error } = await supabase.rpc('get_or_create_user_session', {
+                p_user_id: user.id,
+                p_deck_id: null, // Phase 5: No deck support
+                p_subject_path: subjectPath
+            });
+
+            if (error) {
+                console.error('Create session RPC error:', error);
+                throw new Error(`Failed to create session: ${error.message}`);
+            }
+
+            if (!data.success) {
+                if (data.limit_reached) {
+                    return {
+                        success: false,
+                        error: 'DAILY_LIMIT_REACHED',
+                        limitReached: true,
+                        limitInfo: {
+                            tier: data.tier,
+                            reviewsToday: data.reviews_today,
+                            limit: data.limit
+                        },
+                        message: 'Daily session limit reached. Come back tomorrow!'
+                    };
+                }
+                throw new Error(data.message || 'Failed to create session');
+            }
+
+            console.log(`✅ Session created: ${data.session_id} with ${data.cards_data?.length || 0} cards`);
+
+            return {
+                success: true,
+                sessionId: data.session_id,
+                cards: data.cards_data || [],
+                maxCards: data.max_cards,
+                currentIndex: data.current_index || 0,
+                submittedCount: data.submitted_count || 0,
+                sessionType: data.session_type,
+                subjectPath: data.subject_path,
+                status: data.status,
+                seed: data.seed,
+                isNewSession: data.is_new_session
+            };
+        }, 'createSession');
+    }
+
+    /**
+     * Get active session for the current user
+     * @returns {Promise<Object|null>} Active session data or null if none exists
+     */
+    async getActiveSession() {
+        return await withErrorHandling(async () => {
+            const supabase = await this.getSupabase();
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (!user) {
+                throw new Error('User not authenticated');
+            }
+
+            console.log(`🔍 Looking for active session for user ${user.id}`);
+
+            // Query user_sessions table for active sessions
+            const { data: sessions, error } = await supabase
+                .from('user_sessions')
+                .select('*')
+                .eq('user_id', user.id)
+                .in('status', ['created', 'active'])
+                .eq('session_date', new Date().toISOString().split('T')[0])
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (error) {
+                console.error('Get active session query error:', error);
+                throw new Error(`Failed to get active session: ${error.message}`);
+            }
+
+            if (!sessions || sessions.length === 0) {
+                console.log('📭 No active sessions found');
+                return null;
+            }
+
+            const session = sessions[0];
+            console.log(`✅ Found active session: ${session.id} (status: ${session.status})`);
+
+            return {
+                sessionId: session.id,
+                cards: session.cards_data || [],
+                maxCards: session.max_cards,
+                currentIndex: session.current_index || 0,
+                submittedCount: session.submitted_count || 0,
+                sessionType: session.session_type,
+                subjectPath: session.subject_path,
+                status: session.status,
+                seed: session.seed,
+                isNewSession: false,
+                createdAt: session.created_at
+            };
+        }, 'getActiveSession');
+    }
+
+    /**
+     * Submit a review for a card in a session
+     * @param {string} sessionId - Session ID
+     * @param {string} cardId - Card template ID
+     * @param {number} rating - Rating (0-3)
+     * @param {number} responseTime - Response time in milliseconds
+     * @returns {Promise<Object>} Review submission result
+     */
+    async submitReview(sessionId, cardId, rating, responseTime) {
+        return await withErrorHandling(async () => {
+            validateUserId(sessionId, 'submitReview sessionId');
+            validateCardId(cardId, 'submitReview cardId');
+            validateRating(rating, 'submitReview rating');
+            validateResponseTime(responseTime, 'submitReview responseTime');
+
+            console.log(`📝 Submitting review: session=${sessionId}, card=${cardId}, rating=${rating}`);
+
+            const supabase = await this.getSupabase();
+
+            // Call Phase 5 record_review RPC
+            const { data, error } = await supabase.rpc('record_review', {
+                p_session_id: sessionId,
+                p_card_template_id: cardId,
+                p_rating: rating,
+                p_response_time_ms: responseTime
+            });
+
+            if (error) {
+                console.error('Submit review RPC error:', error);
+                throw new Error(`Failed to submit review: ${error.message}`);
+            }
+
+            if (!data.success) {
+                if (data.error === 'review_already_exists') {
+                    console.warn('Review already exists - idempotent operation');
+                    return {
+                        success: true,
+                        duplicate: true,
+                        message: 'Review already recorded'
+                    };
+                }
+                throw new Error(data.message || 'Failed to submit review');
+            }
+
+            console.log(`✅ Review submitted successfully: ${data.review_id}`);
+
+            return {
+                success: true,
+                reviewId: data.review_id,
+                sessionId: data.session_id,
+                newState: data.new_state,
+                newDueAt: data.new_due_at,
+                sessionProgress: data.session_progress
+            };
+        }, 'submitReview');
+    }
+
+    /**
+     * Finalize session order after client-side shuffling
+     * @param {string} sessionId - Session ID
+     * @param {Array<string>} orderedIds - Card template IDs in final order
+     * @returns {Promise<Object>} Finalization result
+     */
+    async finalizeSessionOrder(sessionId, orderedIds) {
+        return await withErrorHandling(async () => {
+            validateUserId(sessionId, 'finalizeSessionOrder sessionId');
+            
+            if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+                throw new Error('orderedIds must be a non-empty array');
+            }
+
+            console.log(`🔀 Finalizing session order: ${sessionId} with ${orderedIds.length} cards`);
+
+            const supabase = await this.getSupabase();
+
+            // Call Phase 4 finalize_session_order RPC
+            const { data, error } = await supabase.rpc('finalize_session_order', {
+                p_session_id: sessionId,
+                p_ordered_card_ids: orderedIds
+            });
+
+            if (error) {
+                console.error('Finalize session order RPC error:', error);
+                throw new Error(`Failed to finalize session order: ${error.message}`);
+            }
+
+            if (!data.success) {
+                throw new Error(data.message || 'Failed to finalize session order');
+            }
+
+            console.log(`✅ Session order finalized: ${sessionId}`);
+
+            return {
+                success: true,
+                sessionId: data.session_id,
+                status: data.status,
+                message: data.message
+            };
+        }, 'finalizeSessionOrder');
+    }
 }
 
 // Export the DatabaseService class and create a default instance

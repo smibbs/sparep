@@ -17,19 +17,24 @@ class ServerSessionManager {
      * Initialize or load a session using server-side RPC
      * @param {string} userId - The user's ID
      * @param {Object} dbService - Database service instance
+     * @param {Object} options - Session options
+     * @param {string} options.subjectPath - Optional subject path for filtering
+     * @param {string} options.type - Session type (daily_free, general_unlimited, subject_specific)
      * @returns {Promise<boolean>} Success status
      */
-    async initializeSession(userId, dbService) {
+    async initializeSession(userId, dbService, options = {}) {
         try {
             this.userId = userId;
             this.dbService = dbService;
             
-            console.log(`🚀 ServerSessionManager: Initializing session for user ${userId}`);
+            console.log(`🚀 ServerSessionManager: Initializing session for user ${userId}`, options.subjectPath ? `with subject path: ${options.subjectPath}` : '');
             
-            // Call server RPC to get or create session
+            // Call server RPC to get or create session with subject path support
             const supabase = await dbService.getSupabase();
             const { data, error } = await supabase.rpc('get_or_create_user_session', {
-                p_user_id: userId
+                p_user_id: userId,
+                p_deck_id: null, // Phase 5: No deck support
+                p_subject_path: options.subjectPath || null
             });
 
             if (error) {
@@ -63,12 +68,16 @@ class ServerSessionManager {
                 submittedCount: data.submitted_count || 0,
                 sessionType: data.session_type,
                 isNewSession: data.is_new_session,
+                status: data.status || 'created', // Phase 4: Track session status
+                seed: data.seed, // Phase 4: Deterministic seed for resumability
+                subjectPath: data.subject_path, // Phase 4: Subject filtering
                 // Keep these for compatibility with existing UI code
                 ratings: {}, // Will be populated from reviews if session is resumed
                 completedCards: new Set(), // Will be managed server-side
                 sessionStartTime: new Date().toISOString(),
                 metadata: {
-                    sessionType: 'general'
+                    sessionType: 'general',
+                    subjectPath: data.subject_path
                 }
             };
             
@@ -77,7 +86,7 @@ class ServerSessionManager {
                 await this.loadRatingsFromReviews();
             }
 
-            console.log(`✅ ServerSessionManager: Session initialized with ${this.sessionData.cards.length} cards`);
+            console.log(`✅ ServerSessionManager: Session initialized with ${this.sessionData.cards.length} cards (status: ${this.sessionData.status})`);
             console.log(`📊 Current progress: ${this.sessionData.submittedCount}/${this.sessionData.totalCardsInSession}`);
             
             return true;
@@ -108,38 +117,47 @@ class ServerSessionManager {
         try {
             console.log(`📝 ServerSessionManager: Recording rating ${rating} for card ${currentCard.card_template_id}`);
             
-            // Call server RPC to submit answer
+            // Call Phase 5 record_review RPC
             const supabase = await this.dbService.getSupabase();
-            const { data, error } = await supabase.rpc('submit_card_answer', {
+            const { data, error } = await supabase.rpc('record_review', {
                 p_session_id: this.currentSessionId,
                 p_card_template_id: currentCard.card_template_id,
                 p_rating: rating,
-                p_response_time: responseTime
+                p_response_time_ms: responseTime
             });
 
             if (error) {
-                console.error('Server submit answer RPC error:', error);
-                throw new Error(`Failed to submit answer: ${error.message}`);
+                console.error('Server record_review RPC error:', error);
+                throw new Error(`Failed to record review: ${error.message}`);
             }
 
             if (!data.success) {
-                if (data.limit_reached) {
-                    // Daily limit reached during submission
-                    const error = new Error('Daily limit reached');
-                    error.limitReached = true;
-                    error.limitInfo = {
-                        tier: data.tier,
-                        reviewsToday: data.reviews_today,
-                        limit: data.limit
-                    };
+                if (data.error === 'review_already_exists') {
+                    // Idempotency - review already recorded
+                    console.warn('Review already exists for this card in this session');
+                    return true;
+                } else if (data.error === 'unauthorized' || data.error === 'session_not_found') {
+                    // Session issues
+                    const error = new Error(data.message || 'Session error');
+                    error.sessionError = true;
                     throw error;
                 }
-                throw new Error(data.message || 'Failed to submit answer');
+                throw new Error(data.message || 'Failed to record review');
             }
 
             // Update local session data with server response
-            this.sessionData.submittedCount = data.submitted_count;
-            this.sessionData.currentCardIndex = data.current_index;
+            if (data.session_progress) {
+                this.sessionData.submittedCount = data.session_progress.submitted_count;
+                this.sessionData.currentCardIndex = Math.min(
+                    this.sessionData.currentCardIndex + 1, 
+                    this.sessionData.totalCardsInSession - 1
+                );
+                
+                // Mark session as complete if all cards are done
+                if (data.session_progress.completed) {
+                    this.sessionData.isComplete = true;
+                }
+            }
             
             // Track rating locally for UI display purposes
             const cardId = String(currentCard.card_template_id);
@@ -162,6 +180,119 @@ class ServerSessionManager {
             console.error('Failed to record rating on server:', error);
             throw error;
         }
+    }
+
+    /**
+     * Shuffle cards locally and finalize session order on server
+     * @param {boolean} enableShuffle - Whether to shuffle cards locally (default: true)
+     * @returns {Promise<boolean>} Success status
+     */
+    async shuffleAndFinalize(enableShuffle = true) {
+        if (!this.currentSessionId || !this.sessionData) {
+            console.error('No active session for finalizing order');
+            return false;
+        }
+
+        if (this.sessionData.status !== 'created') {
+            console.log('Session already finalized or not in created state');
+            return true; // Already finalized
+        }
+
+        try {
+            console.log(`🔀 ServerSessionManager: ${enableShuffle ? 'Shuffling and ' : ''}finalizing session order`);
+            
+            // Get card IDs in current order
+            const cardIds = this.sessionData.cards.map(card => card.card_template_id);
+            
+            // Optionally shuffle the card order locally
+            let finalOrder = [...cardIds];
+            if (enableShuffle) {
+                // Use the session seed for deterministic shuffling
+                if (this.sessionData.seed) {
+                    finalOrder = this.deterministicShuffle(cardIds, this.sessionData.seed);
+                } else {
+                    // Fallback to random shuffle
+                    finalOrder = this.randomShuffle(cardIds);
+                }
+                console.log(`🎲 Shuffled ${cardIds.length} cards using ${this.sessionData.seed ? 'deterministic' : 'random'} method`);
+            }
+            
+            // Call server RPC to finalize session order
+            const supabase = await this.dbService.getSupabase();
+            const { data, error } = await supabase.rpc('finalize_session_order', {
+                p_session_id: this.currentSessionId,
+                p_ordered_card_ids: finalOrder
+            });
+
+            if (error) {
+                console.error('Server finalize_session_order RPC error:', error);
+                throw new Error(`Failed to finalize session order: ${error.message}`);
+            }
+
+            if (!data.success) {
+                throw new Error(data.message || 'Failed to finalize session order');
+            }
+
+            // Update session status to active
+            this.sessionData.status = 'active';
+            
+            console.log(`✅ ServerSessionManager: Session order finalized and activated`);
+            
+            return true;
+        } catch (error) {
+            console.error('Failed to shuffle and finalize session:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Deterministic shuffle using session seed for reproducible card order
+     * @param {Array} array - Array to shuffle
+     * @param {string} seed - Seed for random number generation
+     * @returns {Array} Shuffled array
+     */
+    deterministicShuffle(array, seed) {
+        const shuffled = [...array];
+        let seedNum = this.hashCode(seed);
+        
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            // Generate pseudo-random number based on seed
+            seedNum = (seedNum * 9301 + 49297) % 233280;
+            const j = Math.floor((seedNum / 233280) * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        
+        return shuffled;
+    }
+    
+    /**
+     * Random shuffle for fallback when no seed available
+     * @param {Array} array - Array to shuffle
+     * @returns {Array} Shuffled array
+     */
+    randomShuffle(array) {
+        const shuffled = [...array];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+    }
+    
+    /**
+     * Generate hash code from string for seed-based randomization
+     * @param {string} str - String to hash
+     * @returns {number} Hash code
+     */
+    hashCode(str) {
+        let hash = 0;
+        if (str.length === 0) return hash;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        return Math.abs(hash);
     }
 
     /**
