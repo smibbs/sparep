@@ -1177,20 +1177,7 @@ async function loadSession() {
             appState.currentCard = appState.sessionManager.getCurrentCard();
             
             if (appState.currentCard) {
-                // Ensure minimum loading duration FIRST, before showing any content
-                if (loadingStartTime) {
-                    const elapsed = Date.now() - loadingStartTime;
-                    const minimumDuration = 1000; // 1 second
-                    if (elapsed < minimumDuration) {
-                        const remainingTime = minimumDuration - elapsed;
-                        await new Promise(resolve => setTimeout(resolve, remainingTime));
-                    }
-                } else {
-                    console.warn('loadingStartTime not set, using default 1s delay');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-                
-                // Now prepare and display content after timer completes
+                // Display content immediately since session is ready
                 await displayCurrentCard();
                 await transitionToState('content');
                 return;
@@ -1283,20 +1270,7 @@ async function loadSession() {
         // Restore card structure first (in case completion screen overwrote it)
         restoreCardStructure();
         
-        // Ensure minimum loading duration before showing any content
-        if (loadingStartTime) {
-            const elapsed = Date.now() - loadingStartTime;
-            const minimumDuration = 1000; // 1 second
-            if (elapsed < minimumDuration) {
-                const remainingTime = minimumDuration - elapsed;
-                await new Promise(resolve => setTimeout(resolve, remainingTime));
-            }
-        } else {
-            console.warn('loadingStartTime not set, using default 1s delay (new session)');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        
-        // Now display the card after timer completes
+        // Display the card immediately after session is ready
         await displayCurrentCard();
         
         // Transition to content
