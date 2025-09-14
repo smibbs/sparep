@@ -1185,10 +1185,29 @@ class DatabaseService {
             
             const existingCardIds = (existingUserCards || []).map(uc => uc.card_template_id);
             
-            // Get all card_templates that don't have corresponding user_cards records
+            // Performance optimization: Check if we likely have all cards before expensive query
+            // Get total count of public, available cards (these are what users get progress for)
+            const { count: availableCardCount, error: countError } = await supabase
+                .from('card_templates')
+                .select('*', { count: 'exact', head: true })
+                .eq('is_public', true)
+                .eq('flagged_for_review', false);
+            
+            if (countError) {
+                console.warn('Could not get card count, proceeding with full check:', countError);
+            } else if (existingCardIds.length >= availableCardCount) {
+                // User already has progress for all (or more) available cards - no missing cards
+                console.log(`✅ User has progress for ${existingCardIds.length}/${availableCardCount} available cards - skipping initialization`);
+                return { initialized: 0, skipped: 0 };
+            }
+            
+            // Get missing card_templates (limit to public, unflagged cards only and cap at 100 for safety)
             let query = supabase
                 .from('card_templates')
-                .select('id, subject_id');
+                .select('id, subject_id')
+                .eq('is_public', true)
+                .eq('flagged_for_review', false)
+                .limit(100);  // Safety limit - prevent massive queries
                 
             if (existingCardIds.length > 0) {
                 query = query.not('id', 'in', `(${existingCardIds.join(',')})`);
