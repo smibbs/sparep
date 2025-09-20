@@ -869,7 +869,7 @@ class DatabaseService {
     async getDecksWithCounts(userId) {
         try {
             validateUserId(userId, 'getting decks with counts');
-            
+
             const supabase = await this.getSupabase();
 
             // Use the optimized view that respects RLS policies
@@ -887,6 +887,78 @@ class DatabaseService {
             const handledError = handleError(error, 'getDecksWithCounts');
             throw new Error(handledError.userMessage);
         }
+    }
+
+    /**
+     * Fetch deck metadata for deck study sessions
+     * @param {string} deckId - Deck identifier
+     * @returns {Promise<Object>} Deck details
+     */
+    async getDeckDetails(deckId) {
+        return await withErrorHandling(async () => {
+            if (!deckId || typeof deckId !== 'string' || deckId.trim() === '') {
+                throw new Error('Deck ID is required to load deck information.');
+            }
+
+            const supabase = await this.getSupabase();
+            const { data: deck, error } = await supabase
+                .from('decks')
+                .select('id, name, description')
+                .eq('id', deckId)
+                .single();
+
+            if (error) throw error;
+            if (!deck) {
+                throw new Error('Deck not found or not accessible.');
+            }
+
+            return deck;
+        }, 'getDeckDetails');
+    }
+
+    /**
+     * Load practice cards for a specific deck without affecting FSRS state
+     * @param {string} deckId - Deck identifier
+     * @param {number} limit - Preferred maximum number of cards to retrieve
+     * @returns {Promise<Object>} Deck info and available cards
+     */
+    async getDeckStudyCards(deckId, limit = SESSION_CONFIG.CARDS_PER_SESSION) {
+        return await withErrorHandling(async () => {
+            if (!deckId || typeof deckId !== 'string' || deckId.trim() === '') {
+                throw new Error('Deck ID is required to load deck cards.');
+            }
+
+            const supabase = await this.getSupabase();
+
+            const deck = await this.getDeckDetails(deckId);
+
+            const cardLimit = Math.max((limit || SESSION_CONFIG.CARDS_PER_SESSION) * 3, limit || SESSION_CONFIG.CARDS_PER_SESSION);
+
+            const { data: cards, error: cardsError } = await supabase
+                .from('card_templates')
+                .select(`
+                    id,
+                    question,
+                    answer,
+                    tags,
+                    path,
+                    subjects ( name )
+                `)
+                .eq('deck_id', deckId)
+                .eq('flagged_for_review', false)
+                .order('path', { ascending: true })
+                .limit(cardLimit);
+
+            if (cardsError) throw cardsError;
+
+            const availableCards = cards || [];
+
+            return {
+                deck,
+                cards: availableCards,
+                totalAvailable: availableCards.length
+            };
+        }, 'getDeckStudyCards');
     }
 
     /**

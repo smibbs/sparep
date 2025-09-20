@@ -4,6 +4,7 @@ import database from './database.js';
 import auth from './auth.js';
 import SessionManager from './sessionManager.js';
 import ServerSessionManager from './serverSessionManager.js';
+import DeckStudySessionManager from './deckStudySessionManager.js';
 import { SESSION_CONFIG } from './config.js';
 import NavigationController from './navigation.js';
 import slideMenu from './slideMenu.js';
@@ -15,6 +16,14 @@ import './spinner.js'; // Centralized spinner system
 
 // Supabase client instance
 let supabase;
+
+// Determine study mode based on current page
+const isDeckStudyMode = document.body?.dataset?.studyMode === 'deck' || window.location.pathname.includes('deck-study.html');
+
+// Select appropriate session manager implementation
+const sessionManagerInstance = isDeckStudyMode
+    ? new DeckStudySessionManager()
+    : new ServerSessionManager();
 
 /**
  * Check if user is admin and show admin navigation link
@@ -84,11 +93,13 @@ const appState = {
     user: null,
     dbService: database,  // Use the default database instance
     authService: auth,    // Use the default auth instance
-    sessionManager: new ServerSessionManager(), // Server-side session management
+    sessionManager: sessionManagerInstance, // Choose server or deck study manager
     isCompleted: false,      // Track if session is completed
     cardInnerClickHandler: null, // Store reference to card-inner click handler
     forceNewSession: false, // Flag to force new session creation
-    navigationController: null // Navigation controller for hamburger menu
+    navigationController: null, // Navigation controller for hamburger menu
+    isDeckStudyMode,
+    deckStudyInfo: null
 };
 
 /**
@@ -485,27 +496,53 @@ async function updateProgress() {
         try {
             // Get session progress
             const sessionProgress = appState.sessionManager.getProgress();
-            
+
             // Show progress bar for all users based on session completion
             const percentage = sessionProgress.percentage;
-            
+
             progressFill.style.width = percentage + '%';
             progressBar.classList.remove('hidden');
             if (progressContainer) {
                 progressContainer.classList.remove('hidden'); // Ensure container is visible
             }
-            progressText.classList.add('hidden');
+            if (appState.isDeckStudyMode) {
+                const metadata = appState.sessionManager.getDeckMetadata() || appState.deckStudyInfo;
+                const deckName = metadata?.name || 'Selected Deck';
+                const totalCards = sessionProgress.total || metadata?.totalCardsInSession || 0;
+                const currentIndexRaw = sessionProgress.currentIndex || (appState.sessionManager.sessionData ? Math.min(appState.sessionManager.sessionData.currentCardIndex + 1, totalCards || appState.sessionManager.sessionData.totalCardsInSession || 0) : 0);
+                const safeDeckName = Validator.escapeHtml(deckName);
+                if (totalCards > 0) {
+                    const displayIndex = Math.min(Math.max(currentIndexRaw || 1, 1), totalCards);
+                    progressText.textContent = `Deck study: ${safeDeckName} — Card ${displayIndex} of ${totalCards} • Practice only (FSRS unaffected)`;
+                } else {
+                    progressText.textContent = `Deck study: ${safeDeckName} • Practice only (FSRS unaffected)`;
+                }
+                progressText.classList.remove('hidden');
+            } else {
+                progressText.classList.add('hidden');
+            }
         } catch (error) {
             // Fallback to simple display if error getting session progress
             const sessionProgress = appState.sessionManager.getProgress();
             const percentage = sessionProgress.percentage || 0;
-            
+
             progressFill.style.width = percentage + '%';
             progressBar.classList.remove('hidden');
             if (progressContainer) {
                 progressContainer.classList.remove('hidden'); // Ensure container is visible
             }
-            progressText.classList.add('hidden');
+            if (appState.isDeckStudyMode) {
+                const metadata = appState.sessionManager.getDeckMetadata() || appState.deckStudyInfo;
+                const deckName = metadata?.name || 'Selected Deck';
+                const totalCards = sessionProgress.total || metadata?.totalCardsInSession || 0;
+                const safeDeckName = Validator.escapeHtml(deckName);
+                progressText.textContent = totalCards > 0
+                    ? `Deck study: ${safeDeckName} — Practice only (FSRS unaffected)`
+                    : `Deck study: ${safeDeckName} • Practice only (FSRS unaffected)`;
+                progressText.classList.remove('hidden');
+            } else {
+                progressText.classList.add('hidden');
+            }
         }
     }
 }
@@ -689,10 +726,15 @@ async function displayCurrentCard() {
  */
 async function handleSessionComplete() {
     try {
-        // Show saving spinner
+        // Show saving spinner (or practice wrap-up message)
+        const savingMessage = appState.isDeckStudyMode
+            ? 'Wrapping up your practice session...'
+            : 'Saving your progress...';
+        const spinnerType = appState.isDeckStudyMode ? 'loading' : 'saving';
+
         spinnerManager.show('saving-state', {
-            message: 'Saving your progress...',
-            type: 'saving'
+            message: savingMessage,
+            type: spinnerType
         });
         
         // Yield to the browser so the spinner can animate
@@ -708,7 +750,9 @@ async function handleSessionComplete() {
         const sessionData = appState.sessionManager.getSessionData();
         
         // For server sessions, load ratings from reviews table for completion display
-        if (appState.sessionManager instanceof ServerSessionManager) {
+        if (appState.isDeckStudyMode) {
+            // Practice sessions are client-side only; no persistence required
+        } else if (appState.sessionManager instanceof ServerSessionManager) {
             await appState.sessionManager.loadRatingsFromReviews();
             // Update session data with loaded ratings
             sessionData.ratings = appState.sessionManager.sessionData.ratings;
@@ -976,10 +1020,67 @@ function generateReviewSummary(sessionData) {
  */
 async function showSessionCompleteMessage(sessionData) {
     const contentDiv = document.getElementById('content');
-    
+
     // Set completion state
     appState.isCompleted = true;
-    
+
+    if (appState.isDeckStudyMode) {
+        const metadata = sessionData?.metadata || {};
+        const deckMeta = appState.sessionManager.getDeckMetadata() || appState.deckStudyInfo || {};
+        const deckName = metadata.deckName || deckMeta.name || 'Selected Deck';
+        const safeDeckName = Validator.escapeHtml(deckName);
+        const totalCards = sessionData?.totalCardsInSession || sessionData?.cards?.length || 0;
+
+        const ratingCounts = { 1: 0, 3: 0 };
+        if (sessionData?.ratings) {
+            for (const ratings of Object.values(sessionData.ratings)) {
+                if (Array.isArray(ratings) && ratings.length > 0) {
+                    const finalRating = ratings[ratings.length - 1]?.rating;
+                    if (finalRating === 1 || finalRating === 3) {
+                        ratingCounts[finalRating] += 1;
+                    }
+                }
+            }
+        }
+
+        const summaryHtml = totalCards > 0 ? `
+            <div class="session-stats">
+                <div class="rating-chart">
+                    <h3>Practice Summary</h3>
+                    <p><strong>${ratingCounts[3]}</strong> ${ratingCounts[3] === 1 ? 'card' : 'cards'} marked Known</p>
+                    <p><strong>${ratingCounts[1]}</strong> ${ratingCounts[1] === 1 ? 'card' : 'cards'} marked Again</p>
+                </div>
+            </div>
+        ` : '';
+
+        if (contentDiv) {
+            contentDiv.innerHTML = `
+                <div class="completion-wrapper">
+                    <div class="completion-message">
+                        <h2>Deck Practice Complete!</h2>
+                        <p>You practised ${totalCards} ${totalCards === 1 ? 'card' : 'cards'} from <strong>${safeDeckName}</strong>.</p>
+                        <p>This practice session is separate from your FSRS schedule, so no spaced repetition data was updated.</p>
+                        ${summaryHtml}
+                        <div class="session-actions">
+                            <button id="deck-practice-again" class="nav-button">Study this deck again</button>
+                            <a href="deck-selection.html" class="nav-button">Choose Another Deck</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const restartButton = document.getElementById('deck-practice-again');
+            if (restartButton) {
+                restartButton.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    window.location.reload();
+                });
+            }
+        }
+
+        return;
+    }
+
     // Generate session statistics
     const ratingChart = generateRatingChart(sessionData);
     const scheduleChart = generateReviewScheduleChart(sessionData);
@@ -1147,7 +1248,11 @@ async function loadSession() {
         console.log(`⏳ Transitioned to loading state`);
 
         // Phase 1: No deck selection needed - all sessions are general
-        console.log(`🎯 Phase 1: Global card access - no deck selection needed`);
+        if (appState.isDeckStudyMode) {
+            console.log('🎯 Deck study mode: practice session without FSRS updates');
+        } else {
+            console.log(`🎯 Phase 1: Global card access - no deck selection needed`);
+        }
         
         // Check if there's an existing session
         const hasExistingSession = appState.sessionManager.hasSession();
@@ -1229,15 +1334,28 @@ async function loadSession() {
         // Phase 6: Support subject path filtering from URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const subjectPath = urlParams.get('subject');
+        const deckIdParam = urlParams.get('deck');
         const sessionOptions = subjectPath ? { subjectPath } : {};
-        
+
+        if (appState.isDeckStudyMode) {
+            if (!deckIdParam) {
+                throw new Error('No deck selected. Please choose a deck from the deck selection page.');
+            }
+            sessionOptions.deckId = deckIdParam;
+            appState.deckStudyInfo = null;
+        }
+
         if (subjectPath) {
             console.log(`🎯 Creating subject-specific session for path: ${subjectPath}`);
         }
         
         try {
             await appState.sessionManager.initializeSession(appState.user.id, appState.dbService, sessionOptions);
-            
+
+            if (appState.isDeckStudyMode) {
+                appState.deckStudyInfo = appState.sessionManager.getDeckMetadata();
+            }
+
             // Phase 6: Shuffle and finalize session order if newly created
             if (appState.sessionManager.sessionData?.status === 'created') {
                 console.log('🔀 New session created - shuffling and finalizing order');

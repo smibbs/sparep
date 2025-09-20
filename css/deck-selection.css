@@ -171,6 +171,14 @@
     overflow: hidden;
 }
 
+.deck-description.practice-note {
+    margin-top: -8px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+    -webkit-line-clamp: unset;
+    overflow: visible;
+}
+
 /* Deck Statistics */
 .deck-stats {
     display: flex;
