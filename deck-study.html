@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Deck Study - nanotopic</title>
+    
+    <!-- Security headers for production -->
+    <script>
+        // Only add security headers in production (not localhost)
+        if (!window.location.hostname.includes('localhost') && window.location.hostname !== '127.0.0.1') {
+            document.write('<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">');
+            document.write('<meta http-equiv="Strict-Transport-Security" content="max-age=63072000; includeSubDomains; preload">');
+        }
+    </script>
+    
+    <!-- Mobile-specific meta tags for better experience -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-touch-fullscreen" content="yes">
+    <meta name="format-detection" content="telephone=no">
+    <link rel="stylesheet" href="css/styles.css?v=6">
+    <link rel="stylesheet" href="css/streak-styles.css?v=2">
+    <link rel="stylesheet" href="css/slide-menu.css?v=1">
+    <link rel="stylesheet" href="css/spinner.css?v=1">
+</head>
+<body data-study-mode="deck">
+    <div id="app-container">
+        <div id="loading-state" class="loading-state">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <p class="loading-text"></p>
+            </div>
+        </div>
+        <div id="error-state" class="error-state hidden">
+            <div class="error-content">
+                <p id="error-message" class="error-text">Failed to load flashcards.</p>
+                <div class="error-actions">
+                    <button id="retry-button" class="nav-button">Try Again</button>
+                    <button id="error-logout-button" class="nav-button">Sign Out</button>
+                </div>
+            </div>
+        </div>
+        <div id="saving-state" class="saving-state hidden">
+            <div class="saving-content">
+                <div class="saving-spinner"></div>
+                <p class="saving-text">Wrapping up your practice session...</p>
+            </div>
+        </div>
+        <div id="content" class="content hidden">
+            <div class="progress-container">
+                <div class="progress-bar hidden" id="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-text hidden" id="progress-text">Card 1</div>
+            </div>
+            <div class="card">
+                <div class="card-inner">
+                    <div class="card-front">
+                        <div class="last-seen-indicator" id="last-seen-front">Never</div>
+                        <p>Front of card (Question)</p>
+                    </div>
+                    <div class="card-back">
+                        <div class="last-seen-indicator" id="last-seen-back">Never</div>
+                        <p>Back of card (Answer)</p>
+                    </div>
+                </div>
+                <!-- Flag button overlay: shown when card is revealed -->
+                <button id="flag-overlay-button" class="flag-button flag-overlay" title="Report this card" aria-label="Report this card">🚩</button>
+            </div>
+            <div class="controls">
+                <div class="primary-controls">
+                    <button id="flip-button" class="nav-button">Flip</button>
+                </div>
+                <div id="rating-buttons" class="rating-buttons hidden">
+                    <button id="rate-again" class="rating-button rating-again" data-rating="1">Again</button>
+                    <button id="rate-known" class="rating-button rating-known" data-rating="3">Known</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Flag Card Modal -->
+    <div id="flag-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Report this card</h3>
+                <button id="modal-close" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Why are you reporting this card?</p>
+                <div class="flag-reasons">
+                    <label class="reason-option">
+                        <input type="radio" name="flag-reason" value="incorrect">
+                        <span>Incorrect answer</span>
+                    </label>
+                    <label class="reason-option">
+                        <input type="radio" name="flag-reason" value="spelling">
+                        <span>Spelling or grammar error</span>
+                    </label>
+                    <label class="reason-option">
+                        <input type="radio" name="flag-reason" value="confusing">
+                        <span>Confusing or unclear</span>
+                    </label>
+                    <label class="reason-option">
+                        <input type="radio" name="flag-reason" value="other">
+                        <span>Other issue</span>
+                    </label>
+                </div>
+                <div id="other-reason-input" class="other-reason hidden">
+                    <textarea id="other-reason-text" placeholder="Please describe the issue..." maxlength="250"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-flag" class="nav-button">Cancel</button>
+                <button id="submit-flag" class="nav-button" disabled>Report Card</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Application Scripts -->
+    <script src="js/config-loader.js" data-config-path="config/"></script>
+    <script src="js/supabase-client.js" type="module"></script>
+    <script src="js/auth.js" type="module"></script>
+    <script src="js/database.js" type="module"></script>
+    <script src="js/fsrs.js" type="module"></script>
+    <script src="js/sessionManager.js" type="module"></script>
+    <script src="js/navigation.js" type="module"></script>
+    <script src="js/userAvatar.js" type="module"></script>
+    <script src="js/slideMenu.js" type="module"></script>
+    <script src="js/logoLoader.js" type="module"></script>
+    <script src="js/script.js" type="module"></script>
+</body>
+</html> 

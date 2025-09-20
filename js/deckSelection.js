@@ -51,7 +51,7 @@ function calculateOverallStats(decks) {
 function renderDeckCard(deck) {
     const safeName = Validator.escapeHtml(deck.deck_name || 'Unnamed Deck');
     const safeDescription = Validator.escapeHtml(deck.deck_description || 'No description available');
-    const deckUrl = `index.html?deck=${encodeURIComponent(deck.deck_id)}`;
+    const deckUrl = `deck-study.html?deck=${encodeURIComponent(deck.deck_id)}`;
     
     // Determine deck status
     const isPublic = deck.deck_is_public;
@@ -76,6 +76,7 @@ function renderDeckCard(deck) {
                 </div>
             </div>
             <p class="deck-description">${safeDescription}</p>
+            <p class="deck-description practice-note">Practice mode – reviews do not affect your FSRS schedule.</p>
             <div class="deck-stats">
                 <span class="stat-item">
                     <span class="stat-label">Total:</span>
