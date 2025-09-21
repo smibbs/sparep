@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deck Management - nanotopic</title>
+    <link rel="stylesheet" href="css/styles.css?v=6">
+    <link rel="stylesheet" href="css/admin.css?v=7">
+    <link rel="stylesheet" href="css/spinner.css?v=1">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Access Control Loading State -->
+        <div id="access-loading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Checking admin access...</p>
+        </div>
+
+        <!-- Access Denied State -->
+        <div id="access-denied" class="error-state hidden">
+            <div class="error-content">
+                <p class="error-text">Access denied. Admin privileges required.</p>
+                <div class="error-actions">
+                    <a href="admin.html" class="nav-button">Back to Admin Dashboard</a>
+                    <button id="access-logout-button" class="nav-button">Sign Out</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deck Management Content -->
+        <div id="deck-designer-content" class="admin-content hidden">
+            <header class="admin-header">
+                <h1>Deck Management</h1>
+                <nav class="admin-header-controls">
+                    <a href="admin.html" class="btn btn-secondary">← Back to Admin</a>
+                    <button id="refresh-all" class="btn btn-primary">Refresh All</button>
+                    <div class="header-section-toggle">
+                        <button id="toggle-deck-overview" class="btn btn-outline active">Decks</button>
+                        <button id="toggle-path-browser" class="btn btn-outline">Paths</button>
+                        <button id="toggle-content-mgmt" class="btn btn-outline">Content</button>
+                        <button id="toggle-flagged-mgmt" class="btn btn-outline">Flagged</button>
+                        <button id="toggle-legacy-tools" class="btn btn-outline">Tools</button>
+                    </div>
+                </nav>
+            </header>
+
+            <!-- Section 1: Deck Overview -->
+            <section id="deck-overview-section" class="admin-main-section">
+                <div class="admin-section">
+                    <div class="section-header">
+                        <h3>Deck Overview</h3>
+                        <div class="section-controls">
+                            <input type="text" id="deck-search" placeholder="Search decks..." class="form-input-small">
+                            <select id="deck-visibility-filter" class="form-select-small">
+                                <option value="">All Decks</option>
+                                <option value="public">Public Only</option>
+                                <option value="private">Private Only</option>
+                            </select>
+                            <button id="apply-deck-filters" class="btn btn-small">Filter</button>
+                        </div>
+                    </div>
+                    <div id="deck-overview-table" class="data-table-container">
+                        <div class="loading-spinner"></div>
+                        <p>Loading decks...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Hierarchical Path Browser -->
+            <section id="path-browser-section" class="admin-main-section hidden">
+                <div class="admin-section">
+                    <div class="section-header">
+                        <h3>Hierarchical Path Browser</h3>
+                        <div class="section-controls">
+                            <input type="text" id="path-search" placeholder="Filter paths..." class="form-input-small">
+                            <button id="expand-all-paths" class="btn btn-small">Expand All</button>
+                            <button id="collapse-all-paths" class="btn btn-small">Collapse All</button>
+                        </div>
+                    </div>
+                    <div class="path-browser-container">
+                        <div id="path-breadcrumb" class="path-breadcrumb"></div>
+                        <div id="path-tree" class="path-tree">
+                            <div class="loading-spinner"></div>
+                            <p>Loading path structure...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Content Management -->
+            <section id="content-mgmt-section" class="admin-main-section hidden">
+                <div class="admin-section">
+                    <div class="section-header">
+                        <h3>Content Management</h3>
+                        <div class="section-controls">
+                            <span id="selected-path-display" class="selected-path">No path selected</span>
+                            <button id="bulk-hide" class="btn btn-small btn-warning">Hide All</button>
+                            <button id="bulk-show" class="btn btn-small btn-success">Show All</button>
+                            <button id="bulk-toggle" class="btn btn-small">Toggle All</button>
+                        </div>
+                    </div>
+                    <div id="content-details" class="content-details-container">
+                        <div class="empty-state">
+                            <p>Select a path from the Path Browser to manage its content</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: Flagged Card Management Hub -->
+            <section id="flagged-mgmt-section" class="admin-main-section hidden">
+                <div class="admin-section">
+                    <div class="section-header">
+                        <h3>Flagged Card Management</h3>
+                        <div class="section-controls">
+                            <select id="flag-reason-filter" class="form-select-small">
+                                <option value="">All Reasons</option>
+                                <option value="incorrect">Incorrect</option>
+                                <option value="spelling">Spelling</option>
+                                <option value="confusing">Confusing</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <select id="flag-status-filter" class="form-select-small">
+                                <option value="unresolved">Unresolved</option>
+                                <option value="resolved">Resolved</option>
+                                <option value="all">All</option>
+                            </select>
+                            <input type="text" id="flag-path-filter" placeholder="Filter by path..." class="form-input-small">
+                            <button id="apply-flag-filters" class="btn btn-small">Filter</button>
+                        </div>
+                    </div>
+
+                    <!-- Flag Statistics -->
+                    <div id="flag-statistics" class="flag-stats-container">
+                        <div class="stat-card">
+                            <h4>Total Flagged</h4>
+                            <span id="total-flagged-count">-</span>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Pending Flags</h4>
+                            <span id="pending-flags-count">-</span>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Resolved Today</h4>
+                            <span id="resolved-today-count">-</span>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Most Common</h4>
+                            <span id="common-flag-reason">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Bulk Actions for Flagged Cards -->
+                    <div class="bulk-actions-bar">
+                        <button id="select-all-flags" class="btn btn-small">Select All</button>
+                        <button id="bulk-resolve-dismiss" class="btn btn-small">Bulk Dismiss</button>
+                        <button id="bulk-resolve-hide" class="btn btn-small btn-warning">Bulk Hide</button>
+                        <button id="bulk-resolve-updated" class="btn btn-small btn-success">Mark Updated</button>
+                    </div>
+
+                    <!-- Flagged Cards Table -->
+                    <div id="flagged-cards-table" class="data-table-container">
+                        <div class="loading-spinner"></div>
+                        <p>Loading flagged cards...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 5: Legacy Tools -->
+            <section id="legacy-tools-section" class="admin-main-section hidden">
+                <div class="admin-section">
+                    <h3>Legacy Deck Tools</h3>
+
+                    <!-- Create New Deck Form -->
+                    <div class="legacy-tool">
+                        <h4>Create New Deck</h4>
+                        <div class="deck-creation-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="deck-name">Deck Name:</label>
+                                    <input type="text" id="deck-name" placeholder="Enter deck name (e.g., DECK1)" class="form-input" maxlength="100">
+                                </div>
+                                <div class="form-group">
+                                    <label for="deck-description">Description:</label>
+                                    <textarea id="deck-description" placeholder="Deck description" class="form-input" maxlength="500" rows="2"></textarea>
+                                </div>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="deck-is-public">
+                                    <span>Make this deck public (all users can study from it)</span>
+                                </label>
+                            </div>
+                            <div class="form-actions">
+                                <button id="create-deck" class="btn btn-success">Create Deck</button>
+                                <button id="clear-form" class="btn btn-secondary">Clear Form</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Add Cards by Path Tool -->
+                    <div class="legacy-tool">
+                        <h4>Add Cards by LTREE Path</h4>
+                        <div class="path-management-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="target-deck">Select Deck:</label>
+                                    <select id="target-deck" class="form-select">
+                                        <option value="">Select a deck...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="card-path">LTREE Path:</label>
+                                    <input type="text" id="card-path" placeholder="Enter path (e.g., 7.1.3)" class="form-input">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button id="preview-cards" class="btn btn-primary">Preview Cards</button>
+                                <button id="add-cards-to-deck" class="btn btn-success" disabled>Add All Cards</button>
+                            </div>
+
+                            <!-- Preview Results -->
+                            <div id="card-preview" class="card-preview-container hidden">
+                                <h4>Cards to be added:</h4>
+                                <div id="preview-summary" class="preview-summary"></div>
+                                <div id="preview-list" class="preview-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Flag Details Modal -->
+    <div id="flag-details-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Flag Details</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="flag-details-content">
+                    <!-- Content will be populated by JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="edit-flagged-card" class="btn btn-primary">Edit Card</button>
+                <button id="resolve-flag-dismiss" class="btn btn-secondary">Dismiss Flag</button>
+                <button id="resolve-flag-hide" class="btn btn-warning">Hide Card</button>
+                <button id="resolve-flag-updated" class="btn btn-success">Mark Updated</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card Edit Modal -->
+    <div id="card-edit-modal" class="modal hidden">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Edit Card Content</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="edit-card-question">Question:</label>
+                    <textarea id="edit-card-question" class="form-input" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-card-answer">Answer:</label>
+                    <textarea id="edit-card-answer" class="form-input" rows="4"></textarea>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="edit-card-public">
+                        <span>Make this card public</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-card-changes" class="btn btn-success">Save Changes</button>
+                <button id="cancel-card-edit" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Resolution Modal -->
+    <div id="bulk-resolution-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Bulk Flag Resolution</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to resolve <span id="bulk-resolution-count">0</span> flags.</p>
+                <div class="form-group">
+                    <label for="bulk-resolution-comment">Resolution Comment (optional):</label>
+                    <textarea id="bulk-resolution-comment" class="form-input" rows="2" placeholder="Add a comment about the resolution..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="confirm-bulk-resolution" class="btn btn-primary">Confirm Resolution</button>
+                <button id="cancel-bulk-resolution" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Configuration Loader -->
+    <script src="js/config-loader.js" data-config-path="config/"></script>
+    <!-- Supabase Client Initialization -->
+    <script src="js/supabase-client.js" type="module"></script>
+
+    <script type="module">
+        import adminGuard from './js/admin-guard.js';
+        import auth from './js/auth.js';
+
+        // IMMEDIATE ADMIN PROTECTION - Runs before any content loads
+        (async function immediateAdminProtection() {
+            try {
+                // Show loading immediately
+                document.getElementById('access-loading').classList.remove('hidden');
+                document.getElementById('access-denied').classList.add('hidden');
+                document.getElementById('deck-designer-content').classList.add('hidden');
+
+                // Guard will redirect unauthorized users before this returns
+                const accessGranted = await adminGuard.protect({
+                    redirectOnFail: 'app', // Redirect to main app instead of login for UX
+                    showLoading: false     // Use our custom loading UI
+                });
+
+                if (accessGranted) {
+                    // Access granted - initialize deck management
+                    await initDeckManagement();
+                } else {
+                    // Access denied
+                    document.getElementById('access-loading').classList.add('hidden');
+                    document.getElementById('access-denied').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('[DeckManagement] Protection check failed:', error);
+                // Show error state
+                document.getElementById('access-loading').classList.add('hidden');
+                document.getElementById('access-denied').classList.remove('hidden');
+            }
+        })();
+
+        async function initDeckManagement() {
+            try {
+                // Loading state is already shown from the parent function
+                console.log('[DeckManagement] Starting initialization...');
+
+                // Load deck management service
+                const { default: DeckManager } = await import('./js/deck-management.js?v=' + Date.now());
+                console.log('[DeckManagement] DeckManager class loaded');
+
+                const deckManager = new DeckManager();
+                console.log('[DeckManagement] DeckManager instance created');
+
+                // Set up deck management interface
+                window.deckManager = deckManager;
+                console.log('[DeckManagement] Starting deckManager.initialize()...');
+                await deckManager.initialize();
+                console.log('[DeckManagement] deckManager.initialize() completed');
+
+                // Start periodic validation using AdminGuard
+                adminGuard.startPeriodicValidation(5, 2); // 5 minutes, max 2 failures
+
+                // Set up logout handler
+                const logoutBtn = document.getElementById('access-logout-button');
+                logoutBtn?.addEventListener('click', async () => {
+                    try {
+                        await auth.signOut();
+                    } catch (error) {
+                        console.error('Logout error:', error);
+                        // Still redirect on error
+                        adminGuard.redirectToLogin('Logout completed');
+                    }
+                });
+
+                // Show deck management content
+                console.log('[DeckManagement] Hiding loading, showing content');
+                document.getElementById('access-loading').classList.add('hidden');
+                document.getElementById('deck-designer-content').classList.remove('hidden');
+                console.log('[DeckManagement] Initialization complete!');
+
+            } catch (error) {
+                console.error('Error initializing deck management:', error);
+                console.error('Error stack:', error.stack);
+                document.getElementById('access-loading').classList.add('hidden');
+                document.getElementById('access-denied').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

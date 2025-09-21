@@ -5,13 +5,37 @@ import slideMenu from './slideMenu.js';
 import { Validator } from './validator.js';
 
 /**
- * Get available decks with card counts for the current user
+ * Get available subjects with card counts for the current user
+ * @param {string} userId
+ * @returns {Promise<Array>} Array of subjects with card counts
+ */
+async function getAvailableSubjects(userId) {
+    const supabase = await getSupabaseClient();
+
+    try {
+        // Get all subjects with card availability using our new view
+        const { data: subjects, error } = await supabase
+            .from('v_subject_availability')
+            .select('*')
+            .order('subject_path, subject_name');
+
+        if (error) throw error;
+
+        return subjects || [];
+    } catch (error) {
+        console.error('Error getting available subjects:', error);
+        throw error;
+    }
+}
+
+/**
+ * Get available decks with card counts for the current user (legacy)
  * @param {string} userId
  * @returns {Promise<Array>} Array of decks with card counts
  */
 async function getAvailableDecks(userId) {
     const supabase = await getSupabaseClient();
-    
+
     try {
         // Get all decks with counts using the optimized view
         // This respects RLS policies - users see public decks, admins see all
@@ -20,9 +44,9 @@ async function getAvailableDecks(userId) {
             .select('*')
             .eq('user_id', userId)
             .order('deck_name');
-            
+
         if (error) throw error;
-        
+
         return decks || [];
     } catch (error) {
         console.error('Error getting available decks:', error);
@@ -31,20 +55,80 @@ async function getAvailableDecks(userId) {
 }
 
 /**
- * Get overall statistics for all decks combined
- * @param {Array} decks - Array of deck data from v_due_counts_by_deck
+ * Get overall statistics for all subjects combined
+ * @param {Array} subjects - Array of subject data from v_subject_availability
  * @returns {Object} Combined statistics
  */
-function calculateOverallStats(decks) {
-    return decks.reduce((totals, deck) => ({
-        total_cards: totals.total_cards + (deck.total_cards || 0),
-        total_due: totals.total_due + (deck.total_due_count || 0),
-        total_new: totals.total_new + (deck.new_count || 0)
+function calculateOverallStats(subjects) {
+    return subjects.reduce((totals, subject) => ({
+        total_cards: totals.total_cards + (subject.total_cards || 0),
+        total_due: totals.total_due + (subject.due_cards || 0),
+        total_new: totals.total_new + (subject.available_new_cards || 0)
     }), { total_cards: 0, total_due: 0, total_new: 0 });
 }
 
 /**
- * Render a single deck card
+ * Render a single subject card
+ * @param {Object} subject - Subject data from v_subject_availability
+ * @returns {string} HTML string for subject card
+ */
+function renderSubjectCard(subject) {
+    const safeName = Validator.escapeHtml(subject.subject_name || 'Unnamed Subject');
+    const safeDescription = Validator.escapeHtml(subject.description || 'No description available');
+    const subjectUrl = `index.html?subject=${encodeURIComponent(subject.subject_path)}`;
+
+    // Determine subject status
+    const isPublic = subject.is_public;
+    const hasCards = (subject.total_cards || 0) > 0;
+    const hasDueCards = (subject.due_cards || 0) > 0;
+    const hasNewCards = (subject.available_new_cards || 0) > 0;
+
+    // Generate status indicators
+    let statusIndicators = '';
+    if (isPublic) {
+        statusIndicators += '<span class="deck-status public" title="Public subject"></span>';
+    }
+    if (hasDueCards) {
+        statusIndicators += '<span class="deck-status due" title="Has cards due for review"></span>';
+    }
+    if (hasNewCards) {
+        statusIndicators += '<span class="deck-status new" title="Has new cards to learn"></span>';
+    }
+
+    // Show path information
+    const pathDisplay = subject.subject_path ? `<span class="subject-path">Path: ${Validator.escapeHtml(subject.subject_path)}</span>` : '';
+
+    return `
+        <a href="${subjectUrl}" class="deck-card subject-card ${hasCards ? '' : 'empty-deck'}">
+            <div class="deck-header">
+                <h3 class="deck-name">${safeName}</h3>
+                <div class="deck-indicators">
+                    ${statusIndicators}
+                </div>
+            </div>
+            <p class="deck-description">${safeDescription}</p>
+            ${pathDisplay}
+            <div class="deck-stats">
+                <span class="stat-item">
+                    <span class="stat-label">Total:</span>
+                    <span class="stat-value">${subject.total_cards || 0}</span>
+                </span>
+                <span class="stat-item">
+                    <span class="stat-label">Due:</span>
+                    <span class="stat-value ${hasDueCards ? 'has-due' : ''}">${subject.due_cards || 0}</span>
+                </span>
+                <span class="stat-item">
+                    <span class="stat-label">New:</span>
+                    <span class="stat-value ${hasNewCards ? 'has-new' : ''}">${subject.available_new_cards || 0}</span>
+                </span>
+            </div>
+            ${!hasCards ? '<div class="empty-deck-overlay">No cards available</div>' : ''}
+        </a>
+    `;
+}
+
+/**
+ * Render a single deck card (legacy)
  * @param {Object} deck - Deck data from v_due_counts_by_deck
  * @returns {string} HTML string for deck card
  */
@@ -52,12 +136,12 @@ function renderDeckCard(deck) {
     const safeName = Validator.escapeHtml(deck.deck_name || 'Unnamed Deck');
     const safeDescription = Validator.escapeHtml(deck.deck_description || 'No description available');
     const deckUrl = `index.html?deck=${encodeURIComponent(deck.deck_id)}`;
-    
+
     // Determine deck status
     const isPublic = deck.deck_is_public;
     const hasCards = (deck.total_cards || 0) > 0;
     const hasDueCards = (deck.total_due_count || 0) > 0;
-    
+
     // Generate status indicators
     let statusIndicators = '';
     if (isPublic) {
@@ -66,7 +150,7 @@ function renderDeckCard(deck) {
     if (hasDueCards) {
         statusIndicators += '<span class="deck-status due" title="Has cards due for review"></span>';
     }
-    
+
     return `
         <a href="${deckUrl}" class="deck-card ${hasCards ? '' : 'empty-deck'}">
             <div class="deck-header">
@@ -207,40 +291,50 @@ function getDeckSelectionFriendlyMessage(message) {
 
 async function loadDeckSelection() {
     setDeckSelectionButtonsDisabled(true);
-    
+
     // Start loading state
     await transitionDeckSelectionToState('loading');
-    
+
     try {
         // Get user
         const user = await window.authService.getCurrentUser();
         if (!user) throw new Error('Not logged in');
-        
-        // Fetch available decks
-        const decks = await getAvailableDecks(user.id);
-        
+
+        // Fetch available subjects with LTREE paths
+        const subjects = await getAvailableSubjects(user.id);
+
         // Calculate overall stats for "Study All" card
-        const overallStats = calculateOverallStats(decks);
+        const overallStats = calculateOverallStats(subjects);
         updateStudyAllStats(overallStats);
-        
-        // Render deck cards
+
+        // Render subject cards
         const deckGrid = document.getElementById('deck-grid');
         const noDecksMessage = document.getElementById('no-decks-message');
-        
-        if (decks.length === 0) {
+
+        if (subjects.length === 0) {
             deckGrid.innerHTML = '';
             noDecksMessage.classList.remove('hidden');
         } else {
             noDecksMessage.classList.add('hidden');
-            deckGrid.innerHTML = decks.map(deck => renderDeckCard(deck)).join('');
+            // Filter out subjects with no available cards and render
+            const availableSubjects = subjects.filter(subject =>
+                (subject.total_cards || 0) > 0 &&
+                ((subject.available_new_cards || 0) > 0 || (subject.due_cards || 0) > 0)
+            );
+
+            if (availableSubjects.length === 0) {
+                deckGrid.innerHTML = '<div class="no-cards-available">All subjects completed! Check back later for new content or due reviews.</div>';
+            } else {
+                deckGrid.innerHTML = availableSubjects.map(subject => renderSubjectCard(subject)).join('');
+            }
         }
-        
+
         // Transition to results view
         await transitionDeckSelectionToState('results');
     } catch (e) {
-        console.error('Error loading deck selection:', e);
+        console.error('Error loading subject selection:', e);
         // Transition to error state with friendly message
-        await transitionDeckSelectionToState('error', e.message || 'Failed to load decks');
+        await transitionDeckSelectionToState('error', e.message || 'Failed to load subjects');
     } finally {
         setDeckSelectionButtonsDisabled(false);
     }
@@ -265,7 +359,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Initialize navigation controller
     navigationController = new NavigationController();
     
-    // Phase 1: Deck selection disabled - redirect to main study page
-    console.log('🔄 Deck selection disabled in Phase 1 - redirecting to main study page');
-    window.location.href = 'index.html';
+    // Initialize deck selection functionality
+    setupDeckSelectionEvents();
+    loadDeckSelection();
 });
