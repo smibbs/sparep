@@ -61,30 +61,45 @@ class AdminGuard {
      * @returns {Promise<boolean>} True if user is verified admin
      */
     async verifyAdminAccess() {
+        const startTime = Date.now();
         try {
             await this.initialize();
-            
-            const { data: { user }, error: userError } = await this.supabaseClient.auth.getUser();
-            if (userError || !user) {
-                return false;
-            }
-            
-            // Query profiles table to verify admin status server-side
-            // RLS policies ensure only the user can query their own profile
-            const { data: profile, error } = await this.supabaseClient
-                .from('profiles')
-                .select('is_admin')
-                .eq('id', user.id)
-                .single();
-            
-            if (error) {
-                console.error('[AdminGuard] Admin verification query error:', error);
-                return false;
-            }
-            
-            return profile?.is_admin === true;
+
+            // Add timeout to prevent hanging
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Admin verification timeout')), 10000)
+            );
+
+            const verificationPromise = (async () => {
+                const { data: { user }, error: userError } = await this.supabaseClient.auth.getUser();
+                if (userError || !user) {
+                    return false;
+                }
+
+                // Query profiles table to verify admin status server-side
+                // RLS policies ensure only the user can query their own profile
+                const { data: profile, error } = await this.supabaseClient
+                    .from('profiles')
+                    .select('is_admin')
+                    .eq('id', user.id)
+                    .single();
+
+                if (error) {
+                    console.error('[AdminGuard] Admin verification query error:', error);
+                    return false;
+                }
+
+                return profile?.is_admin === true;
+            })();
+
+            const result = await Promise.race([verificationPromise, timeoutPromise]);
+            const duration = Date.now() - startTime;
+            console.log(`[AdminGuard] Admin verification completed in ${duration}ms`);
+
+            return result;
         } catch (error) {
-            console.error('[AdminGuard] Admin verification error:', error);
+            const duration = Date.now() - startTime;
+            console.error(`[AdminGuard] Admin verification error after ${duration}ms:`, error);
             return false;
         }
     }
@@ -209,6 +224,9 @@ class AdminGuard {
      * @returns {Promise<boolean>} True if access granted
      */
     async protect(options = {}) {
+        const protectStartTime = Date.now();
+        console.log('[AdminGuard] Starting protection check...');
+
         const {
             redirectOnFail = 'login',
             showLoading = true
@@ -220,8 +238,13 @@ class AdminGuard {
             }
 
             // Step 1: Check authentication
+            console.log('[AdminGuard] Checking authentication...');
+            const authStartTime = Date.now();
             const isAuth = await this.isAuthenticated();
+            console.log(`[AdminGuard] Authentication check completed in ${Date.now() - authStartTime}ms`);
+
             if (!isAuth) {
+                console.log('[AdminGuard] Authentication failed, redirecting...');
                 if (redirectOnFail === 'login') {
                     this.redirectToLogin('User not authenticated');
                 } else {
@@ -231,8 +254,11 @@ class AdminGuard {
             }
 
             // Step 2: Verify admin access
+            console.log('[AdminGuard] Verifying admin access...');
             const isAdmin = await this.verifyAdminAccess();
+
             if (!isAdmin) {
+                console.log('[AdminGuard] Admin verification failed, redirecting...');
                 if (redirectOnFail === 'login') {
                     this.redirectToLogin('Admin access required');
                 } else {
@@ -242,26 +268,30 @@ class AdminGuard {
             }
 
             // Access granted - show page content
+            const totalDuration = Date.now() - protectStartTime;
+            console.log(`[AdminGuard] Protection check PASSED in ${totalDuration}ms`);
+
             if (showLoading) {
                 this.hideAuthLoading();
             }
-            
+
             return true;
 
         } catch (error) {
-            console.error('[AdminGuard] Protection check failed:', error);
-            
+            const totalDuration = Date.now() - protectStartTime;
+            console.error(`[AdminGuard] Protection check FAILED after ${totalDuration}ms:`, error);
+
             if (showLoading) {
                 this.hideAuthLoading();
             }
-            
+
             // On error, deny access for security
             if (redirectOnFail === 'login') {
                 this.redirectToLogin('Authentication error occurred');
             } else {
                 this.redirectToApp('Authentication error occurred');
             }
-            
+
             return false;
         }
     }
