@@ -202,7 +202,10 @@ BEGIN
     END IF;
     
     IF v_current_card.due_at IS NOT NULL AND v_current_card.last_reviewed_at IS NOT NULL THEN
-        v_scheduled_days := EXTRACT(EPOCH FROM (v_current_card.due_at - v_current_card.last_reviewed_at)) / 86400.0;
+        v_scheduled_days := GREATEST(
+            EXTRACT(EPOCH FROM (v_current_card.due_at - v_current_card.last_reviewed_at)) / 86400.0,
+            0.0
+        );
     ELSE
         v_scheduled_days := 0;
     END IF;

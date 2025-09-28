@@ -710,7 +710,7 @@ class DatabaseService {
     async getDueCardsWithLimit(userId, maxCards) {
         try {
             validateUserId(userId, 'getting due cards with limit');
-            
+
             const supabase = await this.getSupabase();
 
             // Get user profile to determine card filtering and admin status
@@ -755,7 +755,7 @@ class DatabaseService {
     async getNewCardsWithLimit(userId, minCards, maxCards) {
         try {
             validateUserId(userId, 'getting new cards with limit');
-            
+
             const supabase = await this.getSupabase();
 
             // Get new cards from the view
@@ -769,9 +769,9 @@ class DatabaseService {
             const { data: newCards, error: newError } = await newQuery
                 .order('added_at', { ascending: true })  // Oldest new cards first
                 .limit(maxCards);
-                
+
             if (newError) throw newError;
-            
+
             return newCards || [];
         } catch (error) {
             const handledError = handleError(error, 'getNewCardsWithLimit');
@@ -1002,7 +1002,7 @@ class DatabaseService {
 
             // Get user's learning stage
             const userStage = await this.getUserLearningStage(userId);
-            
+
             // Get available card counts
             const [dueCards, newCards] = await Promise.all([
                 this.getDueCardsWithLimit(userId, sessionSize), // Get up to full session of due cards for counting
@@ -1173,18 +1173,6 @@ class DatabaseService {
             
             const supabase = await this.getSupabase();
             
-            // First get all existing card template IDs for this user
-            const { data: existingUserCards, error: existingError } = await supabase
-                .from('user_cards')
-                .select('card_template_id')
-                .eq('user_id', userId);
-                
-            if (existingError) {
-                throw existingError;
-            }
-            
-            const existingCardIds = (existingUserCards || []).map(uc => uc.card_template_id);
-            
             // Performance optimization: Check if we likely have all cards before expensive query
             // Get total count of public, available cards (these are what users get progress for)
             const { count: availableCardCount, error: countError } = await supabase
@@ -1192,28 +1180,29 @@ class DatabaseService {
                 .select('*', { count: 'exact', head: true })
                 .eq('is_public', true)
                 .eq('flagged_for_review', false);
-            
+
             if (countError) {
                 console.warn('Could not get card count, proceeding with full check:', countError);
-            } else if (existingCardIds.length >= availableCardCount) {
-                // User already has progress for all (or more) available cards - no missing cards
-                console.log(`✅ User has progress for ${existingCardIds.length}/${availableCardCount} available cards - skipping initialization`);
-                return { initialized: 0, skipped: 0 };
+            } else {
+                // Quick check: count existing user cards
+                const { count: existingCardCount, error: existingCountError } = await supabase
+                    .from('user_cards')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', userId);
+
+                if (!existingCountError && existingCardCount >= availableCardCount) {
+                    // User already has progress for all (or more) available cards - no missing cards
+                    console.log(`✅ User has progress for ${existingCardCount}/${availableCardCount} available cards - skipping initialization`);
+                    return { initialized: 0, skipped: 0 };
+                }
             }
-            
-            // Get missing card_templates (limit to public, unflagged cards only and cap at 100 for safety)
-            let query = supabase
-                .from('card_templates')
-                .select('id, subject_id')
-                .eq('is_public', true)
-                .eq('flagged_for_review', false)
-                .limit(100);  // Safety limit - prevent massive queries
-                
-            if (existingCardIds.length > 0) {
-                query = query.not('id', 'in', `(${existingCardIds.join(',')})`);
-            }
-            
-            const { data: missingCards, error: missingError } = await query;
+
+            // Use efficient RPC function to get missing cards (avoids massive IN clause)
+            const { data: missingCards, error: missingError } = await supabase
+                .rpc('get_missing_user_cards', {
+                    p_user_id: userId,
+                    p_limit: 100
+                });
                 
             if (missingError) {
                 throw missingError;

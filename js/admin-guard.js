@@ -63,7 +63,9 @@ class AdminGuard {
     async verifyAdminAccess() {
         const startTime = Date.now();
         try {
+            console.log('[AdminGuard] Starting admin verification...');
             await this.initialize();
+            console.log('[AdminGuard] Supabase client initialized');
 
             // Add timeout to prevent hanging
             const timeoutPromise = new Promise((_, reject) =>
@@ -71,13 +73,17 @@ class AdminGuard {
             );
 
             const verificationPromise = (async () => {
+                console.log('[AdminGuard] Getting user...');
                 const { data: { user }, error: userError } = await this.supabaseClient.auth.getUser();
                 if (userError || !user) {
+                    console.log('[AdminGuard] No user found or error:', userError);
                     return false;
                 }
+                console.log('[AdminGuard] User found, ID:', user.id);
 
                 // Query profiles table to verify admin status server-side
                 // RLS policies ensure only the user can query their own profile
+                console.log('[AdminGuard] Querying profiles table...');
                 const { data: profile, error } = await this.supabaseClient
                     .from('profiles')
                     .select('is_admin')
@@ -88,8 +94,11 @@ class AdminGuard {
                     console.error('[AdminGuard] Admin verification query error:', error);
                     return false;
                 }
+                console.log('[AdminGuard] Profile data:', profile);
 
-                return profile?.is_admin === true;
+                const isAdmin = profile?.is_admin === true;
+                console.log('[AdminGuard] Is admin:', isAdmin);
+                return isAdmin;
             })();
 
             const result = await Promise.race([verificationPromise, timeoutPromise]);

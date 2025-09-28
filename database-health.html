@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Health - nanotopic Admin</title>
+    <link rel="stylesheet" href="css/styles.css?v=6">
+    <link rel="stylesheet" href="css/admin.css?v=7">
+    <link rel="stylesheet" href="css/slide-menu.css?v=1">
+    <link rel="stylesheet" href="css/spinner.css?v=1">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+</head>
+<body>
+    <div id="app-container">
+        <!-- Access Control Loading State -->
+        <div id="access-loading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Checking admin access...</p>
+        </div>
+
+        <!-- Access Denied State -->
+        <div id="access-denied" class="error-state hidden">
+            <div class="error-content">
+                <p class="error-text">Access denied. Admin privileges required.</p>
+                <div class="error-actions">
+                    <a href="index.html" class="nav-button">Return to Study</a>
+                    <button id="access-logout-button" class="nav-button">Sign Out</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Health Content -->
+        <div id="health-content" class="admin-content hidden">
+            <header class="admin-header">
+                <h1>Database Health Dashboard</h1>
+                <nav class="admin-header-controls">
+                    <button id="refresh-data" class="btn btn-primary">🔄 Refresh</button>
+                    <button id="export-report" class="btn btn-success">📊 Export Report</button>
+                    <a href="admin.html" class="btn btn-secondary">← Admin Dashboard</a>
+                </nav>
+            </header>
+
+            <!-- System Health Overview -->
+            <section class="health-overview">
+                <div class="health-status-bar">
+                    <div class="system-status">
+                        <span class="status-label">System Health:</span>
+                        <span id="overall-health" class="status-indicator">⚡ Excellent</span>
+                    </div>
+                    <div class="last-updated">
+                        <span>Last Updated: <span id="last-refresh-time">Loading...</span></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Key Metrics Summary -->
+            <section class="metrics-summary">
+                <div class="summary-stats">
+                    <div class="stat-card content-stat">
+                        <h4>Total Content</h4>
+                        <span id="total-content-count">-</span>
+                        <div class="stat-breakdown">
+                            <small><span id="cards-count">-</span> Cards • <span id="decks-count">-</span> Decks • <span id="subjects-count">-</span> Subjects</small>
+                        </div>
+                    </div>
+                    <div class="stat-card users-stat">
+                        <h4>User Activity</h4>
+                        <span id="active-users-count">-</span>
+                        <div class="stat-breakdown">
+                            <small><span id="total-users-count">-</span> Total • <span id="admin-users-count">-</span> Admins</small>
+                        </div>
+                    </div>
+                    <div class="stat-card health-stat">
+                        <h4>Health Score</h4>
+                        <span id="health-score">-</span>
+                        <div class="stat-breakdown">
+                            <small id="health-status-text">Calculating...</small>
+                        </div>
+                    </div>
+                    <div class="stat-card alerts-stat">
+                        <h4>Alerts</h4>
+                        <span id="alert-count">-</span>
+                        <div class="stat-breakdown">
+                            <small><span id="flagged-count">-</span> Flagged • <span id="unassigned-count">-</span> Unassigned</small>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <div class="charts-grid">
+                    <!-- Content Distribution Chart -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3>Content Distribution</h3>
+                            <div class="chart-controls">
+                                <select id="content-chart-type" class="form-select-small">
+                                    <option value="doughnut">Doughnut</option>
+                                    <option value="bar">Bar Chart</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="content-distribution-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Activity Timeline Chart -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3>Activity Timeline</h3>
+                            <div class="chart-controls">
+                                <select id="timeline-period" class="form-select-small">
+                                    <option value="7">Last 7 Days</option>
+                                    <option value="30">Last 30 Days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="activity-timeline-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Card Status Distribution -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3>Card Status</h3>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="card-status-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Deck Performance Chart -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3>Top Subjects by Cards</h3>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="subject-performance-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Detailed Tables Section -->
+            <section class="detailed-data">
+                <div class="data-tabs">
+                    <button class="data-tab active" data-tab="unassigned">Unassigned Cards</button>
+                    <button class="data-tab" data-tab="flagged">Flagged Content</button>
+                    <button class="data-tab" data-tab="performance">Performance Issues</button>
+                    <button class="data-tab" data-tab="subjects">Subject Health</button>
+                </div>
+
+                <!-- Unassigned Cards Table -->
+                <div id="unassigned-tab" class="tab-content active">
+                    <div class="table-header">
+                        <h3>Cards Without Deck Assignments</h3>
+                        <div class="table-controls">
+                            <span id="unassigned-cards-count" class="count-badge">0 cards</span>
+                            <button id="assign-all-cards" class="btn btn-warning btn-small">🔧 Auto-Assign All</button>
+                        </div>
+                    </div>
+                    <div class="data-table-container">
+                        <table id="unassigned-cards-table" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Question</th>
+                                    <th>Subject</th>
+                                    <th>Path</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="unassigned-cards-body">
+                                <tr><td colspan="5" class="loading-cell">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Flagged Content Table -->
+                <div id="flagged-tab" class="tab-content">
+                    <div class="table-header">
+                        <h3>Flagged Content Requiring Review</h3>
+                        <div class="table-controls">
+                            <span id="flagged-content-count" class="count-badge warning">0 items</span>
+                            <button id="bulk-review-flagged" class="btn btn-danger btn-small">📝 Bulk Review</button>
+                        </div>
+                    </div>
+                    <div class="data-table-container">
+                        <table id="flagged-content-table" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Content</th>
+                                    <th>Flag Reason</th>
+                                    <th>Flagged By</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="flagged-content-body">
+                                <tr><td colspan="5" class="loading-cell">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Performance Issues Table -->
+                <div id="performance-tab" class="tab-content">
+                    <div class="table-header">
+                        <h3>Cards with Performance Issues</h3>
+                        <div class="table-controls">
+                            <span id="performance-issues-count" class="count-badge">0 cards</span>
+                        </div>
+                    </div>
+                    <div class="data-table-container">
+                        <table id="performance-table" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Question</th>
+                                    <th>Success Rate</th>
+                                    <th>Avg Response Time</th>
+                                    <th>Total Reviews</th>
+                                    <th>Issue Type</th>
+                                </tr>
+                            </thead>
+                            <tbody id="performance-body">
+                                <tr><td colspan="5" class="loading-cell">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Subject Health Table -->
+                <div id="subjects-tab" class="tab-content">
+                    <div class="table-header">
+                        <h3>Subject Health Overview</h3>
+                        <div class="table-controls">
+                            <span id="subjects-health-count" class="count-badge">0 subjects</span>
+                        </div>
+                    </div>
+                    <div class="data-table-container">
+                        <table id="subjects-table" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Subject</th>
+                                    <th>Path</th>
+                                    <th>Cards</th>
+                                    <th>Public Cards</th>
+                                    <th>Health Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="subjects-body">
+                                <tr><td colspan="5" class="loading-cell">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Configuration Loader -->
+    <script src="js/config-loader.js" data-config-path="config/"></script>
+    <!-- Supabase Client Initialization -->
+    <script src="js/supabase-client.js" type="module"></script>
+
+    <script type="module">
+        import adminGuard from './js/admin-guard.js';
+        import auth from './js/auth.js';
+
+        // IMMEDIATE ADMIN PROTECTION
+        (async function immediateAdminProtection() {
+            try {
+                const accessGranted = await adminGuard.protect({
+                    redirectOnFail: 'app',
+                    showLoading: false
+                });
+
+                if (accessGranted) {
+                    await initHealthDashboard();
+                }
+            } catch (error) {
+                console.error('[Database Health] Protection check failed:', error);
+            }
+        })();
+
+        async function initHealthDashboard() {
+            try {
+                document.getElementById('access-loading').classList.remove('hidden');
+                document.getElementById('access-denied').classList.add('hidden');
+                document.getElementById('health-content').classList.add('hidden');
+
+                // Load database health module
+                const { default: DatabaseHealth } = await import('./js/database-health.js');
+                const healthDashboard = new DatabaseHealth();
+
+                // Initialize slide menu
+                const { default: slideMenu } = await import('./js/slideMenu.js');
+                await slideMenu.initialize();
+
+                // Set up dashboard
+                window.healthDashboard = healthDashboard;
+                await healthDashboard.initialize();
+
+                // Start periodic validation
+                adminGuard.startPeriodicValidation(5, 2);
+
+                // Set up logout handler
+                const logoutBtn = document.getElementById('access-logout-button');
+                logoutBtn?.addEventListener('click', async () => {
+                    try {
+                        await auth.signOut();
+                    } catch (error) {
+                        console.error('Logout error:', error);
+                        adminGuard.redirectToLogin('Logout completed');
+                    }
+                });
+
+                // Show content
+                document.getElementById('access-loading').classList.add('hidden');
+                document.getElementById('health-content').classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Error initializing database health dashboard:', error);
+                document.getElementById('access-loading').classList.add('hidden');
+                document.getElementById('access-denied').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -13,7 +13,7 @@ async function getAvailableSubjects(userId) {
     const supabase = await getSupabaseClient();
 
     try {
-        // Get all subjects with card availability using our new view
+        // Get all subjects with card availability using our updated view
         const { data: subjects, error } = await supabase
             .from('v_subject_availability')
             .select('*')
@@ -29,7 +29,7 @@ async function getAvailableSubjects(userId) {
 }
 
 /**
- * Get available decks with card counts for the current user (legacy)
+ * Get available decks with card counts for the current user (legacy - kept for compatibility)
  * @param {string} userId
  * @returns {Promise<Array>} Array of decks with card counts
  */
@@ -37,12 +37,10 @@ async function getAvailableDecks(userId) {
     const supabase = await getSupabaseClient();
 
     try {
-        // Get all decks with counts using the optimized view
-        // This respects RLS policies - users see public decks, admins see all
+        // Get all decks with card availability using deck view
         const { data: decks, error } = await supabase
-            .from('v_due_counts_by_deck')
+            .from('v_deck_availability')
             .select('*')
-            .eq('user_id', userId)
             .order('deck_name');
 
         if (error) throw error;
@@ -68,7 +66,81 @@ function calculateOverallStats(subjects) {
 }
 
 /**
- * Render a single subject card
+ * Render a single deck card
+ * @param {Object} deck - Deck data from v_deck_availability
+ * @returns {string} HTML string for deck card
+ */
+function renderDeckCard(deck) {
+    const safeName = Validator.escapeHtml(deck.deck_name || 'Unnamed Deck');
+    const safeDescription = Validator.escapeHtml(deck.description || 'No description available');
+    const deckUrl = `index.html?deck=${encodeURIComponent(deck.deck_id)}`;
+
+    // Determine deck status
+    const isPublic = deck.is_public;
+    const hasCards = (deck.total_cards || 0) > 0;
+    const hasDueCards = (deck.due_cards || 0) > 0;
+    const hasNewCards = (deck.available_new_cards || 0) > 0;
+    const hasStudyableCards = hasDueCards || hasNewCards;
+
+    // Generate status indicators
+    let statusIndicators = '';
+    if (isPublic) {
+        statusIndicators += '<span class="deck-status public" title="Public deck"></span>';
+    }
+    if (hasDueCards) {
+        statusIndicators += '<span class="deck-status due" title="Has cards due for review"></span>';
+    }
+    if (hasNewCards) {
+        statusIndicators += '<span class="deck-status new" title="Has new cards to learn"></span>';
+    }
+
+    // Determine CSS classes and overlay message
+    let deckClasses = 'deck-card';
+    let overlayMessage = '';
+
+    if (!hasCards) {
+        deckClasses += ' empty-deck';
+        overlayMessage = '<div class="deck-overlay">No cards available</div>';
+    } else if (!hasStudyableCards) {
+        deckClasses += ' no-study-available';
+        overlayMessage = '<div class="deck-overlay">No cards due for review</div>';
+    }
+
+    // Create the deck element - use div instead of anchor if not clickable
+    const isClickable = hasStudyableCards;
+    const elementTag = isClickable ? 'a' : 'div';
+    const hrefAttribute = isClickable ? `href="${deckUrl}"` : '';
+
+    return `
+        <${elementTag} ${hrefAttribute} class="${deckClasses}">
+            <div class="deck-header">
+                <h3 class="deck-name">${safeName}</h3>
+                <div class="deck-indicators">
+                    ${statusIndicators}
+                </div>
+            </div>
+            <p class="deck-description">${safeDescription}</p>
+            <div class="deck-stats">
+                <span class="stat-item">
+                    <span class="stat-label">Total:</span>
+                    <span class="stat-value">${deck.total_cards || 0}</span>
+                </span>
+                <span class="stat-item">
+                    <span class="stat-label">Due:</span>
+                    <span class="stat-value ${hasDueCards ? 'has-due' : ''}">${deck.due_cards || 0}</span>
+                </span>
+                <span class="stat-item">
+                    <span class="stat-label">New:</span>
+                    <span class="stat-value ${hasNewCards ? 'has-new' : ''}">${deck.available_new_cards || 0}</span>
+                </span>
+            </div>
+            ${overlayMessage}
+        </${elementTag}>
+    `;
+}
+
+/**
+ * Render a single subject card (legacy - kept for compatibility)
  * @param {Object} subject - Subject data from v_subject_availability
  * @returns {string} HTML string for subject card
  */
@@ -120,58 +192,6 @@ function renderSubjectCard(subject) {
                 <span class="stat-item">
                     <span class="stat-label">New:</span>
                     <span class="stat-value ${hasNewCards ? 'has-new' : ''}">${subject.available_new_cards || 0}</span>
-                </span>
-            </div>
-            ${!hasCards ? '<div class="empty-deck-overlay">No cards available</div>' : ''}
-        </a>
-    `;
-}
-
-/**
- * Render a single deck card (legacy)
- * @param {Object} deck - Deck data from v_due_counts_by_deck
- * @returns {string} HTML string for deck card
- */
-function renderDeckCard(deck) {
-    const safeName = Validator.escapeHtml(deck.deck_name || 'Unnamed Deck');
-    const safeDescription = Validator.escapeHtml(deck.deck_description || 'No description available');
-    const deckUrl = `index.html?deck=${encodeURIComponent(deck.deck_id)}`;
-
-    // Determine deck status
-    const isPublic = deck.deck_is_public;
-    const hasCards = (deck.total_cards || 0) > 0;
-    const hasDueCards = (deck.total_due_count || 0) > 0;
-
-    // Generate status indicators
-    let statusIndicators = '';
-    if (isPublic) {
-        statusIndicators += '<span class="deck-status public" title="Public deck"></span>';
-    }
-    if (hasDueCards) {
-        statusIndicators += '<span class="deck-status due" title="Has cards due for review"></span>';
-    }
-
-    return `
-        <a href="${deckUrl}" class="deck-card ${hasCards ? '' : 'empty-deck'}">
-            <div class="deck-header">
-                <h3 class="deck-name">${safeName}</h3>
-                <div class="deck-indicators">
-                    ${statusIndicators}
-                </div>
-            </div>
-            <p class="deck-description">${safeDescription}</p>
-            <div class="deck-stats">
-                <span class="stat-item">
-                    <span class="stat-label">Total:</span>
-                    <span class="stat-value">${deck.total_cards || 0}</span>
-                </span>
-                <span class="stat-item">
-                    <span class="stat-label">Due:</span>
-                    <span class="stat-value ${hasDueCards ? 'has-due' : ''}">${deck.total_due_count || 0}</span>
-                </span>
-                <span class="stat-item">
-                    <span class="stat-label">New:</span>
-                    <span class="stat-value">${deck.new_count || 0}</span>
                 </span>
             </div>
             ${!hasCards ? '<div class="empty-deck-overlay">No cards available</div>' : ''}
@@ -300,41 +320,32 @@ async function loadDeckSelection() {
         const user = await window.authService.getCurrentUser();
         if (!user) throw new Error('Not logged in');
 
-        // Fetch available subjects with LTREE paths
-        const subjects = await getAvailableSubjects(user.id);
+        // Fetch available decks with public filtering
+        const decks = await getAvailableDecks(user.id);
 
         // Calculate overall stats for "Study All" card
-        const overallStats = calculateOverallStats(subjects);
+        const overallStats = calculateOverallStats(decks);
         updateStudyAllStats(overallStats);
 
-        // Render subject cards
+        // Render deck cards
         const deckGrid = document.getElementById('deck-grid');
         const noDecksMessage = document.getElementById('no-decks-message');
 
-        if (subjects.length === 0) {
+        if (decks.length === 0) {
             deckGrid.innerHTML = '';
             noDecksMessage.classList.remove('hidden');
         } else {
             noDecksMessage.classList.add('hidden');
-            // Filter out subjects with no available cards and render
-            const availableSubjects = subjects.filter(subject =>
-                (subject.total_cards || 0) > 0 &&
-                ((subject.available_new_cards || 0) > 0 || (subject.due_cards || 0) > 0)
-            );
-
-            if (availableSubjects.length === 0) {
-                deckGrid.innerHTML = '<div class="no-cards-available">All subjects completed! Check back later for new content or due reviews.</div>';
-            } else {
-                deckGrid.innerHTML = availableSubjects.map(subject => renderSubjectCard(subject)).join('');
-            }
+            // Show all public decks - renderDeckCard will handle disabled state for decks with no available cards
+            deckGrid.innerHTML = decks.map(deck => renderDeckCard(deck)).join('');
         }
 
         // Transition to results view
         await transitionDeckSelectionToState('results');
     } catch (e) {
-        console.error('Error loading subject selection:', e);
+        console.error('Error loading deck selection:', e);
         // Transition to error state with friendly message
-        await transitionDeckSelectionToState('error', e.message || 'Failed to load subjects');
+        await transitionDeckSelectionToState('error', e.message || 'Failed to load decks');
     } finally {
         setDeckSelectionButtonsDisabled(false);
     }

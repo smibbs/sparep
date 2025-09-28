@@ -1691,6 +1691,321 @@ body {
     font-size: 14px;
 }
 
+/* =====================================================
+   DATABASE HEALTH DASHBOARD STYLES
+   ===================================================== */
+
+/* Health Overview Section */
+.health-overview {
+    margin-bottom: 30px;
+}
+
+.health-status-bar {
+    background: linear-gradient(135deg, #1a1a1a 0%, #111 100%);
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.system-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.status-label {
+    color: #ccc;
+}
+
+.status-indicator {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.last-updated {
+    color: #666;
+    font-size: 14px;
+}
+
+/* Metrics Summary Section */
+.metrics-summary {
+    margin-bottom: 30px;
+}
+
+.stat-breakdown {
+    margin-top: 8px;
+}
+
+.stat-breakdown small {
+    color: #999;
+    font-size: 12px;
+    font-weight: normal;
+}
+
+.content-stat span {
+    color: #007AFF;
+}
+
+.users-stat span {
+    color: #28a745;
+}
+
+.health-stat span {
+    color: #ffc107;
+}
+
+.alerts-stat span {
+    color: #dc3545;
+}
+
+/* Charts Section */
+.charts-section {
+    margin-bottom: 40px;
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 25px;
+}
+
+.chart-container {
+    background: linear-gradient(135deg, #222 0%, #111 100%);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #333;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #333;
+}
+
+.chart-header h3 {
+    margin: 0;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.chart-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 300px;
+}
+
+.chart-wrapper canvas {
+    max-height: 100%;
+}
+
+/* Data Tables Section */
+.detailed-data {
+    background: linear-gradient(135deg, #1a1a1a 0%, #111 100%);
+    border-radius: 12px;
+    padding: 25px;
+    border: 1px solid #333;
+}
+
+.data-tabs {
+    display: flex;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #333;
+    gap: 2px;
+    overflow-x: auto;
+}
+
+.data-tab {
+    padding: 12px 20px;
+    background: transparent;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    border-radius: 6px 6px 0 0;
+}
+
+.data-tab.active {
+    color: #007AFF;
+    background: #333;
+    border-bottom-color: #007AFF;
+}
+
+.data-tab:hover:not(.active) {
+    color: #007AFF;
+    background: #222;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.table-header h3 {
+    margin: 0;
+    color: #fff;
+    font-size: 18px;
+}
+
+.table-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.count-badge {
+    background: #007AFF;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.count-badge.warning {
+    background: #dc3545;
+}
+
+/* Enhanced Data Table Styles */
+.data-table-container {
+    background: #0a0a0a;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #333;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: transparent;
+}
+
+.data-table th {
+    background: linear-gradient(135deg, #1a1a1a 0%, #111 100%);
+    color: #fff;
+    padding: 15px 12px;
+    text-align: left;
+    border-bottom: 2px solid #333;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.data-table td {
+    padding: 12px;
+    border-bottom: 1px solid #222;
+    color: #e0e0e0;
+    font-size: 14px;
+    vertical-align: top;
+}
+
+.data-table tr:hover {
+    background: #1a1a1a;
+}
+
+.loading-cell,
+.no-data {
+    text-align: center;
+    padding: 40px 20px;
+    color: #999;
+    font-style: italic;
+    background: #111;
+}
+
+/* Specific Cell Styles */
+.card-question {
+    max-width: 300px;
+    line-height: 1.4;
+}
+
+.success-rate {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-weight: bold;
+    font-size: 12px;
+    text-align: center;
+}
+
+.success-rate.poor {
+    background: #dc3545;
+    color: #fff;
+}
+
+.success-rate.fair {
+    background: #ffc107;
+    color: #212529;
+}
+
+.success-rate.good {
+    background: #28a745;
+    color: #fff;
+}
+
+.issue-type {
+    background: #6c757d;
+    color: #fff;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+/* Status and Flag Styles */
+.status-indicators {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.flag-reason {
+    background: #dc3545;
+    color: #fff;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: capitalize;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .header-section-toggle {
@@ -1754,5 +2069,64 @@ body {
     .modal-body,
     .modal-footer {
         padding: 15px;
+    }
+
+    /* Health Dashboard Mobile Styles */
+    .health-status-bar {
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .chart-container {
+        padding: 15px;
+    }
+
+    .chart-wrapper {
+        height: 250px;
+    }
+
+    .chart-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+    }
+
+    .table-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .table-controls {
+        justify-content: center;
+    }
+
+    .data-tabs {
+        flex-wrap: wrap;
+    }
+
+    .data-tab {
+        flex: 1;
+        min-width: 120px;
+        text-align: center;
+    }
+
+    .card-question {
+        max-width: 200px;
+    }
+
+    .data-table-container {
+        overflow-x: auto;
+        max-height: 400px;
+    }
+
+    .data-table {
+        min-width: 600px;
     }
 }

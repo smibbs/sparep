@@ -18,8 +18,9 @@ class ServerSessionManager {
      * @param {string} userId - The user's ID
      * @param {Object} dbService - Database service instance
      * @param {Object} options - Session options
+     * @param {string} options.deckId - Optional deck ID for filtering cards by specific deck
      * @param {string} options.subjectPath - Optional subject path for filtering
-     * @param {string} options.type - Session type (daily_free, general_unlimited, subject_specific)
+     * @param {string} options.type - Session type (daily_free, general_unlimited, subject_specific, deck_specific)
      * @returns {Promise<boolean>} Success status
      */
     async initializeSession(userId, dbService, options = {}) {
@@ -27,13 +28,15 @@ class ServerSessionManager {
             this.userId = userId;
             this.dbService = dbService;
             
-            console.log(`🚀 ServerSessionManager: Initializing session for user ${userId}`, options.subjectPath ? `with subject path: ${options.subjectPath}` : '');
-            
-            // Call server RPC to get or create session with subject path support
+            console.log(`🚀 ServerSessionManager: Initializing session for user ${userId}`,
+                options.deckId ? `with deck: ${options.deckId}` :
+                options.subjectPath ? `with subject path: ${options.subjectPath}` : '');
+
+            // Call server RPC to get or create session with deck and subject path support
             const supabase = await dbService.getSupabase();
             const { data, error } = await supabase.rpc('get_or_create_user_session', {
                 p_user_id: userId,
-                p_deck_id: null, // Phase 5: No deck support
+                p_deck_id: options.deckId || null,
                 p_subject_path: options.subjectPath || null
             });
 
