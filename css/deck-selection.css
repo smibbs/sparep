@@ -214,6 +214,21 @@
     background: #1f2121;
 }
 
+/* No Study Available State */
+.deck-card.no-study-available {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #1a1b1b;
+    border-color: #333;
+}
+
+.deck-card.no-study-available:hover {
+    transform: none;
+    background: #1a1b1b;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.deck-overlay,
 .empty-deck-overlay {
     position: absolute;
     top: 50%;

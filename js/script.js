@@ -1226,15 +1226,21 @@ async function loadSession() {
         console.log(`✅ Daily limit check passed: ${limitCheck.reviewsToday}/${limitCheck.limit} reviews today (${limitCheck.tier} user)`);
 
         // Initialize new session with server-side daily limit enforcement
-        // Phase 6: Support subject path filtering from URL parameters
+        // Support both subject path and deck ID filtering from URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const subjectPath = urlParams.get('subject');
-        const sessionOptions = subjectPath ? { subjectPath } : {};
-        
-        if (subjectPath) {
+        const deckId = urlParams.get('deck');
+
+        // Deck-specific sessions take priority over subject filtering
+        let sessionOptions = {};
+        if (deckId) {
+            sessionOptions = { deckId };
+            console.log(`🎯 Creating deck-specific session for deck: ${deckId}`);
+        } else if (subjectPath) {
+            sessionOptions = { subjectPath };
             console.log(`🎯 Creating subject-specific session for path: ${subjectPath}`);
         }
-        
+
         try {
             await appState.sessionManager.initializeSession(appState.user.id, appState.dbService, sessionOptions);
             
