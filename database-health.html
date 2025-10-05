@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="css/admin.css?v=7">
     <link rel="stylesheet" href="css/slide-menu.css?v=1">
     <link rel="stylesheet" href="css/spinner.css?v=1">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
 </head>
 <body>
     <div id="app-container">
@@ -264,8 +263,27 @@
 
     <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Configuration Loader -->
+    <!-- Configuration Loader - MUST load before modules -->
     <script src="js/config-loader.js" data-config-path="config/"></script>
+    <!-- Chart.js Library - Load before modules -->
+    <script>
+        // Ensure Chart.js is loaded and available globally
+        window.chartJsLoaded = false;
+        window.chartJsLoadPromise = new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+            script.onload = () => {
+                console.log('[Database Health] Chart.js loaded successfully');
+                window.chartJsLoaded = true;
+                resolve(window.Chart);
+            };
+            script.onerror = (error) => {
+                console.error('[Database Health] Failed to load Chart.js:', error);
+                reject(error);
+            };
+            document.head.appendChild(script);
+        });
+    </script>
     <!-- Supabase Client Initialization -->
     <script src="js/supabase-client.js" type="module"></script>
 
@@ -273,9 +291,34 @@
         import adminGuard from './js/admin-guard.js';
         import auth from './js/auth.js';
 
+        // Wait for config to be loaded before starting
+        async function waitForConfig() {
+            let attempts = 0;
+            const maxAttempts = 50;
+            while (attempts < maxAttempts) {
+                if (window.supabaseConfig) {
+                    console.log('[Database Health] Config ready, starting admin protection');
+                    return true;
+                }
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            console.error('[Database Health] Config failed to load');
+            return false;
+        }
+
         // IMMEDIATE ADMIN PROTECTION
         (async function immediateAdminProtection() {
             try {
+                // Wait for config first
+                const configReady = await waitForConfig();
+                if (!configReady) {
+                    console.error('[Database Health] Cannot proceed without config');
+                    document.getElementById('access-loading').classList.add('hidden');
+                    document.getElementById('access-denied').classList.remove('hidden');
+                    return;
+                }
+
                 const accessGranted = await adminGuard.protect({
                     redirectOnFail: 'app',
                     showLoading: false
