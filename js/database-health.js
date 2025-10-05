@@ -64,6 +64,8 @@ class DatabaseHealth {
     async loadInitialData() {
         try {
             this.showLoading();
+            this.hideError(); // Clear any previous errors
+
             await Promise.all([
                 this.loadOverviewData(),
                 this.loadUnassignedCards(),
@@ -76,9 +78,11 @@ class DatabaseHealth {
             this.updateUI();
             this.createCharts();
             this.updateLastRefreshTime();
+            this.hideLoading();
         } catch (error) {
             console.error('[Database Health] Failed to load initial data:', error);
-            this.showError('Failed to load database health data');
+            this.hideLoading();
+            this.showError('Failed to load database health data. Please check your admin privileges and try again.');
         }
     }
 
@@ -92,88 +96,140 @@ class DatabaseHealth {
             await this.loadOverviewDataFallback();
         } else {
             console.log('[Database Health] Overview data loaded:', data);
+            // Process RPC response (array of {metric, count} objects)
             this.data.overview = this.processOverviewData(data);
         }
     }
 
     async loadOverviewDataFallback() {
-        const queries = [
-            this.supabase.from('card_templates').select('id, is_public, flagged_for_review'),
-            this.supabase.from('decks').select('id, is_public'),
-            this.supabase.from('subjects').select('id, is_public'),
-            this.supabase.from('profiles').select('id, is_admin'),
-            this.supabase.from('reviews').select('id, reviewed_at').gte('reviewed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        ];
+        console.log('[Database Health] Using fallback queries...');
 
-        const results = await Promise.all(queries);
+        try {
+            const queries = [
+                this.supabase.from('card_templates').select('id, is_public, flagged_for_review'),
+                this.supabase.from('decks').select('id, is_public'),
+                this.supabase.from('subjects').select('id, is_public'),
+                this.supabase.from('profiles').select('id, is_admin'),
+                this.supabase.from('reviews').select('user_id, reviewed_at').gte('reviewed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+            ];
 
-        const cards = results[0].data || [];
-        const decks = results[1].data || [];
-        const subjects = results[2].data || [];
-        const users = results[3].data || [];
-        const recentReviews = results[4].data || [];
+            const results = await Promise.all(queries);
 
-        this.data.overview = {
-            totalCards: cards.length,
-            publicCards: cards.filter(c => c.is_public && !c.flagged_for_review).length,
-            flaggedCards: cards.filter(c => c.flagged_for_review).length,
-            totalDecks: decks.length,
-            publicDecks: decks.filter(d => d.is_public).length,
-            totalSubjects: subjects.length,
-            totalUsers: users.length,
-            adminUsers: users.filter(u => u.is_admin).length,
-            activeUsers30Days: new Set(recentReviews.map(r => r.user_id)).size || 1,
-            recentActivity: recentReviews.length
-        };
+            // Check for errors in any query
+            const errors = results.map((r, i) => ({ index: i, error: r.error })).filter(e => e.error);
+            if (errors.length > 0) {
+                console.error('[Database Health] Fallback queries had errors:', errors);
+                errors.forEach(({ index, error }) => {
+                    const tableNames = ['card_templates', 'decks', 'subjects', 'profiles', 'reviews'];
+                    console.error(`  - ${tableNames[index]}:`, error);
+                });
+            }
+
+            const cards = results[0].data || [];
+            const decks = results[1].data || [];
+            const subjects = results[2].data || [];
+            const users = results[3].data || [];
+            const recentReviews = results[4].data || [];
+
+            console.log('[Database Health] Fallback query results:', {
+                cards: cards.length,
+                decks: decks.length,
+                subjects: subjects.length,
+                users: users.length,
+                reviews: recentReviews.length
+            });
+
+            // Calculate active users correctly from reviews
+            const uniqueActiveUsers = new Set(recentReviews.map(r => r.user_id)).size;
+
+            this.data.overview = {
+                totalCards: cards.length,
+                publicCards: cards.filter(c => c.is_public && !c.flagged_for_review).length,
+                flaggedCards: cards.filter(c => c.flagged_for_review).length,
+                totalDecks: decks.length,
+                publicDecks: decks.filter(d => d.is_public).length,
+                totalSubjects: subjects.length,
+                totalUsers: users.length,
+                adminUsers: users.filter(u => u.is_admin).length,
+                activeUsers30Days: uniqueActiveUsers > 0 ? uniqueActiveUsers : 0,
+                recentActivity: recentReviews.length
+            };
+
+            console.log('[Database Health] Fallback data computed:', this.data.overview);
+        } catch (error) {
+            console.error('[Database Health] Fatal error in fallback queries:', error);
+            // Set default empty overview
+            this.data.overview = {
+                totalCards: 0,
+                publicCards: 0,
+                flaggedCards: 0,
+                totalDecks: 0,
+                publicDecks: 0,
+                totalSubjects: 0,
+                totalUsers: 0,
+                adminUsers: 0,
+                activeUsers30Days: 0,
+                recentActivity: 0
+            };
+        }
     }
 
     async loadUnassignedCards() {
         console.log('[Database Health] Loading unassigned cards...');
 
-        // Use a raw SQL query through RPC since the Supabase query syntax is complex for this
-        const query = `
-            SELECT
-                ct.id,
-                ct.question,
-                ct.path,
-                ct.is_public,
-                ct.flagged_for_review,
-                s.name as subject_name
-            FROM card_templates ct
-            LEFT JOIN card_deck_assignments cda ON ct.id = cda.card_template_id
-            LEFT JOIN subjects s ON ct.subject_id = s.id
-            WHERE cda.card_template_id IS NULL
-            LIMIT 50
-        `;
+        // Query all cards with their assignments
+        const { data: allCards, error: cardsError } = await this.supabase
+            .from('card_templates')
+            .select(`
+                id,
+                question,
+                path,
+                is_public,
+                flagged_for_review,
+                subject_id,
+                subjects!inner(name)
+            `)
+            .limit(500);
 
-        const { data, error } = await this.supabase.rpc('admin_execute_sql', {
-            query: query
-        });
-
-        if (error) {
-            console.error('Error loading unassigned cards:', error);
-            // Simple fallback - just get unassigned cards without subject names
-            const { data: fallbackData, error: fallbackError } = await this.supabase
-                .from('card_templates')
-                .select('id, question, path, is_public, flagged_for_review, subject_id')
-                .limit(50);
-
-            if (fallbackError) {
-                console.error('Fallback query also failed:', fallbackError);
-                this.data.unassignedCards = [];
-            } else {
-                this.data.unassignedCards = (fallbackData || []).map(card => ({
-                    ...card,
-                    subject_name: 'Unknown'
-                }));
-            }
-        } else {
-            console.log('[Database Health] Unassigned cards loaded:', data?.length || 0);
-            this.data.unassignedCards = data || [];
+        if (cardsError) {
+            console.error('Error loading cards:', cardsError);
+            this.data.unassignedCards = [];
+            return;
         }
+
+        // Query all card deck assignments
+        const { data: assignments, error: assignmentsError } = await this.supabase
+            .from('card_deck_assignments')
+            .select('card_template_id');
+
+        if (assignmentsError) {
+            console.error('Error loading assignments:', assignmentsError);
+            this.data.unassignedCards = [];
+            return;
+        }
+
+        // Create a Set of assigned card IDs for fast lookup
+        const assignedCardIds = new Set(assignments.map(a => a.card_template_id));
+
+        // Filter cards that are NOT in the assignments
+        this.data.unassignedCards = (allCards || [])
+            .filter(card => !assignedCardIds.has(card.id))
+            .slice(0, 50) // Limit to 50 results
+            .map(card => ({
+                id: card.id,
+                question: card.question,
+                path: card.path,
+                is_public: card.is_public,
+                flagged_for_review: card.flagged_for_review,
+                subject_id: card.subject_id,
+                subject_name: card.subjects?.name || 'Unknown'
+            }));
+
+        console.log('[Database Health] Unassigned cards found:', this.data.unassignedCards.length);
     }
 
     async loadFlaggedContent() {
+        // Query flagged cards first, then separately get user display names if needed
         const { data, error } = await this.supabase
             .from('card_templates')
             .select(`
@@ -181,8 +237,7 @@ class DatabaseHealth {
                 question,
                 flagged_reason,
                 flagged_at,
-                flagged_by,
-                profiles!flagged_by(display_name)
+                flagged_by
             `)
             .eq('flagged_for_review', true)
             .order('flagged_at', { ascending: false })
@@ -192,36 +247,113 @@ class DatabaseHealth {
             console.error('Error loading flagged content:', error);
             this.data.flaggedContent = [];
         } else {
-            this.data.flaggedContent = data || [];
+            // Get unique user IDs who flagged content
+            const flaggedByIds = [...new Set((data || []).map(c => c.flagged_by).filter(id => id))];
+
+            // Fetch display names for those users
+            let userMap = {};
+            if (flaggedByIds.length > 0) {
+                const { data: profiles, error: profilesError } = await this.supabase
+                    .from('profiles')
+                    .select('id, display_name')
+                    .in('id', flaggedByIds);
+
+                if (!profilesError && profiles) {
+                    userMap = profiles.reduce((acc, p) => {
+                        acc[p.id] = p.display_name || 'Unknown User';
+                        return acc;
+                    }, {});
+                }
+            }
+
+            // Combine the data
+            this.data.flaggedContent = (data || []).map(card => ({
+                ...card,
+                flagger_display_name: card.flagged_by ? (userMap[card.flagged_by] || 'Unknown User') : 'System'
+            }));
         }
     }
 
     async loadPerformanceIssues() {
-        const { data, error } = await this.supabase
-            .from('card_templates')
+        console.log('[Database Health] Loading performance issues...');
+
+        // Query reviews and aggregate by card (use card_template_id, not card_id)
+        const { data: reviews, error } = await this.supabase
+            .from('reviews')
             .select(`
-                id,
-                question,
-                total_reviews,
-                correct_reviews,
-                incorrect_reviews,
-                average_response_time_ms
+                card_template_id,
+                rating,
+                time_to_answer_ms,
+                card_templates!inner(id, question)
             `)
-            .gt('total_reviews', 5)
-            .order('incorrect_reviews', { ascending: false })
-            .limit(50);
+            .limit(5000);
 
         if (error) {
-            console.error('Error loading performance issues:', error);
+            console.error('Error loading performance reviews:', error);
             this.data.performanceIssues = [];
-        } else {
-            this.data.performanceIssues = (data || []).map(card => ({
-                ...card,
-                successRate: card.total_reviews > 0 ?
-                    Math.round((card.correct_reviews / card.total_reviews) * 100) : 0,
-                issueType: this.classifyPerformanceIssue(card)
-            }));
+            return;
         }
+
+        // Aggregate reviews by card
+        const cardStats = {};
+        (reviews || []).forEach(review => {
+            const cardId = review.card_template_id;
+            if (!cardStats[cardId]) {
+                cardStats[cardId] = {
+                    id: cardId,
+                    question: review.card_templates?.question || 'Unknown',
+                    total_reviews: 0,
+                    correct_reviews: 0,
+                    incorrect_reviews: 0,
+                    total_time: 0,
+                    time_count: 0
+                };
+            }
+
+            cardStats[cardId].total_reviews++;
+
+            // Ratings 2 and 3 are considered correct (good/easy)
+            if (review.rating >= 2) {
+                cardStats[cardId].correct_reviews++;
+            } else {
+                cardStats[cardId].incorrect_reviews++;
+            }
+
+            if (review.time_to_answer_ms) {
+                cardStats[cardId].total_time += review.time_to_answer_ms;
+                cardStats[cardId].time_count++;
+            }
+        });
+
+        // Convert to array and calculate performance metrics
+        this.data.performanceIssues = Object.values(cardStats)
+            .filter(card => card.total_reviews > 5) // Only cards with significant review count
+            .map(card => {
+                const successRate = card.total_reviews > 0 ?
+                    Math.round((card.correct_reviews / card.total_reviews) * 100) : 0;
+                const avgTime = card.time_count > 0 ?
+                    Math.round(card.total_time / card.time_count) : 0;
+
+                return {
+                    id: card.id,
+                    question: card.question,
+                    total_reviews: card.total_reviews,
+                    correct_reviews: card.correct_reviews,
+                    incorrect_reviews: card.incorrect_reviews,
+                    average_response_time_ms: avgTime,
+                    successRate: successRate,
+                    issueType: this.classifyPerformanceIssue({
+                        total_reviews: card.total_reviews,
+                        correct_reviews: card.correct_reviews,
+                        incorrect_reviews: card.incorrect_reviews,
+                        average_response_time_ms: avgTime
+                    })
+                };
+            })
+            .sort((a, b) => a.successRate - b.successRate) // Worst performers first
+            .slice(0, 50);
+
+        console.log('[Database Health] Performance issues loaded:', this.data.performanceIssues.length);
     }
 
     async loadSubjectHealth() {
@@ -366,19 +498,26 @@ class DatabaseHealth {
     }
 
     updateSummaryStats() {
-        const overview = this.data.overview;
+        const overview = this.data.overview || {};
 
-        document.getElementById('total-content-count').textContent =
-            (overview.totalCards + overview.totalDecks + overview.totalSubjects).toLocaleString();
-        document.getElementById('cards-count').textContent = overview.totalCards?.toLocaleString() || '0';
-        document.getElementById('decks-count').textContent = overview.totalDecks?.toLocaleString() || '0';
-        document.getElementById('subjects-count').textContent = overview.totalSubjects?.toLocaleString() || '0';
+        console.log('[Database Health] Updating summary stats with overview:', overview);
 
-        document.getElementById('active-users-count').textContent = overview.activeUsers30Days?.toLocaleString() || '0';
-        document.getElementById('total-users-count').textContent = overview.totalUsers?.toLocaleString() || '0';
-        document.getElementById('admin-users-count').textContent = overview.adminUsers?.toLocaleString() || '0';
+        // Ensure all values default to 0 if undefined
+        const totalCards = overview.totalCards || 0;
+        const totalDecks = overview.totalDecks || 0;
+        const totalSubjects = overview.totalSubjects || 0;
+        const totalContent = totalCards + totalDecks + totalSubjects;
 
-        document.getElementById('flagged-count').textContent = overview.flaggedCards?.toLocaleString() || '0';
+        document.getElementById('total-content-count').textContent = totalContent.toLocaleString();
+        document.getElementById('cards-count').textContent = totalCards.toLocaleString();
+        document.getElementById('decks-count').textContent = totalDecks.toLocaleString();
+        document.getElementById('subjects-count').textContent = totalSubjects.toLocaleString();
+
+        document.getElementById('active-users-count').textContent = (overview.activeUsers30Days || 0).toLocaleString();
+        document.getElementById('total-users-count').textContent = (overview.totalUsers || 0).toLocaleString();
+        document.getElementById('admin-users-count').textContent = (overview.adminUsers || 0).toLocaleString();
+
+        document.getElementById('flagged-count').textContent = (overview.flaggedCards || 0).toLocaleString();
         document.getElementById('unassigned-count').textContent = this.data.unassignedCards.length.toLocaleString();
     }
 
@@ -485,8 +624,8 @@ class DatabaseHealth {
             <tr>
                 <td class="card-question">${this.escapeHtml(item.question?.substring(0, 80) || 'N/A')}${item.question?.length > 80 ? '...' : ''}</td>
                 <td><span class="flag-reason">${this.escapeHtml(item.flagged_reason || 'No reason')}</span></td>
-                <td>${this.escapeHtml(item.profiles?.display_name || 'System')}</td>
-                <td>${new Date(item.flagged_at).toLocaleDateString()}</td>
+                <td>${this.escapeHtml(item.flagger_display_name || 'System')}</td>
+                <td>${item.flagged_at ? new Date(item.flagged_at).toLocaleDateString() : 'N/A'}</td>
                 <td>
                     <button class="btn btn-success btn-small" onclick="healthDashboard.resolveFlaggedCard('${item.id}')">
                         ✅ Resolve
@@ -534,7 +673,7 @@ class DatabaseHealth {
                 <td><strong>${this.escapeHtml(subject.name)}</strong></td>
                 <td><span class="path-tag">${subject.path || 'No path'}</span></td>
                 <td><span class="card-count">${subject.cardCount}</span></td>
-                <td><span class="card-count">${subject.cardCount}</span></td>
+                <td><span class="card-count">${subject.publicCardCount}</span></td>
                 <td>
                     <span class="status-badge ${subject.healthStatus.toLowerCase().replace(' ', '-')}">
                         ${subject.healthStatus}
@@ -544,11 +683,62 @@ class DatabaseHealth {
         `).join('');
     }
 
-    createCharts() {
-        this.createContentDistributionChart();
-        this.createActivityTimelineChart();
-        this.createCardStatusChart();
-        this.createSubjectPerformanceChart();
+    async createCharts() {
+        console.log('[Database Health] Creating charts...');
+        console.log('[Database Health] Chart.js available?', typeof window.Chart);
+
+        // Wait for Chart.js to load if it's not available yet
+        if (typeof window.Chart === 'undefined') {
+            console.log('[Database Health] Waiting for Chart.js to load...');
+            try {
+                if (window.chartJsLoadPromise) {
+                    await window.chartJsLoadPromise;
+                    console.log('[Database Health] Chart.js loaded via promise');
+                } else {
+                    // Fallback: wait a bit
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } catch (error) {
+                console.error('[Database Health] Error waiting for Chart.js:', error);
+                this.showChartError();
+                return;
+            }
+        }
+
+        // Check again after waiting
+        if (typeof window.Chart === 'undefined') {
+            console.error('[Database Health] Chart.js still not available after wait');
+            this.showChartError();
+            return;
+        }
+
+        this.createChartsNow();
+    }
+
+    createChartsNow() {
+        try {
+            console.log('[Database Health] Actually creating charts with data:', {
+                overview: this.data.overview,
+                activityData: this.data.activityData?.length,
+                subjectHealth: this.data.subjectHealth?.length
+            });
+
+            this.createContentDistributionChart();
+            this.createActivityTimelineChart();
+            this.createCardStatusChart();
+            this.createSubjectPerformanceChart();
+
+            console.log('[Database Health] All charts created successfully');
+        } catch (error) {
+            console.error('[Database Health] Error creating charts:', error);
+            this.showChartError();
+        }
+    }
+
+    showChartError() {
+        document.querySelectorAll('.chart-wrapper').forEach(wrapper => {
+            wrapper.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999; text-align: center; padding: 20px;">⚠️ Charts could not be loaded. Please refresh the page.</div>';
+        });
     }
 
     createContentDistributionChart() {
@@ -861,15 +1051,48 @@ class DatabaseHealth {
     showLoading() {
         document.querySelectorAll('.loading-cell').forEach(cell => {
             cell.textContent = 'Loading...';
+            cell.style.color = '';
         });
+    }
+
+    hideLoading() {
+        // Loading will be replaced by actual data or "no data" messages
     }
 
     showError(message) {
         console.error('[Database Health]', message);
+
+        // Show error in loading cells
         document.querySelectorAll('.loading-cell').forEach(cell => {
             cell.textContent = `Error: ${message}`;
             cell.style.color = '#dc3545';
         });
+
+        // Also show error notification in the health status bar
+        const healthContent = document.getElementById('health-content');
+        if (healthContent) {
+            const existingError = healthContent.querySelector('.error-notification');
+            if (existingError) {
+                existingError.remove();
+            }
+
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-notification';
+            errorDiv.style.cssText = 'background: #dc3545; color: white; padding: 15px; margin: 20px 0; border-radius: 8px; text-align: center; font-weight: 500;';
+            errorDiv.textContent = `⚠️ ${message}`;
+
+            const firstSection = healthContent.querySelector('.health-overview');
+            if (firstSection) {
+                firstSection.parentNode.insertBefore(errorDiv, firstSection);
+            }
+        }
+    }
+
+    hideError() {
+        const errorNotification = document.querySelector('.error-notification');
+        if (errorNotification) {
+            errorNotification.remove();
+        }
     }
 
     escapeHtml(text) {

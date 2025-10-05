@@ -23,10 +23,15 @@ class AdminGuard {
      * Initialize the Supabase client for auth checks
      */
     async initialize() {
-        if (this.isInitialized) return;
-        
+        if (this.isInitialized) {
+            console.log('[AdminGuard] Already initialized');
+            return;
+        }
+
         try {
+            console.log('[AdminGuard] Getting Supabase client...');
             this.supabaseClient = await getSupabaseClient();
+            console.log('[AdminGuard] Supabase client obtained');
             this.isInitialized = true;
         } catch (error) {
             console.error('[AdminGuard] Failed to initialize Supabase client:', error);
@@ -41,14 +46,17 @@ class AdminGuard {
      */
     async isAuthenticated() {
         try {
+            console.log('[AdminGuard] Initializing Supabase client...');
             await this.initialize();
-            
+            console.log('[AdminGuard] Supabase client initialized, checking session...');
+
             const { data: { session }, error } = await this.supabaseClient.auth.getSession();
             if (error) {
                 console.error('[AdminGuard] Session check error:', error);
                 return false;
             }
-            
+
+            console.log('[AdminGuard] Session check complete, has session:', !!session);
             return session && session.user;
         } catch (error) {
             console.error('[AdminGuard] Authentication check failed:', error);
