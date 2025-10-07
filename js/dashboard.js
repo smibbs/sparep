@@ -3,6 +3,7 @@ import { getSupabaseClient } from './supabase-client.js';
 import NavigationController from './navigation.js';
 import slideMenu from './slideMenu.js';
 import { Validator } from './validator.js';
+import progressDashboard from './progressDashboard.js';
 
 /**
  * Check if user is admin and show admin navigation link
@@ -442,13 +443,26 @@ let navigationController = null;
 window.addEventListener('DOMContentLoaded', async () => {
     // Wait for authService to be available
     while (!window.authService) await new Promise(r => setTimeout(r, 50));
-    
+
     // Initialize slide menu navigation
     await slideMenu.initialize();
-    
+
     // Initialize navigation controller
     navigationController = new NavigationController();
-    
-    setupDashboardEvents();
-    updateDashboard();
+
+    // Get current user and initialize progress dashboard
+    try {
+        const user = await window.authService.getCurrentUser();
+        if (user) {
+            await progressDashboard.initialize(user.id);
+        } else {
+            // Redirect to login if not authenticated
+            window.location.href = 'login.html';
+        }
+    } catch (error) {
+        console.error('Failed to initialize dashboard:', error);
+        // Fall back to old dashboard if new one fails
+        setupDashboardEvents();
+        updateDashboard();
+    }
 }); 
