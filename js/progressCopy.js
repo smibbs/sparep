@@ -15,11 +15,11 @@ export function getRetentionCopy(current, delta, days = 7) {
     const period = days === 7 ? 'week' : days === 30 ? 'month' : `${days} days`;
 
     if (delta > 0) {
-        return `Your ${days}-day retention is **${current}%** — **+${delta} pts** vs last ${period}. Nice work.`;
+        return `Your ${days}-day retention is <strong>${current}%</strong> — <strong>+${delta} pts</strong> vs last ${period}. Nice work.`;
     } else if (delta < 0) {
-        return `Your ${days}-day retention is **${current}%** — **${delta} pts** vs last ${period}. Small adjustments ahead.`;
+        return `Your ${days}-day retention is <strong>${current}%</strong> — <strong>${delta} pts</strong> vs last ${period}. Small adjustments ahead.`;
     } else {
-        return `Your ${days}-day retention is **${current}%** — steady and consistent.`;
+        return `Your ${days}-day retention is <strong>${current}%</strong> — steady and consistent.`;
     }
 }
 
@@ -32,13 +32,13 @@ export function getStreakCopy(streak) {
     if (streak === 0) {
         return `Start a new streak today — one session is all it takes.`;
     } else if (streak === 1) {
-        return `🔥 **1-day streak!** Come back tomorrow to keep it alive.`;
+        return `🔥 <strong>1-day streak!</strong> Come back tomorrow to keep it alive.`;
     } else if (streak < 7) {
-        return `🔥 **${streak}-day streak!** You're building a habit. One quick session tomorrow keeps it alive.`;
+        return `🔥 <strong>${streak}-day streak!</strong> You're building a habit. One quick session tomorrow keeps it alive.`;
     } else if (streak < 30) {
-        return `🔥 **${streak}-day streak!** Impressive consistency. Keep the chain going.`;
+        return `🔥 <strong>${streak}-day streak!</strong> Impressive consistency. Keep the chain going.`;
     } else {
-        return `🔥 **${streak}-day streak!** Extraordinary dedication. This is who you are now.`;
+        return `🔥 <strong>${streak}-day streak!</strong> Extraordinary dedication. This is who you are now.`;
     }
 }
 
@@ -52,11 +52,11 @@ export function getStreakCopy(streak) {
 export function getResponseTimeCopy(current, delta, days = 7) {
     if (delta < 0) {
         const improvement = Math.abs(delta);
-        return `⚡ Faster recall: **${improvement}s quicker** than last ${days === 7 ? 'week' : 'month'}. Smoother connections.`;
+        return `⚡ Faster recall: <strong>${improvement}s quicker</strong> than last ${days === 7 ? 'week' : 'month'}. Smoother connections.`;
     } else if (delta > 0) {
-        return `Response time: **${current}s** (up ${delta}s). Taking a bit longer — totally normal as difficulty increases.`;
+        return `Response time: <strong>${current}s</strong> (up ${delta}s). Taking a bit longer — totally normal as difficulty increases.`;
     } else {
-        return `⚡ Steady response time: **${current}s** — consistent pace.`;
+        return `⚡ Steady response time: <strong>${current}s</strong> — consistent pace.`;
     }
 }
 
@@ -75,11 +75,11 @@ export function getStabilityCopy(current, previous, delta) {
     const ratio = (current / previous).toFixed(1);
 
     if (delta > 0) {
-        return `Memories last **${ratio}×** longer than last month — brilliant pacing.`;
+        return `Memories last <strong>${ratio}×</strong> longer than last month — brilliant pacing.`;
     } else if (delta < 0) {
-        return `Average stability: **${current}** days. Small dip — keep going to rebuild strength.`;
+        return `Average stability: <strong>${current}</strong> days. Small dip — keep going to rebuild strength.`;
     } else {
-        return `Stable memory strength: **${current}** days between reviews.`;
+        return `Stable memory strength: <strong>${current}</strong> days between reviews.`;
     }
 }
 
@@ -91,13 +91,13 @@ export function getStabilityCopy(current, previous, delta) {
  */
 export function getDueTomorrowCopy(count, estimatedMinutes) {
     if (count === 0) {
-        return `**0** due tomorrow — you're ahead! Nice work.`;
+        return `<strong>0</strong> due tomorrow — you're ahead! Nice work.`;
     } else if (count <= 5) {
-        return `**${count}** due tomorrow — quick ${estimatedMinutes}-min session keeps you ahead.`;
+        return `<strong>${count}</strong> due tomorrow — quick ${estimatedMinutes}-min session keeps you ahead.`;
     } else if (count <= 20) {
-        return `**${count}** due tomorrow — ~${estimatedMinutes} mins will keep you comfortably ahead.`;
+        return `<strong>${count}</strong> due tomorrow — ~${estimatedMinutes} mins will keep you comfortably ahead.`;
     } else {
-        return `**${count}** due tomorrow — ~${estimatedMinutes} mins. Break it into chunks if needed.`;
+        return `<strong>${count}</strong> due tomorrow — ~${estimatedMinutes} mins. Break it into chunks if needed.`;
     }
 }
 
@@ -117,11 +117,11 @@ export function getRetentionTrendCopy(data, days = 14) {
     const delta = last - first;
 
     if (delta > 5) {
-        return `Your retention trend is **↑ +${delta} pts** over the last ${days} days. Excellent progress.`;
+        return `Your retention trend is <strong>↑ +${delta} pts</strong> over the last ${days} days. Excellent progress.`;
     } else if (delta < -5) {
-        return `Your retention trend is **↓ ${delta} pts** over the last ${days} days. Time to focus on weak areas.`;
+        return `Your retention trend is <strong>↓ ${delta} pts</strong> over the last ${days} days. Time to focus on weak areas.`;
     } else {
-        return `Your retention is holding steady around **${last}%** — consistent performance.`;
+        return `Your retention is holding steady around <strong>${last}%</strong> — consistent performance.`;
     }
 }
 
@@ -141,11 +141,11 @@ export function getDueForecastCopy(data, days = 7) {
     const minutesPerDay = Math.ceil(avgPerDay * 5 / 60); // Estimate 5s per card
 
     if (total === 0) {
-        return `**0** cards due in the next ${days} days — you're ahead!`;
+        return `<strong>0</strong> cards due in the next ${days} days — you're ahead!`;
     } else if (avgPerDay <= 10) {
-        return `**${total}** cards due next ${days} days. Light load — ~${minutesPerDay} min/day keeps you ahead.`;
+        return `<strong>${total}</strong> cards due next ${days} days. Light load — ~${minutesPerDay} min/day keeps you ahead.`;
     } else {
-        return `**${total}** cards due next ${days} days. ~${minutesPerDay} min/day keeps you comfortably ahead.`;
+        return `<strong>${total}</strong> cards due next ${days} days. ~${minutesPerDay} min/day keeps you comfortably ahead.`;
     }
 }
 
@@ -166,7 +166,7 @@ export function getFocusCopy(subjectData) {
         [0];
 
     if (weakest) {
-        return `Quick win: **${weakest.subjectName}** needs attention (${weakest.accuracy}% accuracy). Tap to start a focused review.`;
+        return `Quick win: <strong>${weakest.subjectName}</strong> needs attention (${weakest.accuracy}% accuracy). Tap to start a focused review.`;
     }
 
     return `All subjects looking strong — keep up the balanced practice.`;
@@ -179,13 +179,13 @@ export function getFocusCopy(subjectData) {
  */
 export function getSessionRatingCopy(percentGoodEasy) {
     if (percentGoodEasy >= 80) {
-        return `Great run — **${percentGoodEasy}%** Good/Easy today. You're in the zone.`;
+        return `Great run — <strong>${percentGoodEasy}%</strong> Good/Easy today. You're in the zone.`;
     } else if (percentGoodEasy >= 60) {
-        return `Solid session — **${percentGoodEasy}%** Good/Easy. Steady progress.`;
+        return `Solid session — <strong>${percentGoodEasy}%</strong> Good/Easy. Steady progress.`;
     } else if (percentGoodEasy >= 40) {
-        return `Challenging session — **${percentGoodEasy}%** Good/Easy. Building strength.`;
+        return `Challenging session — <strong>${percentGoodEasy}%</strong> Good/Easy. Building strength.`;
     } else {
-        return `Tough session — **${percentGoodEasy}%** Good/Easy. These reps count double.`;
+        return `Tough session — <strong>${percentGoodEasy}%</strong> Good/Easy. These reps count double.`;
     }
 }
 
@@ -200,18 +200,18 @@ export function getSubjectMasteryCopy(subjectName, accuracy, previousAccuracy = 
     if (previousAccuracy !== null) {
         const delta = accuracy - previousAccuracy;
         if (delta > 5) {
-            return `Mastery rising — **${subjectName}** up **+${delta} pts** this week.`;
+            return `Mastery rising — <strong>${subjectName}</strong> up <strong>+${delta} pts</strong> this week.`;
         } else if (delta < -5) {
-            return `**${subjectName}** dipped **${delta} pts** — worth revisiting.`;
+            return `<strong>${subjectName}</strong> dipped <strong>${delta} pts</strong> — worth revisiting.`;
         }
     }
 
     if (accuracy >= 90) {
-        return `**${subjectName}**: **${accuracy}%** — nearly mastered.`;
+        return `<strong>${subjectName}</strong>: <strong>${accuracy}%</strong> — nearly mastered.`;
     } else if (accuracy >= 70) {
-        return `**${subjectName}**: **${accuracy}%** — solid foundation.`;
+        return `<strong>${subjectName}</strong>: <strong>${accuracy}%</strong> — solid foundation.`;
     } else {
-        return `**${subjectName}**: **${accuracy}%** — room to grow.`;
+        return `<strong>${subjectName}</strong>: <strong>${accuracy}%</strong> — room to grow.`;
     }
 }
 
