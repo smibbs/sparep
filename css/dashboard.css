@@ -368,6 +368,9 @@ body {
     padding: 20px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     position: relative;
+    min-height: 160px;
+    max-height: 250px;
+    overflow: hidden;
 }
 
 .kpi-label {
@@ -405,6 +408,8 @@ body {
     width: 100%;
     height: 30px;
     margin: 8px 0;
+    max-height: 30px;
+    display: block;
 }
 
 .kpi-copy {

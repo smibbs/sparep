@@ -613,7 +613,7 @@ export function renderSparkline(canvasId, values, color = CHART_COLORS.primary) 
             }]
         },
         options: {
-            responsive: true,
+            responsive: false,
             maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
@@ -625,7 +625,8 @@ export function renderSparkline(canvasId, values, color = CHART_COLORS.primary) 
             },
             elements: {
                 line: { borderWidth: 2 }
-            }
+            },
+            animation: false
         }
     });
 }
