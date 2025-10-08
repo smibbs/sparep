@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="css/dashboard.css?v=6">
     <link rel="stylesheet" href="css/slide-menu.css?v=1">
     <link rel="stylesheet" href="css/spinner.css?v=1">
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config-loader.js" data-config-path="config/"></script>
@@ -18,89 +20,158 @@
     <script src="js/userAvatar.js" type="module"></script>
     <script src="js/slideMenu.js" type="module"></script>
     <script src="js/logoLoader.js" type="module"></script>
+    <script src="js/progressData.js" type="module"></script>
+    <script src="js/progressCopy.js" type="module"></script>
+    <script src="js/progressCharts.js" type="module"></script>
+    <script src="js/progressDashboard.js" type="module"></script>
     <script src="js/dashboard.js" type="module"></script>
 </head>
 <body>
     <div id="dashboard-container">
         <div id="dashboard-content" class="content">
-            <h1>Dashboard</h1>
-            <div id="dashboard-loading" class="loading-state">
+            <h1>Progress</h1>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <div class="time-window-selector">
+                    <button class="filter-button" data-time-window="7">7 days</button>
+                    <button class="filter-button active" data-time-window="30">30 days</button>
+                    <button class="filter-button" data-time-window="90">90 days</button>
+                </div>
+                <div class="filter-controls">
+                    <label class="compare-toggle">
+                        <input type="checkbox" id="compare-toggle">
+                        <span>Compare</span>
+                    </label>
+                    <button id="progress-refresh" class="nav-button">Refresh</button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="progress-loading" class="loading-state">
                 <div class="loading-spinner"></div>
-                <p class="loading-text">Loading dashboard...</p>
-                <!-- Skeleton loading for dashboard -->
-                <div class="stats-cards">
-                    <div class="stat-card">
-                        <div class="skeleton skeleton-text short" style="height: 32px; margin-bottom: 8px;"></div>
-                        <div class="skeleton skeleton-text long" style="height: 16px;"></div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="skeleton skeleton-text short" style="height: 32px; margin-bottom: 8px;"></div>
-                        <div class="skeleton skeleton-text long" style="height: 16px;"></div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="skeleton skeleton-text short" style="height: 32px; margin-bottom: 8px;"></div>
-                        <div class="skeleton skeleton-text long" style="height: 16px;"></div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="skeleton skeleton-text short" style="height: 32px; margin-bottom: 8px;"></div>
-                        <div class="skeleton skeleton-text long" style="height: 16px;"></div>
-                    </div>
-                </div>
+                <p class="loading-text">Loading your progress...</p>
             </div>
-            <div id="dashboard-error" class="error-state hidden">
+
+            <!-- Error State -->
+            <div id="progress-error" class="error-state hidden">
                 <div class="error-content">
-                    <p id="dashboard-error-message" class="error-text">Failed to load statistics.</p>
+                    <p id="progress-error-message" class="error-text">Failed to load progress data.</p>
                     <div class="error-actions">
-                        <button id="dashboard-retry-button" class="nav-button">Try Again</button>
-                        <button id="dashboard-error-logout-button" class="nav-button">Sign Out</button>
+                        <button id="progress-retry-button" class="nav-button">Try Again</button>
                     </div>
                 </div>
             </div>
-            <div id="dashboard-stats" class="dashboard-stats hidden">
-                <div class="stats-cards">
-                    <div class="stat-card">
-                        <h2 id="total-cards">0</h2>
-                        <p>Total Cards Studied</p>
+
+            <!-- Progress Content -->
+            <div id="progress-content" class="hidden">
+
+                <!-- KPI Cards -->
+                <div class="kpi-cards">
+                    <div class="kpi-card">
+                        <div class="kpi-label">7-day Retention</div>
+                        <div class="kpi-value" id="kpi-retention-value">0%</div>
+                        <div class="kpi-delta hidden" id="kpi-retention-delta">+0 pts</div>
+                        <canvas id="kpi-retention-sparkline" class="kpi-sparkline" width="100" height="30"></canvas>
+                        <div class="kpi-copy" id="kpi-retention-copy"></div>
                     </div>
-                    <div class="stat-card">
-                        <h2 id="accuracy-rate">0%</h2>
-                        <p>Review Accuracy</p>
+
+                    <div class="kpi-card">
+                        <div class="kpi-label">Current Streak</div>
+                        <div class="kpi-value" id="kpi-streak-value">0</div>
+                        <div class="kpi-copy" id="kpi-streak-copy"></div>
                     </div>
-                    <div class="stat-card">
-                        <h2 id="cards-due">0</h2>
-                        <p>Cards Due Today</p>
+
+                    <div class="kpi-card">
+                        <div class="kpi-label">Response Time</div>
+                        <div class="kpi-value" id="kpi-response-time-value">0s</div>
+                        <div class="kpi-delta hidden" id="kpi-response-time-delta">+0s</div>
+                        <div class="kpi-copy" id="kpi-response-time-copy"></div>
                     </div>
-                    <div class="stat-card">
-                        <h2 id="study-streak">0</h2>
-                        <p>Study Streak</p>
+
+                    <div class="kpi-card">
+                        <div class="kpi-label">Avg Stability</div>
+                        <div class="kpi-value" id="kpi-stability-value">0d</div>
+                        <div class="kpi-delta hidden" id="kpi-stability-delta">+0d</div>
+                        <div class="kpi-copy" id="kpi-stability-copy"></div>
+                    </div>
+
+                    <div class="kpi-card">
+                        <div class="kpi-label">Due Tomorrow</div>
+                        <div class="kpi-value" id="kpi-due-tomorrow-value">0</div>
+                        <div class="kpi-copy" id="kpi-due-tomorrow-copy"></div>
+                    </div>
+
+                    <div class="kpi-card">
+                        <div class="kpi-label">Study Velocity</div>
+                        <div class="kpi-value" id="kpi-velocity-value">0</div>
+                        <div class="kpi-delta hidden" id="kpi-velocity-delta">+0</div>
+                        <div class="kpi-copy" id="kpi-velocity-copy"></div>
                     </div>
                 </div>
-                <div class="subject-breakdown">
-                    <h3>Subject Progress</h3>
-                    <div class="progress-legend">
-                        <span class="legend-item">
-                            <div class="legend-color state-new"></div>
-                            <span>New</span>
-                        </span>
-                        <span class="legend-item">
-                            <div class="legend-color state-learning"></div>
-                            <span>Learning</span>
-                        </span>
-                        <span class="legend-item">
-                            <div class="legend-color state-review"></div>
-                            <span>Review</span>
-                        </span>
-                        <span class="legend-item">
-                            <div class="legend-color state-other"></div>
-                            <span>Other</span>
-                        </span>
+
+                <!-- Charts Grid -->
+                <div class="charts-grid">
+
+                    <!-- Retention Over Time -->
+                    <div class="chart-section">
+                        <h3>Retention Over Time</h3>
+                        <div class="chart-copy" id="retention-chart-copy"></div>
+                        <canvas id="retention-chart"></canvas>
                     </div>
-                    <div id="subject-progress-list">
-                        <!-- Subject progress will be rendered here -->
+
+                    <!-- Streak Heatmap -->
+                    <div class="chart-section">
+                        <h3>Consistency Heatmap</h3>
+                        <div id="streak-heatmap" class="heatmap-container"></div>
                     </div>
-                </div>
-                <div class="dashboard-actions">
-                    <button id="refresh-dashboard" class="nav-button">Refresh</button>
+
+                    <!-- Due Forecast -->
+                    <div class="chart-section">
+                        <h3>Due Load Forecast</h3>
+                        <div class="chart-copy" id="due-forecast-copy"></div>
+                        <canvas id="due-forecast-chart"></canvas>
+                    </div>
+
+                    <!-- Response Time Trend -->
+                    <div class="chart-section">
+                        <h3>Response Time Trend</h3>
+                        <canvas id="response-time-chart"></canvas>
+                    </div>
+
+                    <!-- Stability Trend -->
+                    <div class="chart-section">
+                        <h3>Memory Strength Trend</h3>
+                        <canvas id="stability-chart"></canvas>
+                    </div>
+
+                    <!-- Difficulty vs Accuracy -->
+                    <div class="chart-section">
+                        <h3>Focus Finder</h3>
+                        <div class="chart-copy" id="focus-copy"></div>
+                        <canvas id="difficulty-accuracy-chart"></canvas>
+                    </div>
+
+                    <!-- Session Ratings -->
+                    <div class="chart-section">
+                        <h3>Recent Sessions</h3>
+                        <div class="chart-copy" id="session-rating-copy"></div>
+                        <canvas id="session-ratings-chart"></canvas>
+                    </div>
+
+                    <!-- Subject Mastery -->
+                    <div class="chart-section">
+                        <h3>Subject Mastery</h3>
+                        <canvas id="subject-mastery-chart"></canvas>
+                    </div>
+
+                    <!-- Learning Curve -->
+                    <div class="chart-section">
+                        <h3>Learning Curve</h3>
+                        <div class="chart-copy" id="learning-curve-copy"></div>
+                        <canvas id="learning-curve-chart"></canvas>
+                    </div>
+
                 </div>
             </div>
         </div>
