@@ -99,6 +99,7 @@ class ProgressDashboard {
                 responseTime,
                 stability,
                 dueTomorrow,
+                easyRecall,
                 retentionOverTime,
                 streakHeatmap,
                 dueForecast,
@@ -114,6 +115,7 @@ class ProgressDashboard {
                 progressData.getResponseTime(this.userId, this.timeWindow >= 30 ? 7 : this.timeWindow),
                 progressData.getStabilityAverage(this.userId, this.timeWindow),
                 progressData.getCardsDueTomorrow(this.userId),
+                progressData.getEasyRecallRate(this.userId, 7),
                 progressData.getRetentionOverTime(this.userId, this.timeWindow),
                 progressData.getStreakHeatmap(this.userId, 90),
                 progressData.getDueForecast(this.userId, 14),
@@ -131,7 +133,8 @@ class ProgressDashboard {
                 streak,
                 responseTime,
                 stability,
-                dueTomorrow
+                dueTomorrow,
+                easyRecall
             });
 
             // Update charts
@@ -233,6 +236,45 @@ class ProgressDashboard {
             dueTomorrowValue.textContent = data.dueTomorrow.count;
             if (dueTomorrowCopy) {
                 dueTomorrowCopy.innerHTML = progressCopy.getDueTomorrowCopy(data.dueTomorrow.count, data.dueTomorrow.estimatedMinutes);
+            }
+        }
+
+        // Easy Recall
+        const easyRecallValue = document.getElementById('kpi-easy-recall-value');
+        const easyRecallCopy = document.getElementById('kpi-easy-recall-copy');
+        const easyRecallDelta = document.getElementById('kpi-easy-recall-delta');
+        if (easyRecallValue) {
+            // Set value and apply color threshold
+            if (data.easyRecall.sampleSize < 20) {
+                easyRecallValue.textContent = '—';
+                easyRecallValue.className = 'kpi-value';
+            } else {
+                easyRecallValue.textContent = `${data.easyRecall.current}%`;
+
+                // Apply color class based on threshold
+                if (data.easyRecall.current >= 80) {
+                    easyRecallValue.className = 'kpi-value easy-recall-high';
+                } else if (data.easyRecall.current >= 60) {
+                    easyRecallValue.className = 'kpi-value easy-recall-medium';
+                } else {
+                    easyRecallValue.className = 'kpi-value easy-recall-low';
+                }
+            }
+
+            // Set delta
+            if (easyRecallDelta) {
+                if (data.easyRecall.sampleSize < 20) {
+                    easyRecallDelta.style.display = 'none';
+                } else {
+                    const sign = data.easyRecall.delta > 0 ? '+' : '';
+                    easyRecallDelta.textContent = `${sign}${data.easyRecall.delta} pts`;
+                    easyRecallDelta.className = `kpi-delta ${data.easyRecall.delta > 0 ? 'positive' : data.easyRecall.delta < 0 ? 'negative' : ''}`;
+                }
+            }
+
+            // Set copy
+            if (easyRecallCopy) {
+                easyRecallCopy.innerHTML = progressCopy.getEasyRecallCopy(data.easyRecall.current, data.easyRecall.delta, data.easyRecall.sampleSize);
             }
         }
     }
