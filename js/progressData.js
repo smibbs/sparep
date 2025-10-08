@@ -619,6 +619,64 @@ export async function getSubjectMastery(userId, days = 30) {
 }
 
 /**
+ * Get study velocity (average cards reviewed per day)
+ * @param {string} userId
+ * @returns {Promise<{current: number, previous: number, delta: number}>}
+ */
+export async function getStudyVelocity(userId) {
+    const supabase = await getSupabaseClient();
+    const now = new Date();
+    const currentWindowStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const previousWindowStart = new Date(currentWindowStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Get reviews for last 14 days
+    const { data: reviews, error } = await supabase
+        .from('reviews')
+        .select('reviewed_at')
+        .eq('user_id', userId)
+        .gte('reviewed_at', previousWindowStart.toISOString())
+        .lte('reviewed_at', now.toISOString());
+
+    if (error) throw error;
+
+    // Group by day
+    const dailyCounts = {};
+    reviews?.forEach(r => {
+        const date = new Date(r.reviewed_at).toISOString().split('T')[0];
+        dailyCounts[date] = (dailyCounts[date] || 0) + 1;
+    });
+
+    // Calculate current window (last 7 days)
+    let currentTotal = 0;
+    let currentDays = 0;
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        if (dailyCounts[date]) {
+            currentTotal += dailyCounts[date];
+            currentDays++;
+        }
+    }
+
+    // Calculate previous window (days 7-13)
+    let previousTotal = 0;
+    let previousDays = 0;
+    for (let i = 7; i < 14; i++) {
+        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        if (dailyCounts[date]) {
+            previousTotal += dailyCounts[date];
+            previousDays++;
+        }
+    }
+
+    // Calculate averages (over 7 days, not just active days)
+    const current = Math.round((currentTotal / 7) * 10) / 10;
+    const previous = Math.round((previousTotal / 7) * 10) / 10;
+    const delta = Math.round((current - previous) * 10) / 10;
+
+    return { current, previous, delta };
+}
+
+/**
  * Get learning curve (forgetting curve data)
  * @param {string} userId
  * @returns {Promise<Array<{elapsedDaysBin: string, accuracy: number, sampleSize: number}>>}
@@ -674,6 +732,7 @@ export default {
     getResponseTime,
     getStabilityAverage,
     getCardsDueTomorrow,
+    getStudyVelocity,
     getRetentionOverTime,
     getStreakHeatmap,
     getDueForecast,

@@ -84,6 +84,30 @@ export function getStabilityCopy(current, previous, delta) {
 }
 
 /**
+ * Generate copy for study velocity KPI
+ * @param {number} current - Current velocity (cards/day)
+ * @param {number} delta - Change from previous period
+ * @returns {string}
+ */
+export function getStudyVelocityCopy(current, delta) {
+    if (current === 0) {
+        return `Start a session to build momentum.`;
+    }
+
+    const sign = delta > 0 ? '+' : '';
+    const absDelta = Math.abs(delta);
+
+    if (delta > 0) {
+        return `⚡ <strong>${current} cards/day</strong> — up <strong>${sign}${absDelta}</strong> from last week. Strong momentum!`;
+    } else if (delta === 0) {
+        return `Consistent <strong>${current} cards/day</strong> — steady rhythm.`;
+    } else {
+        // Slight drop - frame positively
+        return `Pace: <strong>${current} cards/day</strong> (down ${absDelta}). Quick session to rebuild momentum?`;
+    }
+}
+
+/**
  * Generate copy for due cards KPI
  * @param {number} count - Number of cards due
  * @param {number} estimatedMinutes - Estimated time in minutes
@@ -262,6 +286,7 @@ export default {
     getResponseTimeCopy,
     getStabilityCopy,
     getDueTomorrowCopy,
+    getStudyVelocityCopy,
     getRetentionTrendCopy,
     getDueForecastCopy,
     getFocusCopy,

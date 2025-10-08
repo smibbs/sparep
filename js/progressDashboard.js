@@ -99,6 +99,7 @@ class ProgressDashboard {
                 responseTime,
                 stability,
                 dueTomorrow,
+                velocity,
                 retentionOverTime,
                 streakHeatmap,
                 dueForecast,
@@ -114,6 +115,7 @@ class ProgressDashboard {
                 progressData.getResponseTime(this.userId, this.timeWindow >= 30 ? 7 : this.timeWindow),
                 progressData.getStabilityAverage(this.userId, this.timeWindow),
                 progressData.getCardsDueTomorrow(this.userId),
+                progressData.getStudyVelocity(this.userId),
                 progressData.getRetentionOverTime(this.userId, this.timeWindow),
                 progressData.getStreakHeatmap(this.userId, 90),
                 progressData.getDueForecast(this.userId, 14),
@@ -131,7 +133,8 @@ class ProgressDashboard {
                 streak,
                 responseTime,
                 stability,
-                dueTomorrow
+                dueTomorrow,
+                velocity
             });
 
             // Update charts
@@ -233,6 +236,24 @@ class ProgressDashboard {
             dueTomorrowValue.textContent = data.dueTomorrow.count;
             if (dueTomorrowCopy) {
                 dueTomorrowCopy.innerHTML = progressCopy.getDueTomorrowCopy(data.dueTomorrow.count, data.dueTomorrow.estimatedMinutes);
+            }
+        }
+
+        // Study Velocity
+        const velocityValue = document.getElementById('kpi-velocity-value');
+        const velocityCopy = document.getElementById('kpi-velocity-copy');
+        const velocityDelta = document.getElementById('kpi-velocity-delta');
+        if (velocityValue) {
+            velocityValue.textContent = data.velocity.current;
+
+            if (velocityDelta) {
+                const sign = data.velocity.delta > 0 ? '+' : '';
+                velocityDelta.textContent = `${sign}${data.velocity.delta}`;
+                velocityDelta.className = `kpi-delta ${data.velocity.delta > 0 ? 'positive' : data.velocity.delta < 0 ? 'negative' : ''}`;
+            }
+
+            if (velocityCopy) {
+                velocityCopy.innerHTML = progressCopy.getStudyVelocityCopy(data.velocity.current, data.velocity.delta);
             }
         }
     }
