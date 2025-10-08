@@ -619,52 +619,6 @@ export async function getSubjectMastery(userId, days = 30) {
 }
 
 /**
- * Get Easy Recall rate (percentage of reviews rated "Easy")
- * @param {string} userId
- * @param {number} days - Number of days in window
- * @returns {Promise<{current: number, previous: number, delta: number, sampleSize: number}>}
- */
-export async function getEasyRecallRate(userId, days = 7) {
-    const supabase = await getSupabaseClient();
-    const now = new Date();
-    const currentWindowStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-    const previousWindowStart = new Date(currentWindowStart.getTime() - days * 24 * 60 * 60 * 1000);
-
-    // Current window
-    const { data: currentReviews, error: currentError } = await supabase
-        .from('reviews')
-        .select('rating')
-        .eq('user_id', userId)
-        .gte('reviewed_at', currentWindowStart.toISOString())
-        .lte('reviewed_at', now.toISOString());
-
-    if (currentError) throw currentError;
-
-    // Previous window
-    const { data: previousReviews, error: previousError } = await supabase
-        .from('reviews')
-        .select('rating')
-        .eq('user_id', userId)
-        .gte('reviewed_at', previousWindowStart.toISOString())
-        .lt('reviewed_at', currentWindowStart.toISOString());
-
-    if (previousError) throw previousError;
-
-    const calculateEasyRate = (reviews) => {
-        if (!reviews || reviews.length === 0) return 0;
-        const easyCount = reviews.filter(r => r.rating === 3).length;
-        return Math.round((easyCount / reviews.length) * 100);
-    };
-
-    const current = calculateEasyRate(currentReviews);
-    const previous = calculateEasyRate(previousReviews);
-    const delta = current - previous;
-    const sampleSize = currentReviews?.length || 0;
-
-    return { current, previous, delta, sampleSize };
-}
-
-/**
  * Get learning curve (forgetting curve data)
  * @param {string} userId
  * @returns {Promise<Array<{elapsedDaysBin: string, accuracy: number, sampleSize: number}>>}
@@ -720,7 +674,6 @@ export default {
     getResponseTime,
     getStabilityAverage,
     getCardsDueTomorrow,
-    getEasyRecallRate,
     getRetentionOverTime,
     getStreakHeatmap,
     getDueForecast,

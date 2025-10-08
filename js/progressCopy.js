@@ -84,46 +84,6 @@ export function getStabilityCopy(current, previous, delta) {
 }
 
 /**
- * Generate copy for Easy Recall rate KPI
- * @param {number} current - Current easy recall percentage
- * @param {number} delta - Change from previous period
- * @param {number} sampleSize - Number of reviews in current period
- * @returns {string}
- */
-export function getEasyRecallCopy(current, delta, sampleSize) {
-    // Low data state
-    if (sampleSize < 20) {
-        return `Complete 10 cards to unlock this metric.`;
-    }
-
-    const sign = delta > 0 ? '+' : '';
-    const deltaText = delta !== 0 ? `${sign}${delta} pts` : '';
-
-    // >= 80% - Confident recall
-    if (current >= 80) {
-        if (delta > 0) {
-            return `🎯 Confident recall — up <strong>${deltaText}</strong> this week.`;
-        } else {
-            return `Solid recall — you're staying sharp.`;
-        }
-    }
-
-    // 60-79% - Building confidence
-    if (current >= 60) {
-        if (delta > 0) {
-            return `Getting smoother — <strong>${deltaText}</strong> better than last week.`;
-        } else if (delta < 0) {
-            return `A small dip — focus a short session on tough cards.`;
-        } else {
-            return `Steady progress — keep building confidence.`;
-        }
-    }
-
-    // < 60% - Early learning
-    return `New cards are stretching you — keep chipping away.`;
-}
-
-/**
  * Generate copy for due cards KPI
  * @param {number} count - Number of cards due
  * @param {number} estimatedMinutes - Estimated time in minutes
@@ -302,7 +262,6 @@ export default {
     getResponseTimeCopy,
     getStabilityCopy,
     getDueTomorrowCopy,
-    getEasyRecallCopy,
     getRetentionTrendCopy,
     getDueForecastCopy,
     getFocusCopy,
