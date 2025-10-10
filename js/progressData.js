@@ -505,21 +505,23 @@ export async function getDifficultyAccuracyBySubject(userId, days = 30) {
 }
 
 /**
- * Get session rating breakdown for recent sessions
+ * Get session rating breakdown for recent sessions, grouped by date
  * @param {string} userId
- * @param {number} sessionCount
- * @returns {Promise<Array<{sessionId: string, sessionDate: string, ratings: {0: number, 1: number, 2: number, 3: number}, percentGoodEasy: number}>>}
+ * @param {number} days - Number of days to include (default 10)
+ * @returns {Promise<Array<{sessionDate: string, ratings: {0: number, 1: number, 2: number, 3: number}, percentGoodEasy: number}>>}
  */
-export async function getSessionRatings(userId, sessionCount = 10) {
+export async function getSessionRatings(userId, days = 10) {
     const supabase = await getSupabaseClient();
+    const now = new Date();
+    const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-    // Get recent sessions
+    // Get all sessions within the date range
     const { data: sessions, error: sessionsError } = await supabase
         .from('user_sessions')
         .select('id, session_date, created_at')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(sessionCount);
+        .gte('session_date', startDate.toISOString().split('T')[0])
+        .order('created_at', { ascending: false });
 
     if (sessionsError) throw sessionsError;
     if (!sessions || sessions.length === 0) return [];
@@ -534,31 +536,38 @@ export async function getSessionRatings(userId, sessionCount = 10) {
 
     if (reviewsError) throw reviewsError;
 
-    // Group by session
-    const sessionMap = {};
+    // Create a map of session_id to session_date
+    const sessionDateMap = {};
     sessions.forEach(s => {
-        sessionMap[s.id] = {
-            sessionId: s.id,
-            sessionDate: s.session_date,
-            ratings: { 0: 0, 1: 0, 2: 0, 3: 0 }
-        };
+        sessionDateMap[s.id] = s.session_date;
     });
 
+    // Group reviews by date
+    const dateMap = {};
     reviews?.forEach(r => {
-        if (sessionMap[r.session_id]) {
-            sessionMap[r.session_id].ratings[r.rating]++;
+        const date = sessionDateMap[r.session_id];
+        if (!date) return;
+
+        if (!dateMap[date]) {
+            dateMap[date] = {
+                sessionDate: date,
+                ratings: { 0: 0, 1: 0, 2: 0, 3: 0 }
+            };
         }
+        dateMap[date].ratings[r.rating]++;
     });
 
-    // Calculate percentages
-    return Object.values(sessionMap).map(s => {
-        const total = s.ratings[0] + s.ratings[1] + s.ratings[2] + s.ratings[3];
-        const goodEasy = s.ratings[2] + s.ratings[3];
-        return {
-            ...s,
-            percentGoodEasy: total > 0 ? Math.round((goodEasy / total) * 100) : 0
-        };
-    }).reverse(); // Oldest to newest for display
+    // Calculate percentages and sort by date
+    return Object.values(dateMap)
+        .map(d => {
+            const total = d.ratings[0] + d.ratings[1] + d.ratings[2] + d.ratings[3];
+            const goodEasy = d.ratings[2] + d.ratings[3];
+            return {
+                ...d,
+                percentGoodEasy: total > 0 ? Math.round((goodEasy / total) * 100) : 0
+            };
+        })
+        .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate)); // Oldest to newest
 }
 
 /**

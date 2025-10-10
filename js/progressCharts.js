@@ -403,24 +403,14 @@ export function renderSessionRatingsChart(canvasId, data) {
             labels: data.map(s => new Date(s.sessionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
             datasets: [
                 {
-                    label: 'Again (0)',
-                    data: data.map(s => s.ratings[0]),
+                    label: 'Again',
+                    data: data.map(s => s.ratings[0] + s.ratings[1]), // Combine 'Again' and 'Hard'
                     backgroundColor: CHART_COLORS.danger
                 },
                 {
-                    label: 'Hard (1)',
-                    data: data.map(s => s.ratings[1]),
-                    backgroundColor: CHART_COLORS.warning
-                },
-                {
-                    label: 'Good (2)',
-                    data: data.map(s => s.ratings[2]),
+                    label: 'Known',
+                    data: data.map(s => s.ratings[2] + s.ratings[3]), // Combine 'Good' and 'Easy'
                     backgroundColor: CHART_COLORS.primary
-                },
-                {
-                    label: 'Easy (3)',
-                    data: data.map(s => s.ratings[3]),
-                    backgroundColor: CHART_COLORS.success
                 }
             ]
         },
